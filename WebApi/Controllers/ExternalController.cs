@@ -94,19 +94,19 @@ public class ExternalController : ControllerBase
         if (string.IsNullOrWhiteSpace(account))
             return BadRequest(new { message = "account 不可為空" });
 
-        var info = await _db.GetPaydataSummaryAsync(account.Trim());
+        dynamic? info = await _db.GetPaydataSummaryAsync(account.Trim());
         if (info == null)
             return NotFound(new { message = $"找不到玩家「{account}」" });
 
         return Ok(new
         {
-            account      = info.Account,
-            charName     = info.OnlineName,
-            isOnline     = info.IsOnline,
-            vipLevel     = info.VipLevel,
-            payTotal     = info.PayTotal,
-            paydataPoint = info.PaydataPoint,
-            gold         = info.Gold,
+            account      = (string)info.Account,
+            charName     = (string)info.OnlineName,
+            isOnline     = (bool)info.IsOnline,
+            vipLevel     = (int)info.VipLevel,
+            payTotal     = (long)info.PayTotal,
+            paydataPoint = (long)info.PaydataPoint,
+            gold         = (long)info.Gold,
         });
     }
 
