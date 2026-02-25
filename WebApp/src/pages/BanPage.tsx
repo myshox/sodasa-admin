@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import api from '../api'
 import { S } from '../strings'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import type { PlayerRow } from '../api'
 
 interface BanRow { account: string; charName: string; endTime: string; isPermanent: boolean }
 
@@ -61,9 +63,13 @@ export default function BanPage() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <label style={{ flex: 1 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>玩家帳號</span>
-            <input value={banQ} onChange={e => setBanQ(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && doBan()}
-              placeholder="輸入帳號" style={{ width: '100%', marginTop: 2 }} />
+            <PlayerAutocomplete
+              value={banQ}
+              onChange={setBanQ}
+              onSelect={(p: PlayerRow) => setBanQ(p.account)}
+              placeholder="輸入帳號或角色名稱…"
+              style={{ marginTop: 2 }}
+            />
           </label>
           <label style={{ flex: 2 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>封禁原因（選填）</span>

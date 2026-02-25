@@ -1,22 +1,26 @@
 import { useState } from 'react'
-import api from '../api'
 import { S } from '../strings'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import ItemAutocomplete from '../components/ItemAutocomplete'
+import type { ItemInfo } from '../components/ItemBrowser'
+import type { PlayerRow } from '../api'
 
 export default function PetCmdPage() {
-  const [searchQ, setSearchQ] = useState('')
-  const [cdkey,   setCdkey]   = useState('')
-  const [charName,setChar]    = useState('')
-  const [petId,   setPetId]   = useState(1)
-  const [useCdkey,setUseCdkey]= useState(false)
-  const [mkLv,    setMkLv]    = useState(1)
-  const [mkReb,   setMkReb]   = useState(0)
-  const [hp,      setHp]      = useState(1000)
-  const [atk,     setAtk]     = useState(200)
-  const [def,     setDef]     = useState(100)
-  const [spd,     setSpd]     = useState(100)
-  const [abiLv,   setAbiLv]   = useState(1)
-  const [abiReb,  setAbiReb]  = useState(0)
-  const [copied,  setCopied]  = useState('')
+  const [cdkey,    setCdkey]   = useState('')
+  const [charName, setChar]    = useState('')
+  const [playerQ,  setPlayerQ] = useState('')
+  const [petId,    setPetId]   = useState(1)
+  const [petName,  setPetName] = useState('')
+  const [useCdkey, setUseCdkey]= useState(false)
+  const [mkLv,     setMkLv]    = useState(1)
+  const [mkReb,    setMkReb]   = useState(0)
+  const [hp,       setHp]      = useState(1000)
+  const [atk,      setAtk]     = useState(200)
+  const [def,      setDef]     = useState(100)
+  const [spd,      setSpd]     = useState(100)
+  const [abiLv,    setAbiLv]   = useState(1)
+  const [abiReb,   setAbiReb]  = useState(0)
+  const [copied,   setCopied]  = useState('')
 
   const mkCmd  = `[gm petmake ${petId} ${mkLv} ${mkReb}${useCdkey && cdkey ? ` ${cdkey}` : ''}]`
   const abiCmd = `[gm petmakeabi ${petId} ${hp} ${atk} ${def} ${spd} ${abiLv} ${abiReb}]`
@@ -26,14 +30,17 @@ export default function PetCmdPage() {
     setCopied(key); setTimeout(() => setCopied(''), 1500)
   }
 
-  const searchPlayer = async () => {
-    if (!searchQ.trim()) return
-    try {
-      const r = await api.get(`/players/${searchQ.trim()}`)
-      setCdkey(r.data.account)
-      setChar(r.data.onlineName || r.data.account)
-    } catch { alert('找不到玩家') }
+  const onSelectPlayer = (p: PlayerRow) => {
+    setCdkey(p.account)
+    setChar(p.onlineName || p.account)
+    setPlayerQ(p.onlineName || p.account)
   }
+
+  const onSelectPet = (item: ItemInfo) => {
+    setPetId(item.id)
+    setPetName(item.name)
+  }
+
 
   const Nud = ({ label, value, onChange, min = 0, max = 99999 }: {
     label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
@@ -87,25 +94,44 @@ export default function PetCmdPage() {
         🐾 {S.pagePetCmd}
       </h1>
 
-      <Card title={`👤 ${S.petTarget}`}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && searchPlayer()}
-            placeholder={S.petTargetPlh} style={{ flex: 1 }} />
-          <button onClick={searchPlayer}
-            style={{ background: 'var(--accent-blue)', color: '#fff', flexShrink: 0 }}>
-            🔍 {S.petQuery}
-          </button>
-        </div>
+      <Card title="👤 指定玩家帳號（CDKEY）">
+        <PlayerAutocomplete
+          value={playerQ}
+          onChange={setPlayerQ}
+          onSelect={onSelectPlayer}
+          placeholder="輸入帳號或角色名稱（自動下拉建議）"
+        />
         {cdkey && (
           <p style={{ marginTop: 8, fontSize: 13, color: 'var(--accent-green)' }}>
-            {S.petFound(charName, cdkey)}
+            ✓ 已選：{charName}（{cdkey}）
           </p>
         )}
       </Card>
 
-      <Card title={`🔒 ${S.petIdLabel}`}>
-        <Nud label={S.petIdLabel} value={petId} onChange={setPetId} min={1} />
+      <Card title="🐾 選擇寵物種類">
+        {/* 搜尋已上傳的 pets.xlsx */}
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+            名稱搜尋（從已上傳的 pets.xlsx 自動偵測）
+          </div>
+          <ItemAutocomplete
+            mode="pet"
+            onSelect={onSelectPet}
+            placeholder="輸入寵物名稱或編號…"
+          />
+        </div>
+        {petName && (
+          <p style={{ fontSize: 13, color: 'var(--accent-green)', marginBottom: 8 }}>
+            ✓ 已選：{petName} (#{petId})
+          </p>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>或手動輸入編號：</span>
+          <Nud label="" value={petId} onChange={v => { setPetId(v); setPetName('') }} min={1} />
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          ⚠ 請先到「發送道具」頁面點擊「上傳 pets.xlsx」載入寵物清單
+        </div>
       </Card>
 
       <Card title={`⚙️ ${S.petMkTitle}`}>
