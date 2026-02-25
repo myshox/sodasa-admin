@@ -69,73 +69,124 @@ public class DbService
         await using var db = Open();
         await db.OpenAsync();
 
-        // 基本查詢（所有資料庫必有的欄位，不含可能不存在的選填欄）
-        var sqlBase = @"
-            SELECT c.`Name` account,
-                   IFNULL(c.OnlineName,'') onlineName,
-                   (c.Online=1) isOnline,
-                   IFNULL(c.ServerId,0) serverId,
-                   IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
-                   IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
-                   IFNULL(c.IP,'') ip,
-                   IFNULL(c.RegIP,'') regIP,
-                   (lk.Name IS NOT NULL) isBanned,
-                   IFNULL(lk.time,0) banTime,
-                   IFNULL(c.VipPoint,0) gold,
-                   IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(c.uid,'') uid,
-                   IFNULL(c.MAC1,'') mac,
-                   (c.Offline=1) isMuted,
-                   IFNULL(c.PayTotal,0) payTotal,
-                   IFNULL(mail.total,0) totalMails,
-                   IFNULL(mail.unread,0) unreadMails,
-                   IFNULL(pet.cnt,0) petCount
-            FROM csalogin c
-            LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (
-                SELECT receiverid,
-                       COUNT(*) AS total,
-                       SUM(CASE WHEN isread=0 THEN 1 ELSE 0 END) AS unread
-                FROM maildata GROUP BY receiverid
-            ) mail ON mail.receiverid=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
-                   ON pet.cdkey=c.`Name`
-            WHERE c.`Name`=@acc LIMIT 1";
+        PlayerDetail? d = null;
 
-        await using var cmd = new MySqlCommand(sqlBase, db);
-        cmd.Parameters.AddWithValue("@acc", account);
-        await using var r = await cmd.ExecuteReaderAsync();
-        if (!await r.ReadAsync()) return null;
-
-        var d = new PlayerDetail
+        // 嘗試完整查詢（含 lock/maildata/capturepet）
+        try
         {
-            Account     = r.GetString("account"),
-            OnlineName  = r.GetString("onlineName"),
-            IsOnline    = r.GetBoolean("isOnline"),
-            ServerId    = r.GetInt32("serverId"),
-            RegTime     = r.GetString("regTime"),
-            LoginTime   = r.GetString("loginTime"),
-            IP          = r.GetString("ip"),
-            RegIP       = r.GetString("regIP"),
-            IsBanned    = r.GetBoolean("isBanned"),
-            Gold        = r.GetInt64("gold"),
-            Crystal     = r.GetInt64("crystal"),
-            Uid         = r.GetString("uid"),
-            MAC         = r.GetString("mac"),
-            IsMuted     = r.GetBoolean("isMuted"),
-            PayTotal    = r.GetInt64("payTotal"),
-            TotalMails  = r.GetInt32("totalMails"),
-            UnreadMails = r.GetInt32("unreadMails"),
-            PetCount    = r.GetInt32("petCount"),
-        };
-        if (d.IsBanned)
-        {
-            long banTime = r.GetInt64("banTime");
-            d.BanEndTime = banTime == 0 ? "\u6C38\u4E45" :
-                DateTimeOffset.FromUnixTimeSeconds(banTime).LocalDateTime.ToString("yyyy/MM/dd HH:mm");
+            var sqlFull = @"
+                SELECT c.`Name` account,
+                       IFNULL(c.OnlineName,'') onlineName,
+                       (c.Online=1) isOnline,
+                       IFNULL(c.ServerId,0) serverId,
+                       IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                       IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                       IFNULL(c.IP,'') ip,
+                       IFNULL(c.RegIP,'') regIP,
+                       (lk.Name IS NOT NULL) isBanned,
+                       IFNULL(lk.time,0) banTime,
+                       IFNULL(c.VipPoint,0) gold,
+                       IFNULL(c.PetPoint,0) crystal,
+                       IFNULL(c.uid,'') uid,
+                       IFNULL(c.MAC1,'') mac,
+                       (c.Offline=1) isMuted,
+                       IFNULL(c.PayTotal,0) payTotal,
+                       IFNULL(mail.total,0) totalMails,
+                       IFNULL(mail.unread,0) unreadMails,
+                       IFNULL(pet.cnt,0) petCount
+                FROM csalogin c
+                LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+                LEFT JOIN (
+                    SELECT receiverid,
+                           COUNT(*) AS total,
+                           SUM(CASE WHEN isread=0 THEN 1 ELSE 0 END) AS unread
+                    FROM maildata GROUP BY receiverid
+                ) mail ON mail.receiverid=c.`Name`
+                LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
+                       ON pet.cdkey=c.`Name`
+                WHERE c.`Name`=@acc LIMIT 1";
+            await using var cmd = new MySqlCommand(sqlFull, db);
+            cmd.Parameters.AddWithValue("@acc", account);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return null;
+            d = new PlayerDetail
+            {
+                Account     = r.GetString("account"),
+                OnlineName  = r.GetString("onlineName"),
+                IsOnline    = r.GetBoolean("isOnline"),
+                ServerId    = r.GetInt32("serverId"),
+                RegTime     = r.GetString("regTime"),
+                LoginTime   = r.GetString("loginTime"),
+                IP          = r.GetString("ip"),
+                RegIP       = r.GetString("regIP"),
+                IsBanned    = r.GetBoolean("isBanned"),
+                Gold        = r.GetInt64("gold"),
+                Crystal     = r.GetInt64("crystal"),
+                Uid         = r.GetString("uid"),
+                MAC         = r.GetString("mac"),
+                IsMuted     = r.GetBoolean("isMuted"),
+                PayTotal    = r.GetInt64("payTotal"),
+                TotalMails  = r.GetInt32("totalMails"),
+                UnreadMails = r.GetInt32("unreadMails"),
+                PetCount    = r.GetInt32("petCount"),
+            };
+            if (d.IsBanned)
+            {
+                long banTime = r.GetInt64("banTime");
+                d.BanEndTime = banTime == 0 ? "永久" :
+                    DateTimeOffset.FromUnixTimeSeconds(banTime).LocalDateTime.ToString("yyyy/MM/dd HH:mm");
+            }
         }
+        catch
+        {
+            // fallback：最小查詢，不依賴可能缺失的表格
+            try
+            {
+                var sqlMin = @"SELECT `Name` account,
+                           IFNULL(OnlineName,'') onlineName,
+                           (Online=1) isOnline,
+                           IFNULL(ServerId,0) serverId,
+                           IFNULL(DATE_FORMAT(created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                           IFNULL(DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                           IFNULL(IP,'') ip,
+                           IFNULL(RegIP,'') regIP,
+                           0 isBanned, 0 banTime,
+                           IFNULL(VipPoint,0) gold,
+                           IFNULL(PetPoint,0) crystal,
+                           IFNULL(uid,'') uid,
+                           IFNULL(MAC1,'') mac,
+                           (Offline=1) isMuted,
+                           IFNULL(PayTotal,0) payTotal,
+                           0 totalMails, 0 unreadMails, 0 petCount
+                    FROM csalogin WHERE `Name`=@acc LIMIT 1";
+                await using var cmd2 = new MySqlCommand(sqlMin, db);
+                cmd2.Parameters.AddWithValue("@acc", account);
+                await using var r2 = await cmd2.ExecuteReaderAsync();
+                if (!await r2.ReadAsync()) return null;
+                d = new PlayerDetail
+                {
+                    Account    = r2.GetString("account"),
+                    OnlineName = r2.GetString("onlineName"),
+                    IsOnline   = r2.GetBoolean("isOnline"),
+                    ServerId   = r2.GetInt32("serverId"),
+                    RegTime    = r2.GetString("regTime"),
+                    LoginTime  = r2.GetString("loginTime"),
+                    IP         = r2.GetString("ip"),
+                    RegIP      = r2.GetString("regIP"),
+                    IsBanned   = false,
+                    Gold       = r2.GetInt64("gold"),
+                    Crystal    = r2.GetInt64("crystal"),
+                    Uid        = r2.GetString("uid"),
+                    MAC        = r2.GetString("mac"),
+                    IsMuted    = r2.GetBoolean("isMuted"),
+                    PayTotal   = r2.GetInt64("payTotal"),
+                };
+            }
+            catch { return null; }
+        }
+
+        if (d == null) return null;
         d.VipLevel = d.PayTotal >= 15000 ? 2 : d.PayTotal >= 5000 ? 1 : 0;
-        await r.CloseAsync();
 
         // 可選欄位：PayPoint、RmbPoint（充值點/R幣）
         try
