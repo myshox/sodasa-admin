@@ -174,12 +174,16 @@ public class MailHistoryDto
     public bool   IsRead    { get; set; }
 }
 
-/// <summary>給予儲值：台幣累積進度 + 可選同時發放金幣（與 EXE 一致）</summary>
+/// <summary>給予儲值：台幣累積進度 + 可選同時發放金幣 + 可選同步累積儲值（與 EXE 一致）</summary>
 public class RechargeRequest
 {
-    public long TwdAmount  { get; set; }
-    public long GoldAmount { get; set; }
-    public bool GiveGold   { get; set; } = true;
+    public long TwdAmount      { get; set; }
+    public long GoldAmount     { get; set; }
+    public bool GiveGold       { get; set; } = true;
+    /// <summary>是否同步更新 paydata 累積儲值循環進度（預設 true，與 EXE 一致）</summary>
+    public bool UpdatePaydata  { get; set; } = true;
+    /// <summary>加成百分比 0/5/10/15/20（用於記錄，實際金幣由前端計算後傳入）</summary>
+    public int  BonusPercent   { get; set; } = 0;
 }
 
 // 商城分析

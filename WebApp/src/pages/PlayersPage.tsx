@@ -8,16 +8,18 @@ const CYCLE = 25_000
 
 const VIP_LABEL = ['', '黃金 VIP', '鑽石 VIP']
 const VIP_COLOR = ['', 'var(--accent-orange)', '#4dd0e1']
+const VIP_BONUS = [0, 0, 5, 10] // vipLevel → 預設加成%
 
 const RECHARGE_TIERS = [
-  { label: 'NT$100 / 1萬', gold: 10_000, twd: 100 },
-  { label: 'NT$300 / 3.2萬', gold: 32_000, twd: 300 },
-  { label: 'NT$500 / 5.5萬', gold: 55_000, twd: 500 },
-  { label: 'NT$1K / 11.5萬', gold: 115_000, twd: 1_000 },
-  { label: 'NT$3K / 36萬', gold: 360_000, twd: 3_000 },
-  { label: 'NT$5K / 62.5萬', gold: 625_000, twd: 5_000 },
-  { label: 'NT$10K / 130萬', gold: 1_300_000, twd: 10_000 },
+  { label: 'NT$100',  sub: '1萬金',    gold: 10_000,    twd: 100 },
+  { label: 'NT$300',  sub: '3.2萬金',  gold: 32_000,    twd: 300 },
+  { label: 'NT$500',  sub: '5.5萬金',  gold: 55_000,    twd: 500 },
+  { label: 'NT$1K',   sub: '11.5萬金', gold: 115_000,   twd: 1_000 },
+  { label: 'NT$3K',   sub: '36萬金',   gold: 360_000,   twd: 3_000 },
+  { label: 'NT$5K',   sub: '62.5萬金', gold: 625_000,   twd: 5_000 },
+  { label: 'NT$10K',  sub: '130萬金',  gold: 1_300_000, twd: 10_000 },
 ]
+const BONUS_OPTIONS = [0, 5, 10, 15, 20]
 
 export default function PlayersPage() {
   const navigate = useNavigate()
@@ -86,6 +88,9 @@ export default function PlayersPage() {
   const [twdAmount, setTwdAmount] = useState(0)
   const [goldAmount, setGoldAmount] = useState(0)
   const [giveGold, setGiveGold] = useState(true)
+  const [updatePaydata, setUpdatePaydata] = useState(true)
+  const [bonusPct, setBonusPct] = useState(0)
+  const [selectedTierIdx, setSelectedTierIdx] = useState(-1)
 
   // 改名
   const [showRename, setShowRename] = useState(false)
@@ -163,14 +168,25 @@ export default function PlayersPage() {
 
   const doForceOffline = async () => {
     if (!detail) return
+    if (!window.confirm(`確認強制下線「${detail.onlineName}」（${detail.account}）？`)) return
     await api.post(`/players/${detail.account}/force-offline`)
     setDetail({ ...detail, isOnline: false }); flash('已強制下線')
   }
 
   const doRecharge = async () => {
     if (!detail || twdAmount <= 0) return
-    await api.post(`/players/${detail.account}/recharge`, { twdAmount, goldAmount: giveGold ? goldAmount : 0, giveGold })
-    flash(S.rechargeDone); setShowRecharge(false); setTwdAmount(0); setGoldAmount(0)
+    const finalGold = giveGold ? goldAmount : 0
+    const bonusNote = bonusPct > 0 ? `\n+${bonusPct}% 加成` : ''
+    const paydataNote = updatePaydata ? '\n✓ 同步累積儲值' : '\n✗ 不同步累積儲值'
+    const ok = window.confirm(
+      `確認充值？\n\n玩家：${detail.onlineName}（${detail.account}）\n台幣：NT$ ${twdAmount.toLocaleString()}${bonusNote}\n${giveGold ? `金幣：+${finalGold.toLocaleString()}` : '不發放金幣'}${paydataNote}`
+    )
+    if (!ok) return
+    await api.post(`/players/${detail.account}/recharge`, {
+      twdAmount, goldAmount: finalGold, giveGold, updatePaydata, bonusPercent: bonusPct
+    })
+    flash(S.rechargeDone); setShowRecharge(false)
+    setTwdAmount(0); setGoldAmount(0); setBonusPct(0); setSelectedTierIdx(-1)
     loadDetail(detail.account)
   }
 
@@ -335,15 +351,55 @@ export default function PlayersPage() {
             {showRecharge && (
               <div style={{ marginBottom: 12, padding: 12, background: 'var(--bg-input)', border: '1px solid var(--accent-orange)', borderRadius: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--accent-orange)', marginBottom: 8 }}>💳 {S.rechargeTitle}</div>
+
+                {/* VIP 加成提示 */}
+                {detail && detail.vipLevel > 0 && (
+                  <div style={{ fontSize: 11, color: VIP_COLOR[detail.vipLevel], background: `${VIP_COLOR[detail.vipLevel]}18`, border: `1px solid ${VIP_COLOR[detail.vipLevel]}44`, borderRadius: 4, padding: '3px 8px', marginBottom: 8 }}>
+                    {VIP_LABEL[detail.vipLevel]} 自動套用 +{VIP_BONUS[detail.vipLevel]}% 加成
+                  </div>
+                )}
+
+                {/* STEP 1：套餐 */}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>STEP 1 — 選擇套餐</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-                  {RECHARGE_TIERS.map(t => (
-                    <button key={t.twd} onClick={() => { setTwdAmount(t.twd); setGoldAmount(t.gold); setGiveGold(true) }}
-                      style={{ padding: '4px 8px', fontSize: 11, background: twdAmount === t.twd ? 'var(--accent-orange)' : 'var(--bg-card)', color: twdAmount === t.twd ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
-                      {t.label}
+                  {RECHARGE_TIERS.map((t, i) => (
+                    <button key={t.twd} onClick={() => {
+                      setSelectedTierIdx(i); setTwdAmount(t.twd)
+                      const vipB = detail ? VIP_BONUS[detail.vipLevel] ?? 0 : 0
+                      const bp = Math.max(bonusPct, vipB)
+                      setBonusPct(bp)
+                      setGoldAmount(Math.floor(t.gold * (1 + bp / 100)))
+                    }}
+                      style={{ padding: '5px 8px', fontSize: 11, lineHeight: 1.3, textAlign: 'center',
+                        background: selectedTierIdx === i ? 'var(--accent-orange)' : 'var(--bg-card)',
+                        color: selectedTierIdx === i ? '#fff' : 'var(--text-secondary)',
+                        border: `1px solid ${selectedTierIdx === i ? 'var(--accent-orange)' : 'var(--border)'}`, borderRadius: 4 }}>
+                      <div>{t.label}</div>
+                      <div style={{ fontSize: 10, opacity: 0.8 }}>{t.sub}</div>
                     </button>
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+
+                {/* STEP 2：加成 % */}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>STEP 2 — 回饋加成</div>
+                <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexWrap: 'wrap' }}>
+                  {BONUS_OPTIONS.map(b => (
+                    <button key={b} onClick={() => {
+                      setBonusPct(b)
+                      if (selectedTierIdx >= 0)
+                        setGoldAmount(Math.floor(RECHARGE_TIERS[selectedTierIdx].gold * (1 + b / 100)))
+                    }}
+                      style={{ padding: '4px 10px', fontSize: 11,
+                        background: bonusPct === b ? (b === 0 ? 'var(--bg-card)' : 'var(--accent-green)') : 'var(--bg-card)',
+                        color: bonusPct === b ? (b === 0 ? 'var(--text-secondary)' : '#fff') : 'var(--text-muted)',
+                        border: `1px solid ${bonusPct === b ? (b === 0 ? 'var(--border)' : 'var(--accent-green)') : 'var(--border)'}`, borderRadius: 4 }}>
+                      {b === 0 ? '無加成' : `+${b}%`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 手動輸入 */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <label style={{ flex: 1, fontSize: 12 }}>NT$ 台幣
                     <input type="number" min={0} value={twdAmount || ''} onChange={e => setTwdAmount(+e.target.value || 0)} style={{ width: '100%', marginTop: 2 }} />
                   </label>
@@ -351,15 +407,37 @@ export default function PlayersPage() {
                     <input type="number" min={0} value={goldAmount || ''} onChange={e => setGoldAmount(+e.target.value || 0)} style={{ width: '100%', marginTop: 2 }} />
                   </label>
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 8 }}>
-                  <input type="checkbox" checked={giveGold} onChange={e => setGiveGold(e.target.checked)} />
-                  同時發放金幣
-                </label>
+
+                {/* 預覽 */}
+                {twdAmount > 0 && goldAmount > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--accent-blue)', background: 'rgba(74,158,255,.08)', border: '1px solid var(--accent-blue)33', borderRadius: 4, padding: '4px 8px', marginBottom: 8 }}>
+                    📋 確認：NT$ {twdAmount.toLocaleString()}
+                    {bonusPct > 0 && ` (+${bonusPct}% 加成)`}
+                    {giveGold && ` → +${goldAmount.toLocaleString()} 金幣`}
+                    {!giveGold && ` → 不發金幣`}
+                    {updatePaydata ? '，同步累積儲值' : '，不同步累積儲值'}
+                  </div>
+                )}
+
+                {/* 選項 */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={giveGold} onChange={e => setGiveGold(e.target.checked)} />
+                    發放金幣
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={updatePaydata} onChange={e => setUpdatePaydata(e.target.checked)} />
+                    同步累積儲值
+                  </label>
+                </div>
+
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={doRecharge} disabled={twdAmount <= 0}
-                    style={{ flex: 1, background: 'var(--accent-orange)', color: '#fff', padding: '6px 0', borderRadius: 6 }}>{S.rechargeConfirm}</button>
-                  <button onClick={() => { setShowRecharge(false); setTwdAmount(0); setGoldAmount(0) }}
-                    style={{ padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>{S.cancel}</button>
+                    style={{ flex: 1, background: 'var(--accent-orange)', color: '#fff', padding: '7px 0', borderRadius: 6, opacity: twdAmount <= 0 ? 0.5 : 1 }}>
+                    ✓ {S.rechargeConfirm}
+                  </button>
+                  <button onClick={() => { setShowRecharge(false); setTwdAmount(0); setGoldAmount(0); setSelectedTierIdx(-1); setBonusPct(0) }}
+                    style={{ padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 6 }}>{S.cancel}</button>
                 </div>
               </div>
             )}

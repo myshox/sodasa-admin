@@ -120,7 +120,7 @@ public class PlayersController : ControllerBase
             return BadRequest(new { message = "台幣金額須大於 0" });
         if (req.GiveGold && req.GoldAmount < 0)
             return BadRequest(new { message = "金幣數量不可為負" });
-        var ok = await _db.AdjustPayDataPointAsync(account, req.TwdAmount, req.GoldAmount, req.GiveGold);
+        var ok = await _db.AdjustPayDataPointAsync(account, req.TwdAmount, req.GoldAmount, req.GiveGold, req.UpdatePaydata);
         return ok ? Ok(new { message = "\u2713 \u5DF2\u7D66\u4E88\u5132\u503C" }) : BadRequest(new { message = "\u4FEE\u6539\u5931\u6557" });
     }
 

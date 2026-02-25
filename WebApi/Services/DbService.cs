@@ -619,7 +619,7 @@ public class DbService
     // ── 給予儲值（與 EXE 一致：paydata 循環 25,000、csalogin.PayTotal/VipPoint）────────
     private const long CYCLE_MAX = 25_000L;
 
-    public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold)
+    public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold, bool updatePaydata = true)
     {
         await using var db = Open();
         await db.OpenAsync();
@@ -635,53 +635,60 @@ public class DbService
             ok = await cmdLogin.ExecuteNonQueryAsync() > 0;
         }
 
+        // 若不同步累積儲值，直接回傳
+        if (!updatePaydata) return ok;
+
         long currentPoint = 0, currentTotalCheck = 0;
-        await using (var cmdGet = new MySqlCommand(
-            "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db))
+        try
         {
-            cmdGet.Parameters.AddWithValue("@cdkey", account);
-            await using var r = await cmdGet.ExecuteReaderAsync();
-            if (await r.ReadAsync())
+            await using (var cmdGet = new MySqlCommand(
+                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db))
             {
-                currentPoint      = Convert.ToInt64(r["pt"]);
-                currentTotalCheck = Convert.ToInt64(r["tc"]);
+                cmdGet.Parameters.AddWithValue("@cdkey", account);
+                await using var r = await cmdGet.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    currentPoint      = Convert.ToInt64(r["pt"]);
+                    currentTotalCheck = Convert.ToInt64(r["tc"]);
+                }
+            }
+
+            long rawTotal = currentPoint + twdAmount;
+            long completedCycles = rawTotal > 0 ? (rawTotal - 1) / CYCLE_MAX : 0;
+            long newCyclePoint   = rawTotal - completedCycles * CYCLE_MAX;
+            long newTotalCheck   = currentTotalCheck + completedCycles;
+
+            if (completedCycles > 0)
+            {
+                await using var cmdPay = new MySqlCommand(@"
+                    INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+                    VALUES (@cdkey, @newpt, NOW(), 0, @tc, @lt)
+                    ON DUPLICATE KEY UPDATE
+                        point          = @newpt,
+                        `check`        = 0,
+                        totalcheck     = @tc,
+                        lifetime_total = lifetime_total + @twd", db);
+                cmdPay.Parameters.AddWithValue("@cdkey", account);
+                cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
+                cmdPay.Parameters.AddWithValue("@tc",    newTotalCheck);
+                cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+                cmdPay.Parameters.AddWithValue("@lt",    twdAmount);
+                await cmdPay.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                await using var cmdPay = new MySqlCommand(@"
+                    INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+                    VALUES (@cdkey, @twd, NOW(), 0, 0, @twd)
+                    ON DUPLICATE KEY UPDATE
+                        point          = point + @twd,
+                        lifetime_total = lifetime_total + @twd", db);
+                cmdPay.Parameters.AddWithValue("@cdkey", account);
+                cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+                await cmdPay.ExecuteNonQueryAsync();
             }
         }
-
-        long rawTotal = currentPoint + twdAmount;
-        long completedCycles = rawTotal > 0 ? (rawTotal - 1) / CYCLE_MAX : 0;
-        long newCyclePoint   = rawTotal - completedCycles * CYCLE_MAX;
-        long newTotalCheck   = currentTotalCheck + completedCycles;
-
-        if (completedCycles > 0)
-        {
-            await using var cmdPay = new MySqlCommand(@"
-                INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
-                VALUES (@cdkey, @newpt, NOW(), 0, @tc, @lt)
-                ON DUPLICATE KEY UPDATE
-                    point          = @newpt,
-                    `check`        = 0,
-                    totalcheck     = @tc,
-                    lifetime_total = lifetime_total + @twd", db);
-            cmdPay.Parameters.AddWithValue("@cdkey", account);
-            cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
-            cmdPay.Parameters.AddWithValue("@tc",    newTotalCheck);
-            cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
-            cmdPay.Parameters.AddWithValue("@lt",    twdAmount);
-            await cmdPay.ExecuteNonQueryAsync();
-        }
-        else
-        {
-            await using var cmdPay = new MySqlCommand(@"
-                INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
-                VALUES (@cdkey, @twd, NOW(), 0, 0, @twd)
-                ON DUPLICATE KEY UPDATE
-                    point          = point + @twd,
-                    lifetime_total = lifetime_total + @twd", db);
-            cmdPay.Parameters.AddWithValue("@cdkey", account);
-            cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
-            await cmdPay.ExecuteNonQueryAsync();
-        }
+        catch { /* paydata 表不存在時靜默忽略 */ }
 
         return ok;
     }
