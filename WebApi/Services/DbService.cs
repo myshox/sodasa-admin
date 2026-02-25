@@ -1,3 +1,4 @@
+using System.Linq;
 using MySqlConnector;
 using WebApi.Models;
 
@@ -16,31 +17,49 @@ public class DbService
     {
         await using var db = Open();
         await db.OpenAsync();
-        var sql = @"
-            SELECT c.`Name` account,
-                   IFNULL(c.OnlineName,'') onlineName,
-                   (c.Online=1) isOnline,
-                   IFNULL(c.ServerId,0) serverId,
+        // 嘗試含主帳號的完整查詢；若 csaloginmaster 不存在則降級
+        string[] sqls = {
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
+                   (c.Online=1) isOnline, IFNULL(c.ServerId,0) serverId,
                    IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
-                   IFNULL(c.IP,'') ip,
-                   (lk.Name IS NOT NULL) isBanned,
-                   IFNULL(c.VipPoint,0) gold,
-                   IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(pet.cnt,0) petCount
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal,
+                   IFNULL(m.`Name`,'') masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
-                   ON pet.cdkey=c.`Name`
+            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
+            LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
             WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw
-            ORDER BY c.Online DESC, c.LoginTime DESC
-            LIMIT @lim";
-        await using var cmd = new MySqlCommand(sql, db);
-        cmd.Parameters.AddWithValue("@kw", $"%{kw}%");
-        cmd.Parameters.AddWithValue("@lim", limit);
+            ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
+                   (c.Online=1) isOnline, IFNULL(c.ServerId,0) serverId,
+                   IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                   IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
+            FROM csalogin c
+            LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
+            WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw
+            ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim"
+        };
         var list = new List<PlayerRow>();
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync()) list.Add(MapRow(r));
+        foreach (var sql in sqls)
+        {
+            try
+            {
+                await using var cmd = new MySqlCommand(sql, db);
+                cmd.Parameters.AddWithValue("@kw", $"%{kw}%");
+                cmd.Parameters.AddWithValue("@lim", limit);
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(MapRow(r));
+                return list;
+            }
+            catch { list.Clear(); }
+        }
         return list;
     }
 
@@ -49,7 +68,9 @@ public class DbService
     {
         await using var db = Open();
         await db.OpenAsync();
-        var sql = @"
+
+        // 基本查詢（所有資料庫必有的欄位，不含可能不存在的選填欄）
+        var sqlBase = @"
             SELECT c.`Name` account,
                    IFNULL(c.OnlineName,'') onlineName,
                    (c.Online=1) isOnline,
@@ -80,39 +101,140 @@ public class DbService
             LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
                    ON pet.cdkey=c.`Name`
             WHERE c.`Name`=@acc LIMIT 1";
-        await using var cmd = new MySqlCommand(sql, db);
+
+        await using var cmd = new MySqlCommand(sqlBase, db);
         cmd.Parameters.AddWithValue("@acc", account);
         await using var r = await cmd.ExecuteReaderAsync();
         if (!await r.ReadAsync()) return null;
+
         var d = new PlayerDetail
         {
-            Account    = r.GetString("account"),
-            OnlineName = r.GetString("onlineName"),
-            IsOnline   = r.GetBoolean("isOnline"),
-            ServerId   = r.GetInt32("serverId"),
-            RegTime    = r.GetString("regTime"),
-            LoginTime  = r.GetString("loginTime"),
-            IP         = r.GetString("ip"),
-            RegIP      = r.GetString("regIP"),
-            IsBanned   = r.GetBoolean("isBanned"),
-            Gold       = r.GetInt64("gold"),
-            Crystal    = r.GetInt64("crystal"),
-            Uid        = r.GetString("uid"),
-            MAC        = r.GetString("mac"),
-            IsMuted    = r.GetBoolean("isMuted"),
-            PayTotal   = r.GetInt64("payTotal"),
-            TotalMails = r.GetInt32("totalMails"),
-            UnreadMails= r.GetInt32("unreadMails"),
-            PetCount   = r.GetInt32("petCount"),
+            Account     = r.GetString("account"),
+            OnlineName  = r.GetString("onlineName"),
+            IsOnline    = r.GetBoolean("isOnline"),
+            ServerId    = r.GetInt32("serverId"),
+            RegTime     = r.GetString("regTime"),
+            LoginTime   = r.GetString("loginTime"),
+            IP          = r.GetString("ip"),
+            RegIP       = r.GetString("regIP"),
+            IsBanned    = r.GetBoolean("isBanned"),
+            Gold        = r.GetInt64("gold"),
+            Crystal     = r.GetInt64("crystal"),
+            Uid         = r.GetString("uid"),
+            MAC         = r.GetString("mac"),
+            IsMuted     = r.GetBoolean("isMuted"),
+            PayTotal    = r.GetInt64("payTotal"),
+            TotalMails  = r.GetInt32("totalMails"),
+            UnreadMails = r.GetInt32("unreadMails"),
+            PetCount    = r.GetInt32("petCount"),
         };
-        // 解析封號時間
         if (d.IsBanned)
         {
             long banTime = r.GetInt64("banTime");
             d.BanEndTime = banTime == 0 ? "\u6C38\u4E45" :
                 DateTimeOffset.FromUnixTimeSeconds(banTime).LocalDateTime.ToString("yyyy/MM/dd HH:mm");
         }
+        d.VipLevel = d.PayTotal >= 15000 ? 2 : d.PayTotal >= 5000 ? 1 : 0;
+        await r.CloseAsync();
+
+        // 可選欄位：PayPoint、RmbPoint（充值點/R幣）
+        try
+        {
+            await using var cmdX = new MySqlCommand(
+                "SELECT IFNULL(PayPoint,0) pp, IFNULL(RmbPoint,0) rp FROM csalogin WHERE `Name`=@acc LIMIT 1", db);
+            cmdX.Parameters.AddWithValue("@acc", account);
+            await using var rX = await cmdX.ExecuteReaderAsync();
+            if (await rX.ReadAsync()) { d.PayPoint = rX.GetInt64("pp"); d.RmbPoint = rX.GetInt64("rp"); }
+        }
+        catch { }
+
+        // 可選欄位：GroupId、NeiCe（GM 權限）
+        try
+        {
+            await using var cmdG = new MySqlCommand(
+                "SELECT IFNULL(GroupId,0) gid, IFNULL(NeiCe,0) nc FROM csalogin WHERE `Name`=@acc LIMIT 1", db);
+            cmdG.Parameters.AddWithValue("@acc", account);
+            await using var rG = await cmdG.ExecuteReaderAsync();
+            if (await rG.ReadAsync()) { d.GroupId = rG.GetInt32("gid"); d.NeiCe = rG.GetInt32("nc"); }
+        }
+        catch { }
+
+        // 可選：主帳號名稱（csaloginmaster 可能不存在）
+        try
+        {
+            await using var cmdM = new MySqlCommand(
+                @"SELECT IFNULL(m.`Name`,'') mname FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE c.`Name`=@acc LIMIT 1", db);
+            cmdM.Parameters.AddWithValue("@acc", account);
+            await using var rM = await cmdM.ExecuteReaderAsync();
+            if (await rM.ReadAsync()) d.MasterName = rM.GetString("mname");
+        }
+        catch { }
+
+        // paydata 循環進度（可能不存在或欄位不同）
+        try
+        {
+            await using var cmdPd = new MySqlCommand(
+                "SELECT IFNULL(point,0) pt, IFNULL(totalcheck,0) tc, IFNULL(lifetime_total,point) lt FROM paydata WHERE cdkey=@acc LIMIT 1", db);
+            cmdPd.Parameters.AddWithValue("@acc", account);
+            await using var rPd = await cmdPd.ExecuteReaderAsync();
+            if (await rPd.ReadAsync())
+            {
+                d.PaydataPoint = rPd.GetInt64("pt");
+                d.TotalCheck   = rPd.GetInt64("tc");
+                d.PaydataTotal = rPd.GetInt64("lt");
+            }
+        }
+        catch { }
+
         return d;
+    }
+
+    // ── 改名 ─────────────────────────────────────────────────
+    public async Task<bool> RenamePlayerAsync(string account, string newName)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "UPDATE csalogin SET OnlineName=@n WHERE `Name`=@a LIMIT 1", db);
+        cmd.Parameters.AddWithValue("@n", newName);
+        cmd.Parameters.AddWithValue("@a", account);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    // ── 強制下線 ──────────────────────────────────────────────
+    public async Task<bool> ForceOfflineAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "UPDATE csalogin SET Online=0 WHERE `Name`=@n", db);
+        cmd.Parameters.AddWithValue("@n", account);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    // ── 禁言 ─────────────────────────────────────────────────
+    public async Task<bool> SetMuteAsync(string account, bool mute)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "UPDATE csalogin SET Offline=@v WHERE `Name`=@n", db);
+        cmd.Parameters.AddWithValue("@v", mute ? 1 : 0);
+        cmd.Parameters.AddWithValue("@n", account);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    // ── 重置 paydata 循環進度 ─────────────────────────────────
+    public async Task<bool> ResetPaydataAsync(string account)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                "UPDATE paydata SET point=0 WHERE cdkey=@a", db);
+            cmd.Parameters.AddWithValue("@a", account);
+            return await cmd.ExecuteNonQueryAsync() >= 0;
+        }
+        catch { return false; }
     }
 
     // ── 設定金幣 ─────────────────────────────────────────────
@@ -161,30 +283,76 @@ public class DbService
         }
     }
 
+    // ── 玩家列表（全服，供批量操作用）────────────────────────
+    public async Task<List<PlayerRow>> GetPlayerListAsync(int limit = 500)
+        => await RunWithFallbackAsync(
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
+                   (c.Online=1) isOnline, IFNULL(c.ServerId,0) serverId,
+                   IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                   IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, IFNULL(m.`Name`,'') masterName
+            FROM csalogin c
+            LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
+            LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+            ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
+                   (c.Online=1) isOnline, IFNULL(c.ServerId,0) serverId,
+                   IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                   IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
+            FROM csalogin c
+            LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
+            ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
+            p => { p.AddWithValue("@lim", limit); });
+
     // ── 線上玩家 ─────────────────────────────────────────────
     public async Task<List<PlayerRow>> GetOnlineAsync()
-    {
-        await using var db = Open(); await db.OpenAsync();
-        var sql = @"
-            SELECT c.`Name` account,
-                   IFNULL(c.OnlineName,'') onlineName,
-                   1 isOnline,
+        => await RunWithFallbackAsync(
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, 1 isOnline,
                    IFNULL(c.ServerId,0) serverId,
                    IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
-                   IFNULL(c.IP,'') ip,
-                   (lk.Name IS NOT NULL) isBanned,
-                   IFNULL(c.VipPoint,0) gold,
-                   IFNULL(c.PetPoint,0) crystal,
-                   0 petCount
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   0 petCount, IFNULL(c.PayTotal,0) payTotal, IFNULL(m.`Name`,'') masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            WHERE c.Online=1
-            ORDER BY c.ServerId";
-        await using var cmd = new MySqlCommand(sql, db);
+            LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+            WHERE c.Online=1 ORDER BY c.ServerId",
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, 1 isOnline,
+                   IFNULL(c.ServerId,0) serverId,
+                   IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
+                   IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                   IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
+                   IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                   0 petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
+            FROM csalogin c
+            LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+            WHERE c.Online=1 ORDER BY c.ServerId",
+            _ => { });
+
+    private async Task<List<PlayerRow>> RunWithFallbackAsync(string sql1, string sql2, Action<MySqlParameterCollection> paramFn)
+    {
+        await using var db = Open(); await db.OpenAsync();
         var list = new List<PlayerRow>();
-        await using var r = await cmd.ExecuteReaderAsync();
-        while (await r.ReadAsync()) list.Add(MapRow(r));
+        foreach (var sql in new[] { sql1, sql2 })
+        {
+            try
+            {
+                await using var cmd = new MySqlCommand(sql, db);
+                paramFn(cmd.Parameters);
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(MapRow(r));
+                return list;
+            }
+            catch { list.Clear(); }
+        }
         return list;
     }
 
@@ -209,18 +377,1162 @@ public class DbService
         return stats;
     }
 
-    private static PlayerRow MapRow(MySqlDataReader r) => new()
+
+    // ── 主帳號查詢 ───────────────────────────────────────────
+    public async Task<object?> GetMasterAsync(string masterName)
     {
-        Account    = r.GetString("account"),
-        OnlineName = r.GetString("onlineName"),
-        IsOnline   = r.GetBoolean("isOnline"),
-        ServerId   = r.GetInt32("serverId"),
-        RegTime    = r.GetString("regTime"),
-        LoginTime  = r.GetString("loginTime"),
-        IP         = r.GetString("ip"),
-        IsBanned   = r.GetBoolean("isBanned"),
-        Gold       = r.GetInt64("gold"),
-        Crystal    = r.GetInt64("crystal"),
-        PetCount   = r.GetInt32("petCount"),
-    };
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmdM = new MySqlCommand(
+            "SELECT Id FROM csaloginmaster WHERE `Name`=@n LIMIT 1", db);
+        cmdM.Parameters.AddWithValue("@n", masterName);
+        var mid = await cmdM.ExecuteScalarAsync();
+        if (mid == null) return null;
+
+        await using var cmd = new MySqlCommand(
+            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') charName,
+                     (c.Online=1) isOnline,
+                     IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                     IFNULL(c.PayTotal,0) payTotal,
+                     IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                     (lk.`Name` IS NOT NULL) isBanned,
+                     IFNULL(pet.cnt,0) petCount
+              FROM csalogin c
+              LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
+              LEFT JOIN (SELECT cdkey, COUNT(*) cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
+              WHERE c.MasterId=@mid ORDER BY c.Online DESC", db);
+        cmd.Parameters.AddWithValue("@mid", mid);
+        var chars = new List<object>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            chars.Add(new {
+                account   = r.GetString("account"),
+                charName  = r.GetString("charName"),
+                isOnline  = r.GetBoolean("isOnline"),
+                gold      = r.GetInt64("gold"),
+                crystal   = r.GetInt64("crystal"),
+                payTotal  = r.GetInt64("payTotal"),
+                loginTime = r.GetString("loginTime"),
+                isBanned  = r.GetBoolean("isBanned"),
+                petCount  = r.GetInt32("petCount"),
+            });
+        return new { masterName, chars };
+    }
+
+    // ── 充值記錄（優先查 recharge_orders，否則降級查 paydata）────────
+    public async Task<List<object>> GetRechargeAsync(string kw)
+    {
+        var list = new List<object>();
+        await using var db = Open(); await db.OpenAsync();
+        // 先嘗試 recharge_orders 表（與 EXE 一致）
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT o.order_no,
+                         IFNULL(c.OnlineName,'') charName,
+                         IFNULL(o.role_name,'') account,
+                         IFNULL(o.product_name,'') productName,
+                         IFNULL(o.amount,0) yuanbao,
+                         IFNULL(o.twd_amount, ROUND(o.amount/100)) twd,
+                         IFNULL(o.status,'') status,
+                         IFNULL(DATE_FORMAT(o.created_at,'%Y-%m-%d %H:%i'),'') time
+                  FROM recharge_orders o
+                  LEFT JOIN csalogin c ON c.`Name`=o.role_name
+                  WHERE (@q='' OR o.role_name LIKE @q OR IFNULL(c.OnlineName,'') LIKE @q OR IFNULL(o.product_name,'') LIKE @q)
+                  ORDER BY o.created_at DESC LIMIT 500", db);
+            cmd.Parameters.AddWithValue("@q", string.IsNullOrEmpty(kw) ? "" : $"%{kw}%");
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    orderNo     = TryGetString(r, "order_no"),
+                    account     = r.GetString("account"),
+                    charName    = r.GetString("charName"),
+                    productName = r.GetString("productName"),
+                    yuanbao     = TryGetInt64(r, "yuanbao"),
+                    twd         = TryGetInt64(r, "twd"),
+                    status      = r.GetString("status"),
+                    time        = r.GetString("time"),
+                    source      = "orders"
+                });
+            return list;
+        }
+        catch { list.Clear(); }
+        // 降級：paydata 表（顯示累積進度，非訂單）
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT p.cdkey account, IFNULL(c.OnlineName,'') charName,
+                         IFNULL(p.point,0) twd, IFNULL(p.lifetime_total, p.point) lifetimeTotal,
+                         IFNULL(p.totalcheck,0) totalCheck,
+                         IFNULL(DATE_FORMAT(p.time,'%Y-%m-%d %H:%i'),'') time
+                  FROM paydata p
+                  LEFT JOIN csalogin c ON c.`Name`=p.cdkey
+                  WHERE (@q='' OR p.cdkey LIKE @q OR IFNULL(c.OnlineName,'') LIKE @q)
+                  ORDER BY p.point DESC LIMIT 200", db);
+            cmd.Parameters.AddWithValue("@q", string.IsNullOrEmpty(kw) ? "" : $"%{kw}%");
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    orderNo     = "",
+                    account     = r.GetString("account"),
+                    charName    = r.GetString("charName"),
+                    productName = "累積充值進度",
+                    yuanbao     = TryGetInt64(r, "twd") * 100,
+                    twd         = TryGetInt64(r, "twd"),
+                    lifetimeTotal = TryGetInt64(r, "lifetimeTotal"),
+                    totalCheck  = TryGetInt64(r, "totalCheck"),
+                    status      = "paydata",
+                    time        = r.GetString("time"),
+                    source      = "paydata"
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    // ── 修復 paydata 循環（與 EXE FixPaydataCheckAsync 一致）────────
+    public async Task<bool> FixPaydataCheckAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        try
+        {
+            long currentPoint = 0, currentTotalCheck = 0;
+            await using (var cmdGet = new MySqlCommand(
+                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db))
+            {
+                cmdGet.Parameters.AddWithValue("@cdkey", account);
+                await using var r = await cmdGet.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return false;
+                currentPoint      = Convert.ToInt64(r["pt"]);
+                currentTotalCheck = Convert.ToInt64(r["tc"]);
+            }
+            long completedCycles = currentPoint > 0 ? (currentPoint - 1) / CYCLE_MAX : 0;
+            long newCyclePoint   = currentPoint - completedCycles * CYCLE_MAX;
+            long newTotalCheck   = currentTotalCheck + completedCycles;
+            await using var cmdFix = new MySqlCommand(
+                "UPDATE paydata SET point=@newpt, `check`=0, totalcheck=@tc WHERE cdkey=@cdkey", db);
+            cmdFix.Parameters.AddWithValue("@newpt", newCyclePoint);
+            cmdFix.Parameters.AddWithValue("@tc",    newTotalCheck);
+            cmdFix.Parameters.AddWithValue("@cdkey", account);
+            return await cmdFix.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
+    // ── 玩家 paydata 摘要（供儲值頁顯示）────────────────────────
+    public async Task<object> GetPaydataSummaryAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        long point = 0, tc = 0, lt = 0, payTotal = 0, gold = 0, crystal = 0;
+        string onlineName = "";
+        bool isOnline = false;
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                "SELECT IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal, IFNULL(PayTotal,0) payTotal, (Online=1) isOnline, IFNULL(OnlineName,'') onlineName FROM csalogin WHERE `Name`=@acc LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@acc", account);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync()) {
+                gold = r.GetInt64("gold"); crystal = r.GetInt64("crystal");
+                payTotal = r.GetInt64("payTotal"); isOnline = r.GetBoolean("isOnline");
+                onlineName = r.GetString("onlineName");
+            }
+        }
+        catch { }
+        try
+        {
+            await using var cmd2 = new MySqlCommand(
+                "SELECT IFNULL(point,0) pt, IFNULL(totalcheck,0) tc2, IFNULL(lifetime_total,point) lt2 FROM paydata WHERE cdkey=@acc LIMIT 1", db);
+            cmd2.Parameters.AddWithValue("@acc", account);
+            await using var r2 = await cmd2.ExecuteReaderAsync();
+            if (await r2.ReadAsync()) { point = r2.GetInt64("pt"); tc = r2.GetInt64("tc2"); lt = r2.GetInt64("lt2"); }
+        }
+        catch { }
+        return new { account, onlineName, isOnline, gold, crystal, payTotal, paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
+                     vipLevel = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0 };
+    }
+
+    // ── 給予儲值（與 EXE 一致：paydata 循環 25,000、csalogin.PayTotal/VipPoint）────────
+    private const long CYCLE_MAX = 25_000L;
+
+    public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold)
+    {
+        await using var db = Open();
+        await db.OpenAsync();
+        bool ok = true;
+
+        if (giveGold)
+        {
+            await using var cmdLogin = new MySqlCommand(
+                "UPDATE csalogin SET VipPoint = VipPoint + @gold, PayTotal = PayTotal + @twd WHERE `Name` = @cdkey", db);
+            cmdLogin.Parameters.AddWithValue("@gold",  goldAmount);
+            cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
+            cmdLogin.Parameters.AddWithValue("@cdkey", account);
+            ok = await cmdLogin.ExecuteNonQueryAsync() > 0;
+        }
+
+        long currentPoint = 0, currentTotalCheck = 0;
+        await using (var cmdGet = new MySqlCommand(
+            "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db))
+        {
+            cmdGet.Parameters.AddWithValue("@cdkey", account);
+            await using var r = await cmdGet.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                currentPoint      = Convert.ToInt64(r["pt"]);
+                currentTotalCheck = Convert.ToInt64(r["tc"]);
+            }
+        }
+
+        long rawTotal = currentPoint + twdAmount;
+        long completedCycles = rawTotal > 0 ? (rawTotal - 1) / CYCLE_MAX : 0;
+        long newCyclePoint   = rawTotal - completedCycles * CYCLE_MAX;
+        long newTotalCheck   = currentTotalCheck + completedCycles;
+
+        if (completedCycles > 0)
+        {
+            await using var cmdPay = new MySqlCommand(@"
+                INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+                VALUES (@cdkey, @newpt, NOW(), 0, @tc, @lt)
+                ON DUPLICATE KEY UPDATE
+                    point          = @newpt,
+                    `check`        = 0,
+                    totalcheck     = @tc,
+                    lifetime_total = lifetime_total + @twd", db);
+            cmdPay.Parameters.AddWithValue("@cdkey", account);
+            cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
+            cmdPay.Parameters.AddWithValue("@tc",    newTotalCheck);
+            cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+            cmdPay.Parameters.AddWithValue("@lt",    twdAmount);
+            await cmdPay.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var cmdPay = new MySqlCommand(@"
+                INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+                VALUES (@cdkey, @twd, NOW(), 0, 0, @twd)
+                ON DUPLICATE KEY UPDATE
+                    point          = point + @twd,
+                    lifetime_total = lifetime_total + @twd", db);
+            cmdPay.Parameters.AddWithValue("@cdkey", account);
+            cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+            await cmdPay.ExecuteNonQueryAsync();
+        }
+
+        return ok;
+    }
+
+    // ── 郵件記錄 ─────────────────────────────────────────────
+    public async Task<List<object>> GetMailAsync(string kw)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            @"SELECT id, IFNULL(cdkey,'') receiver,
+                     IFNULL(buff1,'') sender,
+                     IFNULL(buff2,'') title,
+                     IFNULL(data,'') content,
+                     IFNULL(check,0) isRead,
+                     DATE_FORMAT(sendtime,'%Y-%m-%d %H:%i') time
+              FROM maildata
+              WHERE cdkey LIKE @q
+              ORDER BY id DESC LIMIT 100", db);
+        cmd.Parameters.AddWithValue("@q", $"%{kw}%");
+        var list = new List<object>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new {
+                id      = r.GetInt64("id"),
+                sender  = r.GetString("sender"),
+                title   = r.GetString("title"),
+                content = r.GetString("content"),
+                isRead  = !r.IsDBNull(r.GetOrdinal("isRead")) && r.GetInt32("isRead") == 1,
+                time    = r.IsDBNull(r.GetOrdinal("time")) ? "" : r.GetString("time"),
+            });
+        return list;
+    }
+
+    // ── 金幣日誌 ─────────────────────────────────────────────
+    public async Task<List<object>> GetGoldLogAsync(string kw)
+    {
+        // 嘗試從 gold_log / vip_log 表讀取，若不存在回傳空
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<object>();
+        try {
+            await using var cmd = new MySqlCommand(
+                @"SELECT cdkey account, before_val, after_val, (after_val-before_val) diff,
+                         IFNULL(op_type,'') op,
+                         DATE_FORMAT(create_time,'%Y-%m-%d %H:%i') time
+                  FROM gold_log
+                  WHERE cdkey LIKE @q
+                  ORDER BY id DESC LIMIT 200", db);
+            cmd.Parameters.AddWithValue("@q", $"%{kw}%");
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    account = r.GetString("account"),
+                    before  = r.GetInt64("before_val"),
+                    after   = r.GetInt64("after_val"),
+                    diff    = r.GetInt64("diff"),
+                    op      = r.GetString("op"),
+                    time    = r.IsDBNull(r.GetOrdinal("time")) ? "" : r.GetString("time"),
+                });
+        } catch { /* 表不存在時回傳空 */ }
+        return list;
+    }
+
+    // ── 發送道具至玩家信箱（maildata，type=1）──────────────────
+    public async Task<(int success, int fail)> SendItemMailAsync(string account, int itemId, int quantity, string title = "", string content = "")
+    {
+        if (quantity < 1) quantity = 1;
+        string buff1 = string.IsNullOrWhiteSpace(title) ? $"[GM] 道具 #{itemId}" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具" : content.Trim();
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long end = now + 30 * 24 * 3600;
+        int success = 0, fail = 0;
+        await using var db = Open(); await db.OpenAsync();
+        for (int i = 0; i < quantity; i++)
+        {
+            try
+            {
+                await using var cmd = new MySqlCommand(
+                    @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
+                      VALUES(1,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
+                cmd.Parameters.AddWithValue("@cdkey", account);
+                cmd.Parameters.AddWithValue("@buff1", buff1);
+                cmd.Parameters.AddWithValue("@buff2", buff2);
+                cmd.Parameters.AddWithValue("@data", itemId.ToString());
+                cmd.Parameters.AddWithValue("@now", now);
+                cmd.Parameters.AddWithValue("@end", end);
+                if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
+            }
+            catch { fail++; }
+        }
+        return (success, fail);
+    }
+
+    // ── 批量發送郵件 ─────────────────────────────────────────
+    public async Task<int> BatchMailAsync(string target, string customList, string title, string content)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        List<string> accounts = new();
+        if (target == "custom")
+        {
+            accounts = customList.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToList();
+        }
+        else
+        {
+            string whereClause = target == "online" ? "WHERE Online=1" : "";
+            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {whereClause}", db);
+            await using var r2 = await cmd2.ExecuteReaderAsync();
+            while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+        }
+        if (accounts.Count == 0) return 0;
+
+        int sent = 0;
+        var now  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        foreach (var acc in accounts)
+        {
+            await using var cmd = new MySqlCommand(
+                @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
+                  VALUES(3,@cdkey,'GM',@title,@content,@now,@end,0,0,'')", db);
+            cmd.Parameters.AddWithValue("@cdkey",   acc);
+            cmd.Parameters.AddWithValue("@title",   title);
+            cmd.Parameters.AddWithValue("@content", content);
+            cmd.Parameters.AddWithValue("@now",     now);
+            cmd.Parameters.AddWithValue("@end",     now + 86400 * 30);
+            try { await cmd.ExecuteNonQueryAsync(); sent++; } catch { }
+        }
+        return sent;
+    }
+
+    // ── 批量購物車發送 ──────────────────────────────────────────
+    public async Task<int> BatchSendCartAsync(string target, string customList, List<CartItem> cart, string title, string content)
+    {
+        if (cart == null || cart.Count == 0) return 0;
+        await using var db = Open(); await db.OpenAsync();
+        List<string> accounts = new();
+        if (target == "custom")
+        {
+            accounts = customList.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToList();
+        }
+        else
+        {
+            string wh = target == "online" ? "WHERE Online=1" : "";
+            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {wh}", db);
+            await using var r2 = await cmd2.ExecuteReaderAsync();
+            while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+        }
+        if (accounts.Count == 0) return 0;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long end = now + 30 * 24 * 3600;
+        string buff1 = string.IsNullOrWhiteSpace(title) ? "[GM] 批量發送" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 批量發放" : content.Trim();
+        int sent = 0;
+        foreach (var acc in accounts)
+        {
+            foreach (var item in cart)
+            {
+                for (int i = 0; i < Math.Max(1, item.Qty); i++)
+                {
+                    await using var cmd = new MySqlCommand(
+                        @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
+                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
+                    cmd.Parameters.AddWithValue("@type",  item.Type > 0 ? item.Type : 1);
+                    cmd.Parameters.AddWithValue("@cdkey", acc);
+                    cmd.Parameters.AddWithValue("@buff1", buff1);
+                    cmd.Parameters.AddWithValue("@buff2", buff2);
+                    cmd.Parameters.AddWithValue("@data",  item.ItemId.ToString());
+                    cmd.Parameters.AddWithValue("@now",   now);
+                    cmd.Parameters.AddWithValue("@end",   end);
+                    try { if (await cmd.ExecuteNonQueryAsync() > 0) sent++; } catch { }
+                }
+            }
+        }
+        return sent;
+    }
+
+    // ── 交易記錄（tradelog）────────────────────────────────────
+    public async Task<List<TradeRecordDto>> GetTradeLogAsync(string q = "", int limit = 500)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<TradeRecordDto>();
+        string sql = string.IsNullOrWhiteSpace(q)
+            ? $"SELECT * FROM tradelog ORDER BY time DESC LIMIT {Math.Min(limit, 500)}"
+            : @"SELECT * FROM tradelog WHERE mecdkey LIKE @kw OR mename LIKE @kw OR tocdkey LIKE @kw OR toname LIKE @kw ORDER BY time DESC LIMIT @lim";
+        await using var cmd = new MySqlCommand(sql, db);
+        if (!string.IsNullOrWhiteSpace(q)) { cmd.Parameters.AddWithValue("@kw", $"%{q}%"); cmd.Parameters.AddWithValue("@lim", Math.Min(limit, 500)); }
+        try
+        {
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new TradeRecordDto
+                {
+                    FromCdkey = r["mecdkey"]?.ToString() ?? "",
+                    FromName  = r["mename"]?.ToString() ?? "",
+                    ToCdkey   = r["tocdkey"]?.ToString() ?? "",
+                    ToName    = r["toname"]?.ToString() ?? "",
+                    Time      = r["time"]?.ToString() ?? "",
+                    Item      = r["item"]?.ToString() ?? "",
+                    Pet       = r["pet"]?.ToString() ?? "",
+                    Gold      = r["gold"] == DBNull.Value ? 0 : Convert.ToInt64(r["gold"])
+                });
+        }
+        catch { /* tradelog 表不存在時回傳空 */ }
+        return list;
+    }
+
+    // ── VIP 玩家列表（依 PayTotal 排序）────────────────────────
+    public async Task<List<VipRowDto>> GetVipListAsync()
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<VipRowDto>();
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
+                         IFNULL(c.PayTotal,0) payTotal, IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                         (c.Online=1) isOnline,
+                         IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+                         IFNULL(m.`Name`,'') masterName
+                  FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE IFNULL(c.PayTotal,0) > 0 ORDER BY c.PayTotal DESC LIMIT 500", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                long pt = r.GetInt64("payTotal");
+                list.Add(new VipRowDto
+                {
+                    Account    = r.GetString("account"),
+                    OnlineName = r.GetString("onlineName"),
+                    MasterName = r.GetString("masterName"),
+                    PayTotal   = pt,
+                    Gold       = r.GetInt64("gold"),
+                    Crystal    = r.GetInt64("crystal"),
+                    IsOnline   = r.GetBoolean("isOnline"),
+                    LoginTime  = r.GetString("loginTime"),
+                    VipLevel   = pt >= 15000 ? 2 : pt >= 5000 ? 1 : 0,
+                });
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    // ── 回收桶 ─────────────────────────────────────────────────
+    public async Task<List<RecycleEntryDto>> GetRecycleBinAsync()
+    {
+        var list = new List<RecycleEntryDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                "SELECT recycle_id, deleted_at, deleted_by, original_data FROM csalogin_recycle ORDER BY deleted_at DESC LIMIT 200", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var json = r["original_data"]?.ToString() ?? "{}";
+                string acc = "", name = "", master = "";
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("Name", out var n)) acc = n.GetString() ?? "";
+                    if (root.TryGetProperty("OnlineName", out var o)) name = o.GetString() ?? "";
+                    if (root.TryGetProperty("MasterId", out var m)) master = m.GetString() ?? "";
+                }
+                catch { }
+                list.Add(new RecycleEntryDto
+                {
+                    RecycleId  = r.GetInt32("recycle_id"),
+                    DeletedAt  = r["deleted_at"] is DateTime dt ? dt.ToString("yyyy-MM-dd HH:mm") : "",
+                    DeletedBy  = r["deleted_by"]?.ToString() ?? "",
+                    Account    = acc,
+                    OnlineName = name,
+                    MasterName = master,
+                });
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<(bool ok, string msg)> RestoreFromRecycleAsync(int recycleId)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        try
+        {
+            string json = null;
+            await using (var sel = new MySqlCommand("SELECT original_data FROM csalogin_recycle WHERE recycle_id=@id", db))
+            {
+                sel.Parameters.AddWithValue("@id", recycleId);
+                var o = await sel.ExecuteScalarAsync();
+                if (o != null && o != DBNull.Value) json = o.ToString();
+            }
+            if (string.IsNullOrEmpty(json)) return (false, "找不到備份資料。");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            string accName = root.TryGetProperty("Name", out var np) ? np.GetString() : null;
+            if (!string.IsNullOrEmpty(accName))
+            {
+                await using var chk = new MySqlCommand("SELECT COUNT(*) FROM csalogin WHERE `Name`=@n", db);
+                chk.Parameters.AddWithValue("@n", accName);
+                var cnt = Convert.ToInt64(await chk.ExecuteScalarAsync());
+                if (cnt > 0) return (false, $"帳號 {accName} 已存在，無法還原。");
+            }
+            var cols = new List<string>();
+            var vals = new List<string>();
+            var parms = new List<MySqlParameter>();
+            int idx = 0;
+            foreach (var prop in root.EnumerateObject())
+            {
+                if (prop.Name.Equals("id", StringComparison.OrdinalIgnoreCase)) continue;
+                string pname = $"@p{idx++}";
+                cols.Add($"`{prop.Name}`");
+                vals.Add(pname);
+                string rawStr = prop.Value.ValueKind == System.Text.Json.JsonValueKind.Null ? null : prop.Value.GetString();
+                parms.Add(new MySqlParameter(pname, rawStr ?? (object)DBNull.Value));
+            }
+            var insertSql = $"INSERT INTO csalogin ({string.Join(",", cols)}) VALUES ({string.Join(",", vals)})";
+            await using var ins = new MySqlCommand(insertSql, db);
+            foreach (var p in parms) ins.Parameters.Add(p);
+            await ins.ExecuteNonQueryAsync();
+            await using var del = new MySqlCommand("DELETE FROM csalogin_recycle WHERE recycle_id=@id", db);
+            del.Parameters.AddWithValue("@id", recycleId);
+            await del.ExecuteNonQueryAsync();
+            return (true, "已還原。");
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    // ── 批量金幣 ───────────────────────────────────────────────
+    public async Task<(int done, int fail)> BatchGoldAsync(string target, string customList, string accountIds, long amount)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        List<string> accounts = new();
+        if (!string.IsNullOrWhiteSpace(accountIds))
+            accounts = accountIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+        if (accounts.Count == 0)
+        {
+            if (target == "custom")
+                accounts = customList.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+            else
+            {
+                string where = target == "online" ? "WHERE Online=1" : "";
+                await using var cmd = new MySqlCommand($"SELECT `Name` FROM csalogin {where}", db);
+                await using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) accounts.Add(r.GetString(0));
+            }
+        }
+        if (accounts.Count == 0) return (0, 0);
+        int done = 0, fail = 0;
+        foreach (var acc in accounts)
+        {
+            try
+            {
+                await using var sel = new MySqlCommand("SELECT IFNULL(VipPoint,0) FROM csalogin WHERE `Name`=@a", db);
+                sel.Parameters.AddWithValue("@a", acc);
+                var cur = await sel.ExecuteScalarAsync();
+                long curVal = cur == null || cur == DBNull.Value ? 0 : Convert.ToInt64(cur);
+                long newVal = Math.Max(0, curVal + amount);
+                await using var upd = new MySqlCommand("UPDATE csalogin SET VipPoint=@v WHERE `Name`=@a", db);
+                upd.Parameters.AddWithValue("@v", newVal);
+                upd.Parameters.AddWithValue("@a", acc);
+                if (await upd.ExecuteNonQueryAsync() > 0) done++; else fail++;
+            }
+            catch { fail++; }
+        }
+        return (done, fail);
+    }
+
+    // ── GM 工具帳號（admin_users）────────────────────────────────
+    public async Task<List<AdminUserDto>> GetAdminUsersAsync()
+    {
+        var list = new List<AdminUserDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                "SELECT id, username, nickname, status, created_at FROM admin_users ORDER BY id", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new AdminUserDto
+                {
+                    Id        = r.GetInt32("id"),
+                    Username  = r["username"]?.ToString() ?? "",
+                    Nickname  = r["nickname"]?.ToString() ?? "",
+                    IsEnabled = r["status"] != DBNull.Value && Convert.ToInt32(r["status"]) != 0,
+                    CreatedAt = r["created_at"]?.ToString() ?? "",
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<(bool ok, string msg)> AddAdminUserAsync(string username, string password, string nickname)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return (false, "帳號不可為空");
+        await using var db = Open(); await db.OpenAsync();
+        string hash = Convert.ToHexString(
+            System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(password ?? ""))).ToLower();
+        await using var cmd = new MySqlCommand(
+            "INSERT INTO admin_users (username, password, nickname, status) VALUES (@u,@p,@n,1)", db);
+        cmd.Parameters.AddWithValue("@u", username.Trim());
+        cmd.Parameters.AddWithValue("@p", hash);
+        cmd.Parameters.AddWithValue("@n", (nickname ?? "").Trim());
+        try { await cmd.ExecuteNonQueryAsync(); return (true, "已新增"); }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<bool> DeleteAdminUserAsync(int id)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand("DELETE FROM admin_users WHERE id=@id AND username<>'admin'", db);
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    // ── 唯讀 SQL（僅允許 SELECT / SHOW / DESCRIBE）─────────────
+    public async Task<(bool ok, List<Dictionary<string, object>> rows, string error)> ExecuteReadOnlyQueryAsync(string sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql)) return (false, new List<Dictionary<string, object>>(), "查詢不可為空");
+        var upper = sql.TrimStart().ToUpperInvariant();
+        if (!upper.StartsWith("SELECT") && !upper.StartsWith("SHOW") && !upper.StartsWith("DESCRIBE"))
+            return (false, new List<Dictionary<string, object>>(), "只允許 SELECT / SHOW / DESCRIBE 查詢");
+        var rows = new List<Dictionary<string, object>>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(sql, db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var row = new Dictionary<string, object>();
+                for (int i = 0; i < r.FieldCount; i++)
+                    row[r.GetName(i)] = r.IsDBNull(i) ? null : r.GetValue(i);
+                rows.Add(row);
+            }
+        }
+        catch (Exception ex) { return (false, rows, ex.Message); }
+        return (true, rows, "");
+    }
+
+    // ── 商城熱賣（與 EXE 一致：vipshop/fameshop/csshopnum/csxsshopnum）────────
+    public async Task<(List<ShopItemDto> items, List<ShopSpenderDto> spenders)> GetShopTopItemsAsync(string table, int topN = 20)
+    {
+        var items = new List<ShopItemDto>(); var spenders = new List<ShopSpenderDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            long rowCount = 0;
+            try { await using var cc = new MySqlCommand($"SELECT COUNT(*) FROM `{table}`", db); rowCount = Convert.ToInt64(await cc.ExecuteScalarAsync()); } catch { return (items, spenders); }
+            if (rowCount == 0) return (items, spenders);
+
+            if (table == "vipshop" || table == "fameshop")
+            {
+                var sql1 = $@"SELECT itemid, itemname, SUM(itemnum) AS total_qty, COUNT(*) AS order_count, SUM(oldpoint - newpoint) AS total_cost, MAX(time) AS last_time FROM `{table}` GROUP BY itemid, itemname ORDER BY total_qty DESC LIMIT {topN}";
+                await using (var cmd = new MySqlCommand(sql1, db))
+                await using (var r = await cmd.ExecuteReaderAsync())
+                {
+                    int rank = 1;
+                    while (await r.ReadAsync())
+                        items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = r["itemname"]?.ToString() ?? "", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]), TotalCost = r["total_cost"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_cost"]), LastTime = r["last_time"]?.ToString() ?? "" });
+                }
+                var sql2 = $@"SELECT cdkey, name, SUM(itemnum) AS total_qty, SUM(oldpoint - newpoint) AS total_cost FROM `{table}` GROUP BY cdkey, name ORDER BY total_cost DESC LIMIT {topN}";
+                await using (var cmd2 = new MySqlCommand(sql2, db))
+                await using (var r2 = await cmd2.ExecuteReaderAsync())
+                {
+                    int rank = 1;
+                    while (await r2.ReadAsync())
+                        spenders.Add(new ShopSpenderDto { Rank = rank++, Cdkey = r2["cdkey"]?.ToString() ?? "", Name = r2["name"]?.ToString() ?? "", TotalQty = r2["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r2["total_qty"]), TotalCost = r2["total_cost"] == DBNull.Value ? 0 : Convert.ToInt64(r2["total_cost"]) });
+                }
+            }
+            else if (table == "csshopnum" || table == "csxsshopnum")
+            {
+                var sql1 = $@"SELECT itemid, SUM(buynum) AS total_qty, COUNT(*) AS order_count FROM `{table}` GROUP BY itemid ORDER BY total_qty DESC LIMIT {topN}";
+                await using var cmd = new MySqlCommand(sql1, db);
+                await using var r = await cmd.ExecuteReaderAsync();
+                int rank = 1;
+                while (await r.ReadAsync())
+                    items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = $"道具 #{r["itemid"]}", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]) });
+            }
+        }
+        catch { }
+        return (items, spenders);
+    }
+
+    // ── 儲值趨勢分析（recharge_orders；若無表則回傳空/0）────────
+    public async Task<(DateTime[] dates, decimal[] amounts, int[] counts)> GetDailyRechargeAsync(int days = 30)
+    {
+        var dl = new List<DateTime>(); var al = new List<decimal>(); var cl = new List<int>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT DATE(created_at) AS d, SUM(amount) AS total, COUNT(*) AS cnt FROM recharge_orders WHERE status='completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL {days} DAY) GROUP BY d ORDER BY d", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { dl.Add(Convert.ToDateTime(r["d"])); al.Add(r["total"] == DBNull.Value ? 0 : Convert.ToDecimal(r["total"])); cl.Add(r["cnt"] == DBNull.Value ? 0 : Convert.ToInt32(r["cnt"])); }
+        }
+        catch { }
+        return (dl.ToArray(), al.ToArray(), cl.ToArray());
+    }
+
+    public async Task<(string[] months, decimal[] amounts, int[] counts)> GetMonthlyRechargeAsync()
+    {
+        var ml = new List<string>(); var al = new List<decimal>(); var cl = new List<int>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(@"SELECT DATE_FORMAT(created_at,'%Y-%m') AS m, SUM(amount) AS total, COUNT(*) AS cnt FROM recharge_orders WHERE status='completed' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) GROUP BY m ORDER BY m", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { ml.Add(r["m"]?.ToString() ?? ""); al.Add(r["total"] == DBNull.Value ? 0 : Convert.ToDecimal(r["total"])); cl.Add(r["cnt"] == DBNull.Value ? 0 : Convert.ToInt32(r["cnt"])); }
+        }
+        catch { }
+        return (ml.ToArray(), al.ToArray(), cl.ToArray());
+    }
+
+    public async Task<Dictionary<string, int>> GetPaymentTierAsync()
+    {
+        var result = new Dictionary<string, int>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(@"SELECT SUM(CASE WHEN IFNULL(PayTotal,0)=0 THEN 1 ELSE 0 END) AS t0, SUM(CASE WHEN IFNULL(PayTotal,0) BETWEEN 1 AND 99 THEN 1 ELSE 0 END) AS t1, SUM(CASE WHEN IFNULL(PayTotal,0) BETWEEN 100 AND 499 THEN 1 ELSE 0 END) AS t2, SUM(CASE WHEN IFNULL(PayTotal,0) BETWEEN 500 AND 999 THEN 1 ELSE 0 END) AS t3, SUM(CASE WHEN IFNULL(PayTotal,0) BETWEEN 1000 AND 4999 THEN 1 ELSE 0 END) AS t4, SUM(CASE WHEN IFNULL(PayTotal,0)>=5000 THEN 1 ELSE 0 END) AS t5 FROM csalogin", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync()) { result["免費玩家"] = r["t0"] == DBNull.Value ? 0 : Convert.ToInt32(r["t0"]); result["$1-99"] = r["t1"] == DBNull.Value ? 0 : Convert.ToInt32(r["t1"]); result["$100-499"] = r["t2"] == DBNull.Value ? 0 : Convert.ToInt32(r["t2"]); result["$500-999"] = r["t3"] == DBNull.Value ? 0 : Convert.ToInt32(r["t3"]); result["$1000-4999"] = r["t4"] == DBNull.Value ? 0 : Convert.ToInt32(r["t4"]); result["$5000+"] = r["t5"] == DBNull.Value ? 0 : Convert.ToInt32(r["t5"]); }
+        }
+        catch { }
+        return result;
+    }
+
+    public async Task<Dictionary<string, int>> GetTimeToFirstPaymentAsync()
+    {
+        var result = new Dictionary<string, int> { ["當天"] = 0, ["1-3天"] = 0, ["4-7天"] = 0, ["8-30天"] = 0, ["30天以上"] = 0 };
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(@"SELECT DATEDIFF(MIN(o.created_at), c.created_at) AS days_to_first FROM recharge_orders o JOIN csalogin c ON c.`Name`=o.role_name WHERE o.status='completed' AND c.created_at IS NOT NULL GROUP BY o.role_name", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { int d = r["days_to_first"] == DBNull.Value ? 0 : Convert.ToInt32(r["days_to_first"]); if (d <= 0) result["當天"]++; else if (d <= 3) result["1-3天"]++; else if (d <= 7) result["4-7天"]++; else if (d <= 30) result["8-30天"]++; else result["30天以上"]++; }
+        }
+        catch { }
+        return result;
+    }
+
+    public async Task<(decimal todayRevenue, decimal monthRevenue, decimal totalRevenue, int payingPlayers)> GetRechargeKpiAsync()
+    {
+        decimal today = 0, month = 0, total = 0; int paying = 0;
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            try { await using var c1 = new MySqlCommand("SELECT IFNULL(SUM(amount),0), IFNULL(COUNT(*),0) FROM recharge_orders WHERE status='completed' AND DATE(created_at)=CURDATE()", db); await using var r1 = await c1.ExecuteReaderAsync(); if (await r1.ReadAsync()) { today = Convert.ToDecimal(r1.GetValue(0)); } } catch { }
+            try { await using var c2 = new MySqlCommand("SELECT IFNULL(SUM(amount),0) FROM recharge_orders WHERE status='completed' AND created_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01')", db); var rv = await c2.ExecuteScalarAsync(); month = rv == null || rv == DBNull.Value ? 0 : Convert.ToDecimal(rv); } catch { }
+            try { await using var c3 = new MySqlCommand("SELECT IFNULL(SUM(amount),0) FROM recharge_orders WHERE status='completed'", db); var rv = await c3.ExecuteScalarAsync(); total = rv == null || rv == DBNull.Value ? 0 : Convert.ToDecimal(rv); } catch { }
+            var tiers = await GetPaymentTierAsync();
+            paying = tiers.Values.Sum() - (tiers.TryGetValue("免費玩家", out var f) ? f : 0);
+        }
+        catch { }
+        return (today, month, total, paying);
+    }
+
+    // ── 玩家活躍分析 ───────────────────────────────────────────
+    public async Task<int[]> GetLoginHourDistributionAsync()
+    {
+        var result = new int[24];
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand("SELECT HOUR(LoginTime) AS h, COUNT(*) AS cnt FROM csalogin WHERE LoginTime IS NOT NULL AND LoginTime > '2000-01-01' GROUP BY h", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { int h = Convert.ToInt32(r["h"]); if (h >= 0 && h < 24) result[h] = Convert.ToInt32(r["cnt"]); }
+        }
+        catch { }
+        return result;
+    }
+
+    public async Task<int[]> GetLoginWeekdayDistributionAsync()
+    {
+        var result = new int[7];
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand("SELECT DAYOFWEEK(LoginTime)-1 AS d, COUNT(*) AS cnt FROM csalogin WHERE LoginTime IS NOT NULL AND LoginTime > '2000-01-01' GROUP BY d", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { int d = Convert.ToInt32(r["d"]); if (d >= 0 && d < 7) result[d] = Convert.ToInt32(r["cnt"]); }
+        }
+        catch { }
+        return result;
+    }
+
+    public async Task<(DateTime[] dates, int[] counts)> GetDailyNewAccountsAsync(int days = 30)
+    {
+        var dateList = new List<DateTime>(); var countList = new List<int>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($"SELECT DATE(created_at) AS d, COUNT(*) AS cnt FROM csalogin WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {days} DAY) GROUP BY d ORDER BY d", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) { dateList.Add(Convert.ToDateTime(r["d"])); countList.Add(Convert.ToInt32(r["cnt"])); }
+        }
+        catch { }
+        return (dateList.ToArray(), countList.ToArray());
+    }
+
+    public async Task<Dictionary<string, (int cohort, int retained, double rate)>> GetRetentionAsync()
+    {
+        var result = new Dictionary<string, (int, int, double)>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            foreach (var (label, days) in new[] { ("7天", 7), ("14天", 14), ("30天", 30), ("90天", 90) })
+            {
+                await using var cmd = new MySqlCommand($@"SELECT COUNT(*) AS cohort, SUM(CASE WHEN LoginTime >= DATE_SUB(NOW(), INTERVAL {days} DAY) THEN 1 ELSE 0 END) AS retained FROM csalogin WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {days} DAY) AND created_at IS NOT NULL", db);
+                await using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync()) { int c = r["cohort"] == DBNull.Value ? 0 : Convert.ToInt32(r["cohort"]); int re = r["retained"] == DBNull.Value ? 0 : Convert.ToInt32(r["retained"]); double rt = c > 0 ? (double)re / c * 100 : 0; result[label] = (c, re, rt); }
+            }
+        }
+        catch { }
+        return result;
+    }
+
+    public async Task<List<InactivePlayerDto>> GetInactivePlayersAsync(int days = 30, int limit = 200)
+    {
+        var list = new List<InactivePlayerDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT OnlineName, `Name`, LoginTime, DATEDIFF(NOW(), LoginTime) AS days_since FROM csalogin WHERE LoginTime < DATE_SUB(NOW(), INTERVAL {days} DAY) AND LoginTime IS NOT NULL AND LoginTime > '2000-01-01' ORDER BY LoginTime ASC LIMIT {limit}", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new InactivePlayerDto { OnlineName = r["OnlineName"]?.ToString() ?? "", Account = r["Name"]?.ToString() ?? "", LastLogin = r["LoginTime"]?.ToString() ?? "", DaysSince = r["days_since"] == DBNull.Value ? 0 : Convert.ToInt32(r["days_since"]) });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<int> GetTodayActiveCountAsync() // 今日有登入的玩家數
+    {
+        try { await using var db = Open(); await db.OpenAsync(); await using var cmd = new MySqlCommand("SELECT COUNT(*) FROM csalogin WHERE DATE(LoginTime)=CURDATE()", db); var v = await cmd.ExecuteScalarAsync(); return v == null || v == DBNull.Value ? 0 : Convert.ToInt32(v); } catch { return 0; }
+    }
+
+    // ── 交易稽核 ───────────────────────────────────────────────
+    public async Task<(int totalTrades, int uniquePairs, int suspiciousPairs, int sameIpPairs)> GetTradeAuditSummaryAsync()
+    {
+        int total = 0, pairs = 0, suspicious = 0, sameIp = 0;
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            var r1 = await new MySqlCommand("SELECT COUNT(*) FROM tradelog", db).ExecuteScalarAsync();
+            total = r1 == null || r1 == DBNull.Value ? 0 : Convert.ToInt32(r1);
+            var r2 = await new MySqlCommand("SELECT COUNT(DISTINCT CONCAT(mecdkey,'-',tocdkey)) FROM tradelog", db).ExecuteScalarAsync();
+            pairs = r2 == null || r2 == DBNull.Value ? 0 : Convert.ToInt32(r2);
+            var r3 = await new MySqlCommand("SELECT COUNT(*) FROM (SELECT mecdkey,tocdkey,COUNT(*) c FROM tradelog GROUP BY mecdkey,tocdkey HAVING c>=10) x", db).ExecuteScalarAsync();
+            suspicious = r3 == null || r3 == DBNull.Value ? 0 : Convert.ToInt32(r3);
+            try { var r4 = await new MySqlCommand(@"SELECT COUNT(*) FROM (SELECT t.mecdkey,t.tocdkey FROM tradelog t JOIN csalogin a ON a.`Name`=t.mecdkey JOIN csalogin b ON b.`Name`=t.tocdkey WHERE a.IP=b.IP AND a.IP IS NOT NULL AND a.IP!='' GROUP BY t.mecdkey,t.tocdkey) x", db).ExecuteScalarAsync(); sameIp = r4 == null || r4 == DBNull.Value ? 0 : Convert.ToInt32(r4); } catch { }
+        }
+        catch { }
+        return (total, pairs, suspicious, sameIp);
+    }
+
+    public async Task<List<FrequentPairDto>> GetFrequentTradePairsAsync(int minCount = 10)
+    {
+        var list = new List<FrequentPairDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT mecdkey, mename, tocdkey, toname, COUNT(*) AS cnt, MAX(FROM_UNIXTIME(time)) AS last_time FROM tradelog GROUP BY mecdkey, tocdkey HAVING cnt >= {minCount} ORDER BY cnt DESC LIMIT 100", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new FrequentPairDto { FromAccount = r["mecdkey"]?.ToString() ?? "", FromName = r["mename"]?.ToString() ?? "", ToAccount = r["tocdkey"]?.ToString() ?? "", ToName = r["toname"]?.ToString() ?? "", Count = Convert.ToInt32(r["cnt"]), LastTime = r["last_time"]?.ToString() ?? "" });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<List<SameIpTradeDto>> GetSameIpTradesAsync(int minCount = 5)
+    {
+        var list = new List<SameIpTradeDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT t.mecdkey, t.tocdkey, COUNT(*) AS cnt, a.IP AS shared_ip FROM tradelog t JOIN csalogin a ON a.`Name`=t.mecdkey JOIN csalogin b ON b.`Name`=t.tocdkey WHERE a.IP=b.IP AND a.IP IS NOT NULL AND a.IP!='' GROUP BY t.mecdkey, t.tocdkey, a.IP HAVING cnt >= {minCount} ORDER BY cnt DESC LIMIT 100", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new SameIpTradeDto { FromAccount = r["mecdkey"]?.ToString() ?? "", ToAccount = r["tocdkey"]?.ToString() ?? "", Count = Convert.ToInt32(r["cnt"]), SharedIp = r["shared_ip"]?.ToString() ?? "" });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<List<GoldAnomalyDto>> GetGoldAnomalyAsync(int limit = 50)
+    {
+        var list = new List<GoldAnomalyDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT g.cdkey, IFNULL(c.OnlineName,'') AS cname, SUM(CASE WHEN g.point>0 THEN g.point ELSE 0 END) AS gain, SUM(CASE WHEN g.point<0 THEN ABS(g.point) ELSE 0 END) AS loss, COUNT(*) AS entries FROM goldlog g LEFT JOIN csalogin c ON c.`Name`=g.cdkey GROUP BY g.cdkey ORDER BY gain DESC LIMIT {limit}", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GoldAnomalyDto { Account = r["cdkey"]?.ToString() ?? "", Name = r["cname"]?.ToString() ?? "", TotalGain = r["gain"] == DBNull.Value ? 0 : Convert.ToInt64(r["gain"]), TotalLoss = r["loss"] == DBNull.Value ? 0 : Convert.ToInt64(r["loss"]), Entries = r["entries"] == DBNull.Value ? 0 : Convert.ToInt32(r["entries"]) });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<List<TopTraderDto>> GetTopTradersAsync(int limit = 50)
+    {
+        var list = new List<TopTraderDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand($@"SELECT mecdkey, mename, COUNT(*) AS cnt, MAX(FROM_UNIXTIME(time)) AS last_time FROM tradelog GROUP BY mecdkey ORDER BY cnt DESC LIMIT {limit}", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new TopTraderDto { Account = r["mecdkey"]?.ToString() ?? "", Name = r["mename"]?.ToString() ?? "", TradeCount = Convert.ToInt32(r["cnt"]), LastTime = r["last_time"]?.ToString() ?? "" });
+        }
+        catch { }
+        return list;
+    }
+
+    // ── GM 權限（NeiCe / GroupId）──────────────────────────────
+    public async Task<List<GmPermDto>> GetGmPermListAsync(string search = "")
+    {
+        var list = new List<GmPermDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            string sql = string.IsNullOrWhiteSpace(search) ? @"SELECT `Name`, OnlineName, GroupId, NeiCe, Online FROM csalogin ORDER BY NeiCe DESC, GroupId DESC, LoginTime DESC LIMIT 1000" : @"SELECT `Name`, OnlineName, GroupId, NeiCe, Online FROM csalogin WHERE OnlineName LIKE @q OR `Name` LIKE @q ORDER BY NeiCe DESC, GroupId DESC LIMIT 500";
+            await using var cmd = new MySqlCommand(sql, db);
+            if (!string.IsNullOrWhiteSpace(search)) cmd.Parameters.AddWithValue("@q", $"%{search}%");
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(new GmPermDto { Account = r["Name"]?.ToString() ?? "", OnlineName = r["OnlineName"]?.ToString() ?? "", GroupId = r["GroupId"] == DBNull.Value ? 0 : Convert.ToInt32(r["GroupId"]), NeiCe = r["NeiCe"] == DBNull.Value ? 0 : Convert.ToInt32(r["NeiCe"]), IsOnline = r["Online"] != DBNull.Value && Convert.ToInt32(r["Online"]) == 1 });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<bool> SetPlayerPermAsync(string account, int neiCe, int groupId)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand("UPDATE csalogin SET NeiCe=@nc, GroupId=@gid WHERE `Name`=@n", db);
+            cmd.Parameters.AddWithValue("@nc", neiCe); cmd.Parameters.AddWithValue("@gid", groupId); cmd.Parameters.AddWithValue("@n", account);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
+    // ── 備份（與 EXE 一致：csalogin + lock，INSERT IGNORE）────────────
+    private static string SqlLiteral(object v)
+    {
+        if (v == null || v == DBNull.Value) return "NULL";
+        if (v is string s) return "'" + s.Replace("\\", "\\\\").Replace("'", "''") + "'";
+        if (v is DateTime dt) return "'" + dt.ToString("yyyy-MM-dd HH:mm:ss") + "'";
+        if (v is bool b) return b ? "1" : "0";
+        return v.ToString() ?? "NULL";
+    }
+
+    public async Task<(string sql, int rows)> GetBackupSqlAsync()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("-- 軒打石器 GM 資料庫備份");
+        sb.AppendLine($"-- 備份時間：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine("-- 使用 INSERT IGNORE：還原時不覆蓋現有資料");
+        sb.AppendLine();
+        int totalRows = 0;
+        await using var db = Open(); await db.OpenAsync();
+
+        await using (var cmd = new MySqlCommand("SELECT * FROM csalogin", db))
+        await using (var r = await cmd.ExecuteReaderAsync())
+        {
+            var cols = new List<string>();
+            for (int i = 0; i < r.FieldCount; i++) cols.Add(r.GetName(i));
+            string colList = string.Join(", ", cols.Select(c => $"`{c}`"));
+            while (await r.ReadAsync())
+            {
+                var vals = new List<string>();
+                for (int i = 0; i < r.FieldCount; i++) vals.Add(SqlLiteral(r.GetValue(i)));
+                sb.AppendLine($"INSERT IGNORE INTO `csalogin` ({colList}) VALUES ({string.Join(", ", vals)});");
+                totalRows++;
+            }
+        }
+        sb.AppendLine();
+        try
+        {
+            await using var cmd2 = new MySqlCommand("SELECT * FROM `lock`", db);
+            await using var r2 = await cmd2.ExecuteReaderAsync();
+            var cols2 = new List<string>();
+            for (int i = 0; i < r2.FieldCount; i++) cols2.Add(r2.GetName(i));
+            string colList2 = string.Join(", ", cols2.Select(c => $"`{c}`"));
+            while (await r2.ReadAsync())
+            {
+                var vals2 = new List<string>();
+                for (int i = 0; i < r2.FieldCount; i++) vals2.Add(SqlLiteral(r2.GetValue(i)));
+                sb.AppendLine($"INSERT IGNORE INTO `lock` ({colList2}) VALUES ({string.Join(", ", vals2)});");
+                totalRows++;
+            }
+        }
+        catch { }
+        return (sb.ToString(), totalRows);
+    }
+
+    private static long TryGetInt64(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt64(o); } catch { return 0; } }
+    private static string TryGetString(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? "" : r.GetString(o); } catch { return ""; } }
+    private static int TryGetInt32(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt32(o); } catch { return 0; } }
+
+    private static PlayerRow MapRow(MySqlDataReader r)
+    {
+        long payTotal = TryGetInt64(r, "payTotal");
+        return new()
+        {
+            Account    = r.GetString("account"),
+            OnlineName = r.GetString("onlineName"),
+            IsOnline   = r.GetBoolean("isOnline"),
+            ServerId   = TryGetInt32(r, "serverId"),
+            RegTime    = TryGetString(r, "regTime"),
+            LoginTime  = TryGetString(r, "loginTime"),
+            IP         = TryGetString(r, "ip"),
+            IsBanned   = r.GetBoolean("isBanned"),
+            Gold       = TryGetInt64(r, "gold"),
+            Crystal    = TryGetInt64(r, "crystal"),
+            PetCount   = TryGetInt32(r, "petCount"),
+            PayTotal   = payTotal,
+            MasterName = TryGetString(r, "masterName"),
+            VipLevel   = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0,
+        };
+    }
+
+    // ── 玩家郵件歷史（已收道具）──────────────────────────────
+    public async Task<List<MailHistoryDto>> GetPlayerMailHistoryAsync(string account)
+    {
+        var list = new List<MailHistoryDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT id, buff1 title, buff2 body, data itemData,
+                         FROM_UNIXTIME(sendtime,'%Y-%m-%d %H:%i') sendTime,
+                         IFNULL(`check`,0) isRead
+                  FROM maildata WHERE cdkey=@acc AND type=1
+                  ORDER BY id DESC LIMIT 100", db);
+            cmd.Parameters.AddWithValue("@acc", account);
+            await using var rr = await cmd.ExecuteReaderAsync();
+            while (await rr.ReadAsync())
+            {
+                int.TryParse(rr["itemData"]?.ToString(), out int itemId);
+                list.Add(new MailHistoryDto
+                {
+                    MailId   = rr.GetInt32("id"),
+                    ItemId   = itemId,
+                    ItemName = rr.GetString("title"),
+                    Quantity = 1,
+                    SendTime = rr.IsDBNull(rr.GetOrdinal("sendTime")) ? "" : rr.GetString("sendTime"),
+                    IsRead   = rr.GetInt32("isRead") == 1,
+                });
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    // ── 多道具購物車發送 ─────────────────────────────────────
+    public async Task<(int success, int fail)> SendCartMailAsync(string account, List<CartItem> cart, string title, string content)
+    {
+        if (cart == null || cart.Count == 0) return (0, 0);
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long end = now + 30 * 24 * 3600;
+        string buff1 = string.IsNullOrWhiteSpace(title) ? "[GM] 道具發送" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具" : content.Trim();
+        int success = 0, fail = 0;
+        await using var db = Open(); await db.OpenAsync();
+        foreach (var item in cart)
+        {
+            for (int i = 0; i < Math.Max(1, item.Qty); i++)
+            {
+                try
+                {
+                    await using var cmd = new MySqlCommand(
+                        @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
+                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
+                    cmd.Parameters.AddWithValue("@type", item.Type > 0 ? item.Type : 1);
+                    cmd.Parameters.AddWithValue("@cdkey", account);
+                    cmd.Parameters.AddWithValue("@buff1", buff1);
+                    cmd.Parameters.AddWithValue("@buff2", buff2);
+                    cmd.Parameters.AddWithValue("@data", item.ItemId.ToString());
+                    cmd.Parameters.AddWithValue("@now", now);
+                    cmd.Parameters.AddWithValue("@end", end);
+                    if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
+                }
+                catch { fail++; }
+            }
+        }
+        return (success, fail);
+    }
+
+    // ── 封號清單搜尋 ─────────────────────────────────────────
+    public async Task<List<object>> GetBannedListAsync(string kw = "")
+    {
+        await using var db = Open(); await db.OpenAsync();
+        string where = string.IsNullOrWhiteSpace(kw) ? "" :
+            " AND (l.`Name` LIKE @q OR IFNULL(c.OnlineName,'') LIKE @q)";
+        await using var cmd = new MySqlCommand(
+            $@"SELECT l.`Name` account, IFNULL(c.OnlineName,'') charName, l.`time` banTime
+               FROM `lock` l
+               LEFT JOIN csalogin c ON c.`Name`=l.`Name`
+               WHERE 1=1 {where}
+               ORDER BY l.`time` ASC", db);
+        if (!string.IsNullOrWhiteSpace(kw))
+            cmd.Parameters.AddWithValue("@q", $"%{kw}%");
+        var list = new List<object>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            long t = r.GetInt64("banTime");
+            list.Add(new {
+                account     = r.GetString("account"),
+                charName    = r.GetString("charName"),
+                isPermanent = t == 0,
+                endTime     = t == 0 ? "\u6C38\u4E45" :
+                    DateTimeOffset.FromUnixTimeSeconds(t).LocalDateTime.ToString("yyyy/MM/dd HH:mm")
+            });
+        }
+        return list;
+    }
 }

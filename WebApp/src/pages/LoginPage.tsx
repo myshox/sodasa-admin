@@ -33,7 +33,7 @@ export default function LoginPage() {
         display: 'flex', flexDirection: 'column', gap: 18
       }}>
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 36 }}>&#127813;</div>
+          <div style={{ fontSize: 36 }}>🍅</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{S.loginTitle}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{S.loginSub}</p>
         </div>

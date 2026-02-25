@@ -32,7 +32,7 @@ export default function PetCmdPage() {
       const r = await api.get(`/players/${searchQ.trim()}`)
       setCdkey(r.data.account)
       setChar(r.data.onlineName || r.data.account)
-    } catch { alert('\u627E\u4E0D\u5230\u73A9\u5BB6') }
+    } catch { alert('找不到玩家') }
   }
 
   const Nud = ({ label, value, onChange, min = 0, max = 99999 }: {
@@ -84,17 +84,17 @@ export default function PetCmdPage() {
   return (
     <div style={{ padding: 28, maxWidth: 660 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
-        &#128062; {S.pagePetCmd}
+        🐾 {S.pagePetCmd}
       </h1>
 
-      <Card title={`&#128100; ${S.petTarget}`}>
+      <Card title={`👤 ${S.petTarget}`}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={searchQ} onChange={e => setSearchQ(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && searchPlayer()}
             placeholder={S.petTargetPlh} style={{ flex: 1 }} />
           <button onClick={searchPlayer}
             style={{ background: 'var(--accent-blue)', color: '#fff', flexShrink: 0 }}>
-            &#128269; {S.petQuery}
+            🔍 {S.petQuery}
           </button>
         </div>
         {cdkey && (
@@ -104,11 +104,11 @@ export default function PetCmdPage() {
         )}
       </Card>
 
-      <Card title={`&#128290; ${S.petIdLabel}`}>
+      <Card title={`🔒 ${S.petIdLabel}`}>
         <Nud label={S.petIdLabel} value={petId} onChange={setPetId} min={1} />
       </Card>
 
-      <Card title={`&#9881;&#65039; ${S.petMkTitle}`}>
+      <Card title={`⚙️ ${S.petMkTitle}`}>
         <Nud label={S.petLevel}   value={mkLv}  onChange={setMkLv}  min={1} max={200} />
         <Nud label={S.petRebirth} value={mkReb} onChange={setMkReb} min={0} max={20} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
@@ -122,7 +122,7 @@ export default function PetCmdPage() {
         <CmdBar cmd={mkCmd} ckey="mk" />
       </Card>
 
-      <Card title={`&#9881;&#65039; ${S.petAbiTitle}`}>
+      <Card title={`⚙️ ${S.petAbiTitle}`}>
         <Nud label={S.petHp}      value={hp}     onChange={setHp}     min={1} />
         <Nud label={S.petAtk}     value={atk}    onChange={setAtk} />
         <Nud label={S.petDef}     value={def}    onChange={setDef} />

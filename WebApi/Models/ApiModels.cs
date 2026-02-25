@@ -5,30 +5,45 @@ public record LoginResponse(string Token, string Username, string Role);
 
 public class PlayerRow
 {
-    public string Account    { get; set; } = "";
-    public string OnlineName { get; set; } = "";
-    public bool   IsOnline   { get; set; }
-    public int    ServerId   { get; set; }
-    public string RegTime    { get; set; } = "";
-    public string LoginTime  { get; set; } = "";
-    public string IP         { get; set; } = "";
-    public bool   IsBanned   { get; set; }
-    public long   Gold       { get; set; }
-    public long   Crystal    { get; set; }
-    public int    PetCount   { get; set; }
+    public string Account     { get; set; } = "";
+    public string OnlineName  { get; set; } = "";
+    public bool   IsOnline    { get; set; }
+    public int    ServerId    { get; set; }
+    public string RegTime     { get; set; } = "";
+    public string LoginTime   { get; set; } = "";
+    public string IP          { get; set; } = "";
+    public bool   IsBanned    { get; set; }
+    public long   Gold        { get; set; }
+    public long   Crystal     { get; set; }
+    public int    PetCount    { get; set; }
+    // 列表額外欄位
+    public string MasterName  { get; set; } = "";
+    public long   PayTotal    { get; set; }
+    public int    VipLevel    { get; set; }   // 0=一般 1=黃金 2=鑽石
 }
 
 public class PlayerDetail : PlayerRow
 {
-    public string RegIP       { get; set; } = "";
-    public string Uid         { get; set; } = "";
-    public string MAC         { get; set; } = "";
-    public int    TotalMails  { get; set; }
-    public int    UnreadMails { get; set; }
-    public bool   IsMuted     { get; set; }
-    public string BanEndTime  { get; set; } = "";
-    public long   PayTotal    { get; set; }
+    public string RegIP        { get; set; } = "";
+    public string Uid          { get; set; } = "";
+    public string MAC          { get; set; } = "";
+    public int    TotalMails   { get; set; }
+    public int    UnreadMails  { get; set; }
+    public bool   IsMuted      { get; set; }
+    public string BanEndTime   { get; set; } = "";
+    // 新增欄位
+    public long   PayPoint     { get; set; }   // 充值點
+    public long   RmbPoint     { get; set; }   // R幣
+    public int    GroupId      { get; set; }
+    public int    NeiCe        { get; set; }
+    // paydata 累積充值
+    public long   PaydataPoint { get; set; }   // 當前循環進度
+    public long   PaydataTotal { get; set; }   // lifetime_total
+    public long   TotalCheck   { get; set; }   // 完成循環次數
 }
+
+public class RenameRequest      { public string NewName { get; set; } = ""; }
+public class MuteRequest        { public bool Mute { get; set; } }
 
 public class SetCurrencyRequest
 {
@@ -51,3 +66,135 @@ public class DashboardStats
     public long TotalGold      { get; set; }
     public long TotalCrystal   { get; set; }
 }
+
+// 交易記錄（tradelog）
+public class TradeRecordDto
+{
+    public string FromCdkey { get; set; } = "";
+    public string FromName  { get; set; } = "";
+    public string ToCdkey   { get; set; } = "";
+    public string ToName    { get; set; } = "";
+    public string Time      { get; set; } = "";
+    public string Item      { get; set; } = "";
+    public string Pet       { get; set; } = "";
+    public long   Gold      { get; set; }
+}
+
+// VIP 玩家列（依累儲排序）
+public class VipRowDto
+{
+    public string Account     { get; set; } = "";
+    public string OnlineName  { get; set; } = "";
+    public string MasterName  { get; set; } = "";
+    public long   PayTotal    { get; set; }
+    public long   Gold        { get; set; }
+    public long   Crystal     { get; set; }
+    public bool   IsOnline    { get; set; }
+    public string LoginTime   { get; set; } = "";
+    public int    VipLevel    { get; set; }
+}
+
+// 回收桶
+public class RecycleEntryDto
+{
+    public int      RecycleId   { get; set; }
+    public string   DeletedAt   { get; set; } = "";
+    public string   DeletedBy   { get; set; } = "";
+    public string   Account     { get; set; } = "";
+    public string   OnlineName  { get; set; } = "";
+    public string   MasterName  { get; set; } = "";
+}
+
+// GM 工具帳號
+public class AdminUserDto
+{
+    public int    Id        { get; set; }
+    public string Username  { get; set; } = "";
+    public string Nickname  { get; set; } = "";
+    public bool   IsEnabled { get; set; }
+    public string CreatedAt { get; set; } = "";
+}
+
+public class BatchGoldRequest
+{
+    public string Target     { get; set; } = "online"; // all | online | custom
+    public string CustomList { get; set; } = "";
+    public string AccountIds { get; set; } = "";       // 勾選的帳號，逗號分隔（batch 時用）
+    public long   Amount     { get; set; }             // 正數=加，負數=扣
+}
+
+public class SqlQueryRequest
+{
+    public string Sql { get; set; } = "";
+}
+
+public class AddAdminUserRequest
+{
+    public string Username { get; set; } = "";
+    public string Password { get; set; } = "";
+    public string Nickname { get; set; } = "";
+}
+
+public class SendItemRequest
+{
+    public string Account  { get; set; } = "";
+    public int    ItemId   { get; set; }
+    public int    Quantity { get; set; } = 1;
+    public int    Type     { get; set; } = 0;
+    public string Title    { get; set; } = "";
+    public string Content  { get; set; } = "";
+}
+
+public class CartItem     { public int ItemId { get; set; } public int Qty { get; set; } public int Type { get; set; } }
+public class SendCartRequest
+{
+    public string     Account  { get; set; } = "";
+    public List<CartItem> Cart { get; set; } = new();
+    public string     Title    { get; set; } = "";
+    public string     Content  { get; set; } = "";
+}
+
+public class BatchSendCartRequest
+{
+    public string     Target      { get; set; } = "online"; // all | online | custom
+    public string     CustomList  { get; set; } = "";
+    public List<CartItem> Cart    { get; set; } = new();
+    public string     Title       { get; set; } = "";
+    public string     Content     { get; set; } = "";
+    public string     ExpireDate  { get; set; } = "";
+}
+
+public class MailHistoryDto
+{
+    public int    MailId    { get; set; }
+    public string ItemName  { get; set; } = "";
+    public int    ItemId    { get; set; }
+    public int    Quantity  { get; set; }
+    public string SendTime  { get; set; } = "";
+    public bool   IsRead    { get; set; }
+}
+
+/// <summary>給予儲值：台幣累積進度 + 可選同時發放金幣（與 EXE 一致）</summary>
+public class RechargeRequest
+{
+    public long TwdAmount  { get; set; }
+    public long GoldAmount { get; set; }
+    public bool GiveGold   { get; set; } = true;
+}
+
+// 商城分析
+public class ShopItemDto { public int Rank { get; set; } public int ItemId { get; set; } public string ItemName { get; set; } = ""; public long TotalQty { get; set; } public long OrderCount { get; set; } public long TotalCost { get; set; } public string LastTime { get; set; } = ""; }
+public class ShopSpenderDto { public int Rank { get; set; } public string Cdkey { get; set; } = ""; public string Name { get; set; } = ""; public long TotalQty { get; set; } public long TotalCost { get; set; } }
+
+// 玩家活躍
+public class InactivePlayerDto { public string OnlineName { get; set; } = ""; public string Account { get; set; } = ""; public string LastLogin { get; set; } = ""; public int DaysSince { get; set; } }
+
+// 交易稽核
+public class FrequentPairDto { public string FromAccount { get; set; } = ""; public string FromName { get; set; } = ""; public string ToAccount { get; set; } = ""; public string ToName { get; set; } = ""; public int Count { get; set; } public string LastTime { get; set; } = ""; }
+public class SameIpTradeDto { public string FromAccount { get; set; } = ""; public string ToAccount { get; set; } = ""; public int Count { get; set; } public string SharedIp { get; set; } = ""; }
+public class GoldAnomalyDto { public string Account { get; set; } = ""; public string Name { get; set; } = ""; public long TotalGain { get; set; } public long TotalLoss { get; set; } public int Entries { get; set; } }
+public class TopTraderDto { public string Account { get; set; } = ""; public string Name { get; set; } = ""; public int TradeCount { get; set; } public string LastTime { get; set; } = ""; }
+
+// GM 權限
+public class GmPermDto { public string Account { get; set; } = ""; public string OnlineName { get; set; } = ""; public int GroupId { get; set; } public int NeiCe { get; set; } public bool IsOnline { get; set; } }
+public class SetGmPermRequest { public int NeiCe { get; set; } public int GroupId { get; set; } }
