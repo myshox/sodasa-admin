@@ -1,0 +1,34 @@
+# ===== 敏感設定（絕對不上傳）=====
+WebApi/appsettings.json
+WebApi/appsettings.*.json
+!WebApi/appsettings.example.json
+c:/SodaGM/
+
+# ===== .NET =====
+WebApi/bin/
+WebApi/obj/
+*.user
+*.suo
+.vs/
+
+# ===== Node / React =====
+WebApp/node_modules/
+WebApp/dist/
+
+# ===== 系統 =====
+.DS_Store
+Thumbs.db
+*.log
+*.cfg
+connection.cfg
+
+# ===== 暫存分析檔 =====
+petlist*.txt
+pets_*.txt
+publish/
+Output/
+Release/
+DbInspect/
+
+# ===== GMTool 執行檔（二進位不需要版控）=====
+GMTool/

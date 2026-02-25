@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AssemblyName>SQ_Email_Tools_TW</AssemblyName>
+    <RootNamespace>SQ_Email_Tools</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="EPPlus" Version="6.*" />
+    <PackageReference Include="MySqlConnector" Version="2.*" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="6.*" />
+  </ItemGroup>
+
+</Project>
