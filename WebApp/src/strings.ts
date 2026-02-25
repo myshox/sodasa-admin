@@ -1,5 +1,5 @@
 export const S = {
-  appName:  '軒打石器 GM',
+  appName:  '🍅 蘇打石器 GM',
   appSub:   '私服後台管理系統',
 
   // Nav groups（與 EXE 一致）
@@ -38,7 +38,7 @@ export const S = {
   navLogout:      '登出',
 
   // Login
-  loginTitle:   '軒打石器 GM',
+  loginTitle:   '🍅 蘇打石器 GM',
   loginSub:     '私服後台管理系統',
   loginUser:    '帳號',
   loginPass:    '密碼',
