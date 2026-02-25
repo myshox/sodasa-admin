@@ -392,12 +392,26 @@ public class DbService
     {
         await using var db = Open(); await db.OpenAsync();
         var list = new List<PlayerRow>();
-        foreach (var sql in new[] { sql1, sql2 })
+
+        // sql3：最小化 fallback，只查 csalogin，不依賴任何可能缺失的資料表
+        const string sql3 = @"SELECT `Name` account, IFNULL(OnlineName,'') onlineName,
+               (Online=1) isOnline, IFNULL(ServerId,0) serverId,
+               IFNULL(DATE_FORMAT(created_at,'%Y-%m-%d %H:%i'),'') regTime,
+               IFNULL(DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+               IFNULL(IP,'') ip, 0 isBanned,
+               IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal,
+               0 petCount, IFNULL(PayTotal,0) payTotal, '' masterName
+        FROM csalogin ORDER BY Online DESC, LoginTime DESC LIMIT @lim";
+
+        foreach (var sql in new[] { sql1, sql2, sql3 })
         {
             try
             {
                 await using var cmd = new MySqlCommand(sql, db);
                 paramFn(cmd.Parameters);
+                // sql3 也接受 @lim 參數，其他不需要的參數會被忽略
+                if (!cmd.Parameters.Contains("@lim"))
+                    cmd.Parameters.AddWithValue("@lim", 1000);
                 await using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync()) list.Add(MapRow(r));
                 return list;
