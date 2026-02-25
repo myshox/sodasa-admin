@@ -2,6 +2,8 @@ import { useState } from 'react'
 import api from '../api'
 import { S } from '../strings'
 import ItemBrowser from '../components/ItemBrowser'
+import ItemAutocomplete from '../components/ItemAutocomplete'
+import type { ItemInfo } from '../components/ItemBrowser'
 
 interface CartItem { itemId: number; qty: number; type: number; name?: string }
 
@@ -32,6 +34,10 @@ export default function BatchPage() {
     if (!id || id <= 0) return
     addToCart({ itemId: id, qty: manualQty, type: manualType })
     setManualId('')
+  }
+
+  const addFromAutocomplete = (item: ItemInfo) => {
+    addToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })
   }
 
   const send = async () => {
@@ -82,9 +88,22 @@ export default function BatchPage() {
             )}
           </div>
 
-          {/* 加入道具（手動） */}
+          {/* 加入道具 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 10 }}>手動輸入道具編號</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 10 }}>加入道具 / 寵物</h3>
+
+            {/* 名稱搜尋 */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>名稱搜尋（從已上傳的 xlsx 清單自動偵測）</div>
+              <ItemAutocomplete mode="both" onSelect={addFromAutocomplete} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>或直接輸入編號</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <label style={{ flex: 1 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>道具編號</span>

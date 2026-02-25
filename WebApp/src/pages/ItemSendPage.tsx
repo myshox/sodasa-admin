@@ -4,6 +4,9 @@ import api from '../api'
 import type { MailHistoryItem } from '../api'
 import { S } from '../strings'
 import ItemBrowser from '../components/ItemBrowser'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import ItemAutocomplete from '../components/ItemAutocomplete'
+import type { ItemInfo } from '../components/ItemBrowser'
 
 interface CartItem { itemId: number; qty: number; type: number; name?: string }
 
@@ -53,6 +56,7 @@ export default function ItemSendPage() {
       setResult('找不到該玩家')
     } finally { setLoading(false) }
   }
+  void searchPlayer // suppress unused warning
 
   const loadHistory = async () => {
     if (!selectedAccount) return
@@ -77,6 +81,10 @@ export default function ItemSendPage() {
     if (!id || id <= 0) { setResult('請輸入有效道具編號'); return }
     addToCart({ itemId: id, qty: manualQty, type: manualType })
     setManualId('')
+  }
+
+  const addFromAutocomplete = (item: ItemInfo) => {
+    addToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })
   }
 
   const removeFromCart = (idx: number) => setCart(cart.filter((_, i) => i !== idx))
@@ -124,17 +132,18 @@ export default function ItemSendPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* 指定玩家 */}
           <Card title="STEP 1 — 指定玩家">
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input value={playerQ} onChange={e => setPlayerQ(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && searchPlayer()}
-                placeholder="帳號或角色名稱" style={{ flex: 1 }} />
-              <button onClick={searchPlayer} disabled={loading}
-                style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 14px' }}>
-                🔍 {S.searchBtn}
-              </button>
-            </div>
+            <PlayerAutocomplete
+              value={playerQ}
+              onChange={setPlayerQ}
+              onSelect={p => {
+                setSelectedAccount(p.account)
+                setSelectedName(p.onlineName || p.account)
+                setPlayerQ(p.onlineName || p.account)
+              }}
+              placeholder="輸入帳號或角色名稱（自動下拉建議）"
+            />
             {selectedAccount && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                 <p style={{ fontSize: 13, color: 'var(--accent-green)' }}>✓ 已選：{selectedName}（{selectedAccount}）</p>
                 <button onClick={loadHistory} disabled={historyLoading}
                   style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>
@@ -144,8 +153,28 @@ export default function ItemSendPage() {
             )}
           </Card>
 
-          {/* 手動輸入道具編號 */}
-          <Card title="手動輸入道具（或直接從左側清單點選）">
+          {/* 道具/寵物搜尋 + 手動輸入 */}
+          <Card title="STEP 2 — 加入道具 / 寵物">
+            {/* 名稱搜尋（需先上傳 xlsx）*/}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                📂 名稱搜尋（從已上傳的 xlsx 清單自動偵測）
+              </div>
+              <ItemAutocomplete
+                mode="both"
+                onSelect={addFromAutocomplete}
+                placeholder="輸入道具或寵物名稱關鍵字…"
+              />
+            </div>
+
+            {/* 分隔 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>或直接輸入編號</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+
+            {/* 手動輸入 */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <label style={{ flex: 1, minWidth: 90 }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>道具編號</span>

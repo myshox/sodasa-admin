@@ -23,25 +23,54 @@ export default function PlayersPage() {
   const navigate = useNavigate()
   const [sp] = useSearchParams()
   const [q, setQ] = useState(sp.get('q') || '')
-  const [players, setPlayers] = useState<PlayerRow[]>([])
+  const [allPlayers, setAllPlayers] = useState<PlayerRow[]>([])   // 完整列表（自動載入）
+  const [players, setPlayers] = useState<PlayerRow[]>([])          // 顯示中（過濾後）
   const [detail, setDetail] = useState<PlayerDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
   const [msg, setMsg] = useState('')
 
+  // 頁面開啟自動載入全部玩家（最多 1000 筆，與 EXE 一致）
   useEffect(() => {
-    const initQ = sp.get('q')
-    if (initQ) {
-      setQ(initQ)
-      ;(async () => {
-        setLoading(true)
-        try {
-          const r = await api.get('/players/search', { params: { q: initQ, limit: 200 } })
+    ;(async () => {
+      setLoading(true)
+      try {
+        const r = await api.get('/players/list', { params: { limit: 1000 } })
+        setAllPlayers(r.data)
+        setTotalCount(r.data.length)
+        // 若有 URL 參數 q= 則立即過濾
+        const initQ = sp.get('q')
+        if (initQ) {
+          setQ(initQ)
+          const filtered = (r.data as PlayerRow[]).filter(p =>
+            p.account.includes(initQ) ||
+            (p.onlineName || '').includes(initQ) ||
+            (p.masterName || '').includes(initQ)
+          )
+          setPlayers(filtered.length > 0 ? filtered : r.data)
+          if (filtered.length === 1) loadDetail(filtered[0].account)
+        } else {
           setPlayers(r.data)
-          if (r.data.length === 1) loadDetail(r.data[0].account)
-        } finally { setLoading(false) }
-      })()
-    }
+        }
+      } catch {
+        setAllPlayers([]); setPlayers([])
+      } finally { setLoading(false) }
+    })()
   }, [])
+
+  // 搜尋框即時過濾（不需按鈕）
+  useEffect(() => {
+    if (!q.trim()) {
+      setPlayers(allPlayers)
+      return
+    }
+    const kw = q.trim().toLowerCase()
+    setPlayers(allPlayers.filter(p =>
+      p.account.toLowerCase().includes(kw) ||
+      (p.onlineName || '').toLowerCase().includes(kw) ||
+      (p.masterName || '').toLowerCase().includes(kw)
+    ))
+  }, [q, allPlayers])
 
   // 金幣/水晶
   const [goldVal, setGoldVal] = useState('')
@@ -64,12 +93,29 @@ export default function PlayersPage() {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
+  // 如果本地過濾結果為 0，才向伺服器補充搜尋
   const search = async () => {
-    if (!q.trim()) return
+    if (!q.trim()) { setPlayers(allPlayers); return }
+    const kw = q.trim().toLowerCase()
+    const local = allPlayers.filter(p =>
+      p.account.toLowerCase().includes(kw) ||
+      (p.onlineName || '').toLowerCase().includes(kw) ||
+      (p.masterName || '').toLowerCase().includes(kw)
+    )
+    if (local.length > 0) { setPlayers(local); return }
+    // 本地無結果 → 向 API 搜尋
     setLoading(true); setDetail(null)
     try {
-      const r = await api.get('/players/search', { params: { q, limit: 200 } })
+      const r = await api.get('/players/search', { params: { q: q.trim(), limit: 200 } })
       setPlayers(r.data)
+    } finally { setLoading(false) }
+  }
+
+  const reload = async () => {
+    setLoading(true); setQ('')
+    try {
+      const r = await api.get('/players/list', { params: { limit: 1000 } })
+      setAllPlayers(r.data); setPlayers(r.data); setTotalCount(r.data.length)
     } finally { setLoading(false) }
   }
 
@@ -147,20 +193,33 @@ export default function PlayersPage() {
     <div style={{ padding: 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>👥 {S.pagePlayerMgr}</h1>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={q} onChange={e => setQ(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder={S.searchPlh} style={{ flex: 1, maxWidth: 400 }} />
+          placeholder="即時過濾：輸入帳號 / 角色名 / 主帳號…"
+          style={{ flex: 1, maxWidth: 420 }} />
         <button onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff' }}>
-          {loading ? S.searching : `🔍 ${S.searchBtn}`}
+          {loading ? S.searching : `🔍 搜尋`}
         </button>
+        <button onClick={reload} disabled={loading}
+          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '8px 14px' }}>
+          🔄 重新整理
+        </button>
+        {totalCount > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            共 {totalCount} 筆
+            {q.trim() && players.length !== totalCount && ` → 篩選 ${players.length} 筆`}
+          </span>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* 玩家列表 - 表格格式 */}
         <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
           {players.length === 0
-            ? <p style={{ padding: 24, color: 'var(--text-muted)', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 10 }}>{S.searchHint}</p>
+            ? <p style={{ padding: 24, color: 'var(--text-muted)', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 10 }}>
+                {loading ? '載入中…' : q.trim() ? `找不到「${q}」的玩家` : '尚無玩家資料，請確認資料庫連線'}
+              </p>
             : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
