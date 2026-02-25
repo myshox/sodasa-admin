@@ -202,3 +202,26 @@ public class TopTraderDto { public string Account { get; set; } = ""; public str
 // GM 權限
 public class GmPermDto { public string Account { get; set; } = ""; public string OnlineName { get; set; } = ""; public int GroupId { get; set; } public int NeiCe { get; set; } public bool IsOnline { get; set; } }
 public class SetGmPermRequest { public int NeiCe { get; set; } public int GroupId { get; set; } }
+
+// ── 外部 API 充值請求（供官網後台呼叫）─────────────────────
+/// <summary>
+/// 官網後台確認訂單時呼叫此請求體。
+/// Header 需帶 X-Api-Key: {ExternalApiKey}
+/// </summary>
+public class ExternalRechargeRequest
+{
+    /// <summary>玩家登入帳號</summary>
+    public string Account      { get; set; } = "";
+    /// <summary>台幣金額（用於累積儲值計算）</summary>
+    public long   TwdAmount    { get; set; }
+    /// <summary>給予金幣數量</summary>
+    public long   GoldAmount   { get; set; }
+    /// <summary>是否同時發放金幣（預設 true）</summary>
+    public bool   GiveGold     { get; set; } = true;
+    /// <summary>是否同步累積儲值循環進度（預設 true）</summary>
+    public bool   UpdatePaydata { get; set; } = true;
+    /// <summary>訂單編號（選填，記錄用）</summary>
+    public string OrderNo      { get; set; } = "";
+    /// <summary>備註（選填，記錄用）</summary>
+    public string Remark       { get; set; } = "";
+}
