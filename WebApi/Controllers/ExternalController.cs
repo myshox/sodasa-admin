@@ -102,6 +102,7 @@ public class ExternalController : ControllerBase
         {
             account      = (string)info.account,
             charName     = (string)info.onlineName,
+            masterName   = (string)info.masterName,
             isOnline     = (bool)info.isOnline,
             vipLevel     = (int)info.vipLevel,
             payTotal     = (long)info.payTotal,

@@ -588,12 +588,15 @@ public class DbService
     {
         await using var db = Open(); await db.OpenAsync();
         long point = 0, tc = 0, lt = 0, payTotal = 0, gold = 0, crystal = 0;
-        string onlineName = "";
+        string onlineName = "", masterName = "";
         bool isOnline = false;
         try
         {
             await using var cmd = new MySqlCommand(
-                "SELECT IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal, IFNULL(PayTotal,0) payTotal, (Online=1) isOnline, IFNULL(OnlineName,'') onlineName FROM csalogin WHERE `Name`=@acc LIMIT 1", db);
+                @"SELECT IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
+                         IFNULL(c.PayTotal,0) payTotal, (c.Online=1) isOnline,
+                         IFNULL(c.OnlineName,'') onlineName
+                  FROM csalogin c WHERE c.`Name`=@acc LIMIT 1", db);
             cmd.Parameters.AddWithValue("@acc", account);
             await using var r = await cmd.ExecuteReaderAsync();
             if (await r.ReadAsync()) {
@@ -601,6 +604,18 @@ public class DbService
                 payTotal = r.GetInt64("payTotal"); isOnline = r.GetBoolean("isOnline");
                 onlineName = r.GetString("onlineName");
             }
+        }
+        catch { }
+        // 嘗試取主帳號名稱
+        try
+        {
+            await using var cmdM = new MySqlCommand(
+                @"SELECT IFNULL(m.`Name`,'') mname FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE c.`Name`=@acc LIMIT 1", db);
+            cmdM.Parameters.AddWithValue("@acc", account);
+            await using var rM = await cmdM.ExecuteReaderAsync();
+            if (await rM.ReadAsync()) masterName = rM.GetString("mname");
         }
         catch { }
         try
@@ -612,7 +627,7 @@ public class DbService
             if (await r2.ReadAsync()) { point = r2.GetInt64("pt"); tc = r2.GetInt64("tc2"); lt = r2.GetInt64("lt2"); }
         }
         catch { }
-        return new { account, onlineName, isOnline, gold, crystal, payTotal, paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
+        return new { account, onlineName, masterName, isOnline, gold, crystal, payTotal, paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
                      vipLevel = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0 };
     }
 
