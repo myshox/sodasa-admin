@@ -100,13 +100,13 @@ public class ExternalController : ControllerBase
 
         return Ok(new
         {
-            account      = (string)info.Account,
-            charName     = (string)info.OnlineName,
-            isOnline     = (bool)info.IsOnline,
-            vipLevel     = (int)info.VipLevel,
-            payTotal     = (long)info.PayTotal,
-            paydataPoint = (long)info.PaydataPoint,
-            gold         = (long)info.Gold,
+            account      = (string)info.account,
+            charName     = (string)info.onlineName,
+            isOnline     = (bool)info.isOnline,
+            vipLevel     = (int)info.vipLevel,
+            payTotal     = (long)info.payTotal,
+            paydataPoint = (long)info.paydataPoint,
+            gold         = (long)info.gold,
         });
     }
 
