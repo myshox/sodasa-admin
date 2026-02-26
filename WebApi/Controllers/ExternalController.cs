@@ -112,6 +112,28 @@ public class ExternalController : ControllerBase
 
     // ─────────────────────────────────────────────────────
     /// <summary>
+    /// 查詢主帳號底下的所有遊戲角色（供官網會員中心綁定帳號用）。
+    /// GET /api/external/master/{masterName}
+    /// Header: X-Api-Key: {key}
+    /// </summary>
+    [HttpGet("master/{masterName}")]
+    public async Task<IActionResult> GetMaster(string masterName)
+    {
+        if (!IsAuthorized())
+            return Unauthorized(new { message = "API Key 錯誤或未設定" });
+
+        if (string.IsNullOrWhiteSpace(masterName))
+            return BadRequest(new { message = "masterName 不可為空" });
+
+        var result = await _db.GetMasterAsync(masterName.Trim());
+        if (result == null)
+            return NotFound(new { message = $"找不到主帳號「{masterName}」，請確認輸入是否正確" });
+
+        return Ok(result);
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
     /// 驗證 API Key 是否正確（測試用）。
     /// GET /api/external/ping
     /// Header: X-Api-Key: {key}
