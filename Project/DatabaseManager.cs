@@ -669,13 +669,13 @@ namespace SQ_Email_Tools
 
             if (completedCycles > 0)
             {
-                // ✅ 跨越循環：point 設為餘數，check 歸零（新輪次可重新領取），totalcheck 累加
+                // ✅ 跨越循環：point 設為餘數，totalcheck 累加
+                // ⚠ check 欄位不動，由遊戲伺服器自行管理（設 0 反而觸發自動領取 bug）
                 using var cmdPay = new MySqlCommand(@"
                     INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
                     VALUES (@cdkey, @newpt, NOW(), 0, @tc, @lt)
                     ON DUPLICATE KEY UPDATE
                         point          = @newpt,
-                        `check`        = 0,
                         totalcheck     = @tc,
                         lifetime_total = lifetime_total + @twd", conn);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);

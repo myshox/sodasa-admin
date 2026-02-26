@@ -720,12 +720,12 @@ public class DbService
 
             if (completedCycles > 0)
             {
+                // ⚠ check 欄位不動，由遊戲伺服器自行管理（強制設 0 反而觸發自動領取 bug）
                 await using var cmdPay = new MySqlCommand(@"
                     INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
                     VALUES (@cdkey, @newpt, NOW(), 0, @tc, @lt)
                     ON DUPLICATE KEY UPDATE
                         point          = @newpt,
-                        `check`        = 0,
                         totalcheck     = @tc,
                         lifetime_total = lifetime_total + @twd", db);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);
