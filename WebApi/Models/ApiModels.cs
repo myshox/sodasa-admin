@@ -203,6 +203,11 @@ public class TopTraderDto { public string Account { get; set; } = ""; public str
 public class GmPermDto { public string Account { get; set; } = ""; public string OnlineName { get; set; } = ""; public int GroupId { get; set; } public int NeiCe { get; set; } public bool IsOnline { get; set; } }
 public class SetGmPermRequest { public int NeiCe { get; set; } public int GroupId { get; set; } }
 
+// ── 外部 API 追加請求（供官網後台 GM 操作呼叫）─────────────
+public class ExternalSetGoldRequest  { public long Gold    { get; set; } }
+public class ExternalBanRequest      { public bool Ban     { get; set; } public int Days { get; set; } = 0; }
+public class ExternalSendMailRequest { public string Title { get; set; } = ""; public string Content { get; set; } = ""; }
+
 // ── 外部 API 充值請求（供官網後台呼叫）─────────────────────
 /// <summary>
 /// 官網後台確認訂單時呼叫此請求體。

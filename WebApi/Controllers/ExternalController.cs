@@ -147,4 +147,126 @@ public class ExternalController : ControllerBase
 
         return Ok(new { message = "✓ 蘇打石器 GM 外部 API 連線成功", time = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss") });
     }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 取得伺服器統計數據（供官網報表統計頁面使用）。
+    /// GET /api/external/stats
+    /// </summary>
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        var s = await _db.GetStatsAsync();
+        return Ok(new {
+            totalPlayers  = s.TotalPlayers,
+            onlinePlayers = s.OnlinePlayers,
+            bannedPlayers = s.BannedPlayers,
+            newToday      = s.NewToday,
+            totalGold     = s.TotalGold,
+            totalCrystal  = s.TotalCrystal,
+        });
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 取得 VIP 玩家排行榜（前 20 名，依累積儲值排序）。
+    /// GET /api/external/vip
+    /// </summary>
+    [HttpGet("vip")]
+    public async Task<IActionResult> GetVip()
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        var list = await _db.GetVipListAsync();
+        var top  = list.Take(20).Select(v => new {
+            account    = v.Account,
+            charName   = v.OnlineName,
+            masterName = v.MasterName,
+            payTotal   = v.PayTotal,
+            gold       = v.Gold,
+            isOnline   = v.IsOnline,
+            vipLevel   = v.VipLevel,
+        });
+        return Ok(top);
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 搜尋遊戲玩家（官網管理後台「遊戲玩家」tab 使用）。
+    /// GET /api/external/players?q={query}
+    /// </summary>
+    [HttpGet("players")]
+    public async Task<IActionResult> SearchPlayers([FromQuery] string q = "")
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        if (string.IsNullOrWhiteSpace(q)) return BadRequest(new { message = "q 不可為空" });
+        var rows = await _db.SearchPlayersAsync(q.Trim(), 30);
+        var result = rows.Select(r => new {
+            account    = r.Account,
+            charName   = r.OnlineName,
+            masterName = r.MasterName,
+            gold       = r.Gold,
+            payTotal   = r.PayTotal,
+            vipLevel   = r.VipLevel,
+            isOnline   = r.IsOnline,
+            isBanned   = r.IsBanned,
+            regTime    = r.RegTime,
+            loginTime  = r.LoginTime,
+        });
+        return Ok(result);
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 設定玩家金幣（官網管理後台直接操作）。
+    /// PUT /api/external/player/{account}/gold
+    /// Body: { "gold": 1000 }
+    /// </summary>
+    [HttpPut("player/{account}/gold")]
+    public async Task<IActionResult> SetGold(string account, [FromBody] ExternalSetGoldRequest req)
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { message = "account 不可為空" });
+        if (req.Gold < 0) return BadRequest(new { message = "gold 不可為負" });
+        var ok = await _db.SetGoldAsync(account.Trim(), req.Gold);
+        if (!ok) return NotFound(new { message = $"找不到玩家「{account}」" });
+        return Ok(new { success = true, message = $"✓ 玩家「{account}」金幣已設定為 {req.Gold:N0}", account, gold = req.Gold });
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 封號或解封玩家（官網管理後台直接操作）。
+    /// POST /api/external/player/{account}/ban
+    /// Body: { "ban": true, "days": 0 }  // days=0 永久封號
+    /// </summary>
+    [HttpPost("player/{account}/ban")]
+    public async Task<IActionResult> BanPlayer(string account, [FromBody] ExternalBanRequest req)
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { message = "account 不可為空" });
+        var ok = await _db.SetBanAsync(account.Trim(), req.Ban, req.Days);
+        if (!ok) return NotFound(new { message = $"找不到玩家「{account}」" });
+        string msg = req.Ban
+            ? $"✓ 玩家「{account}」已{(req.Days > 0 ? $"封號 {req.Days} 天" : "永久封號")}"
+            : $"✓ 玩家「{account}」已解封";
+        return Ok(new { success = true, message = msg, account, ban = req.Ban, days = req.Days });
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
+    /// 發送站內文字信件給指定玩家（官網管理後台直接操作）。
+    /// POST /api/external/player/{account}/mail
+    /// Body: { "title": "標題", "content": "內容" }
+    /// </summary>
+    [HttpPost("player/{account}/mail")]
+    public async Task<IActionResult> SendMail(string account, [FromBody] ExternalSendMailRequest req)
+    {
+        if (!IsAuthorized()) return Unauthorized(new { message = "API Key 錯誤或未設定" });
+        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { message = "account 不可為空" });
+        if (string.IsNullOrWhiteSpace(req.Title)) return BadRequest(new { message = "title 不可為空" });
+        if (string.IsNullOrWhiteSpace(req.Content)) return BadRequest(new { message = "content 不可為空" });
+        var ok = await _db.SendTextMailAsync(account.Trim(), req.Title, req.Content);
+        if (!ok) return NotFound(new { message = $"找不到玩家「{account}」或發送失敗" });
+        return Ok(new { success = true, message = $"✓ 已發送信件給玩家「{account}」", account });
+    }
 }

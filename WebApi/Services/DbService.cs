@@ -796,6 +796,28 @@ public class DbService
         return (success, fail);
     }
 
+    // ── 發送文字郵件給單一玩家（外部 API 用）──────────────────
+    public async Task<bool> SendTextMailAsync(string account, string title, string content)
+    {
+        if (string.IsNullOrWhiteSpace(account)) return false;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long end = now + 30 * 24 * 3600;
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
+                  VALUES(3,@cdkey,'GM',@title,@content,@now,@end,0,0,'')", db);
+            cmd.Parameters.AddWithValue("@cdkey",   account.Trim());
+            cmd.Parameters.AddWithValue("@title",   title.Trim());
+            cmd.Parameters.AddWithValue("@content", content.Trim());
+            cmd.Parameters.AddWithValue("@now",     now);
+            cmd.Parameters.AddWithValue("@end",     end);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
     // ── 批量發送郵件 ─────────────────────────────────────────
     public async Task<int> BatchMailAsync(string target, string customList, string title, string content)
     {
