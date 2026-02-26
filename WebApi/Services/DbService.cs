@@ -554,6 +554,39 @@ public class DbService
         return list;
     }
 
+    // ── 發放累積獎勵（check: 0=待領, 1=已領）防呆版 ────────────────
+    public async Task<string> ClaimPaydataRewardAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var tx = await db.BeginTransactionAsync();
+        try
+        {
+            long checkVal = -1, totalCheck = 0;
+            await using (var cmdGet = new MySqlCommand(
+                "SELECT IFNULL(`check`,1) ck, IFNULL(totalcheck,0) tc FROM paydata WHERE cdkey=@a FOR UPDATE", db, (MySqlTransaction)tx))
+            {
+                cmdGet.Parameters.AddWithValue("@a", account);
+                await using var r = await cmdGet.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) { await tx.RollbackAsync(); return "not_found"; }
+                checkVal   = Convert.ToInt64(r["ck"]);
+                totalCheck = Convert.ToInt64(r["tc"]);
+            }
+            // 防呆 1：還沒完成任何循環
+            if (totalCheck == 0) { await tx.RollbackAsync(); return "no_cycle"; }
+            // 防呆 2：已領過（check=1）
+            if (checkVal != 0) { await tx.RollbackAsync(); return "already_claimed"; }
+
+            // 標記已領
+            await using var cmdUp = new MySqlCommand(
+                "UPDATE paydata SET `check`=1 WHERE cdkey=@a", db, (MySqlTransaction)tx);
+            cmdUp.Parameters.AddWithValue("@a", account);
+            await cmdUp.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
+            return totalCheck.ToString(); // 回傳當前輪次
+        }
+        catch { await tx.RollbackAsync(); return "error"; }
+    }
+
     // ── 修復 paydata 循環（與 EXE FixPaydataCheckAsync 一致）────────
     public async Task<bool> FixPaydataCheckAsync(string account)
     {
@@ -618,16 +651,28 @@ public class DbService
             if (await rM.ReadAsync()) masterName = rM.GetString("mname");
         }
         catch { }
+        long checkVal = 1; // 預設已領（不顯示按鈕）
         try
         {
             await using var cmd2 = new MySqlCommand(
-                "SELECT IFNULL(point,0) pt, IFNULL(totalcheck,0) tc2, IFNULL(lifetime_total,point) lt2 FROM paydata WHERE cdkey=@acc LIMIT 1", db);
+                "SELECT IFNULL(point,0) pt, IFNULL(totalcheck,0) tc2, IFNULL(lifetime_total,point) lt2, IFNULL(`check`,1) ck FROM paydata WHERE cdkey=@acc LIMIT 1", db);
             cmd2.Parameters.AddWithValue("@acc", account);
             await using var r2 = await cmd2.ExecuteReaderAsync();
-            if (await r2.ReadAsync()) { point = r2.GetInt64("pt"); tc = r2.GetInt64("tc2"); lt = r2.GetInt64("lt2"); }
+            if (await r2.ReadAsync())
+            {
+                point    = r2.GetInt64("pt");
+                tc       = r2.GetInt64("tc2");
+                lt       = r2.GetInt64("lt2");
+                checkVal = r2.GetInt64("ck");
+            }
         }
         catch { }
-        return new { account, onlineName, masterName, isOnline, gold, crystal, payTotal, paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
+        // claimReady = check==0 且已完成至少一輪（totalcheck > 0）
+        // 防呆：point 在本輪尚未達標但 check=0 代表尚有未領的跨輪獎勵
+        bool claimReady = checkVal == 0 && tc > 0;
+        return new { account, onlineName, masterName, isOnline, gold, crystal, payTotal,
+                     paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
+                     paydataCheck = checkVal, claimReady,
                      vipLevel = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0 };
     }
 

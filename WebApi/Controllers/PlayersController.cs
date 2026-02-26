@@ -164,7 +164,22 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> FixPaydata(string account)
     {
         var ok = await _db.FixPaydataCheckAsync(account);
-        return ok ? Ok(new { message = "\u2713 \u5DF2\u4FEE\u5FA9\u5FAA\u74B0\u986F\u793A" }) : BadRequest(new { message = "\u4FEE\u5FA9\u5931\u6557\uff08\u53EF\u80FD\u7121 paydata \u8A18\u9304\uff09" });
+        return ok ? Ok(new { message = "✓ 已修復循環顯示" }) : BadRequest(new { message = "修復失敗（可能無 paydata 記錄）" });
+    }
+
+    /// <summary>發放累積獎勵（設 check=1，防呆：check 必須為 0 才允許）</summary>
+    [HttpPost("{account}/paydata/claim")]
+    public async Task<IActionResult> ClaimPaydataReward(string account)
+    {
+        var result = await _db.ClaimPaydataRewardAsync(account);
+        return result switch
+        {
+            "ok"             => Ok(new { message = "✓ 已標記獎勵已發放（第 " + result + " 輪）" }),
+            "already_claimed"=> BadRequest(new { message = "⚠ 此輪獎勵已發放，無法重複領取" }),
+            "no_cycle"       => BadRequest(new { message = "⚠ 尚未完成任何循環，無獎勵可發放" }),
+            "not_found"      => BadRequest(new { message = "找不到玩家 paydata 記錄" }),
+            _                => Ok(new { message = $"✓ 獎勵已發放（輪次 #{result}）" })
+        };
     }
 
     [HttpGet("{account}/paydata")]

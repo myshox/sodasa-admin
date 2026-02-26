@@ -782,6 +782,47 @@ namespace SQ_Email_Tools
         }
 
         // ══════════════════════════════════════════════════════════
+        // 發放累積獎勵（check: 0=待領, 1=已領）含防呆
+        // ══════════════════════════════════════════════════════════
+        /// <summary>
+        /// 標記第 N 輪累積獎勵為已發放（check 0→1）。
+        /// 防呆：check 必須為 0，且 totalcheck > 0，否則拒絕。
+        /// 回傳：("ok", 輪次) 或 ("already_claimed"/"no_cycle"/"not_found", 0)
+        /// </summary>
+        public async Task<(string status, long cycle)> ClaimPaydataRewardAsync(string account)
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                int  ck = 1; long tc = 0;
+                using (var cmdGet = new MySqlCommand(
+                    "SELECT IFNULL(`check`,1) ck, IFNULL(totalcheck,0) tc FROM paydata WHERE cdkey=@a FOR UPDATE",
+                    conn, (MySqlConnector.MySqlTransaction)tx))
+                {
+                    cmdGet.Parameters.AddWithValue("@a", account);
+                    using var r = await cmdGet.ExecuteReaderAsync();
+                    if (!await r.ReadAsync()) { await tx.RollbackAsync(); return ("not_found", 0); }
+                    ck = Convert.ToInt32(r["ck"]);
+                    tc = Convert.ToInt64(r["tc"]);
+                }
+                if (tc == 0) { await tx.RollbackAsync(); return ("no_cycle", 0); }
+                if (ck != 0) { await tx.RollbackAsync(); return ("already_claimed", tc); }
+
+                using var cmdUp = new MySqlCommand(
+                    "UPDATE paydata SET `check`=1 WHERE cdkey=@a",
+                    conn, (MySqlConnector.MySqlTransaction)tx);
+                cmdUp.Parameters.AddWithValue("@a", account);
+                await cmdUp.ExecuteNonQueryAsync();
+                await tx.CommitAsync();
+                await GmLogger.Instance.LogAsync("發放循環獎勵", account, $"第 {tc} 輪 check 0→1", true);
+                return ("ok", tc);
+            }
+            catch { await tx.RollbackAsync(); return ("error", 0); }
+        }
+
+        // ══════════════════════════════════════════════════════════
         // 禁言操作（csalogin.Offline 欄位：0=正常, 1=禁言）
         // 對應 GM 指令 [shutup] / [禁言] / [unlock]
         // ══════════════════════════════════════════════════════════
@@ -1432,9 +1473,9 @@ namespace SQ_Email_Tools
             }
 
             // 累積充值台幣：讀取 paydata.point（遊戲「累積充值獎勵」介面讀取的欄位）
-            // 同時讀取 lifetime_total（歷史總累積，永不歸零）
+            // 同時讀取 lifetime_total、totalcheck、check（用於判斷領獎狀態）
             using (var cmd5 = new MySqlCommand(
-                "SELECT point, IFNULL(lifetime_total, point) AS lifetime_total FROM paydata WHERE cdkey=@acc", conn))
+                "SELECT point, IFNULL(lifetime_total, point) AS lifetime_total, IFNULL(totalcheck,0) AS tc, IFNULL(`check`,1) AS ck FROM paydata WHERE cdkey=@acc", conn))
             {
                 cmd5.Parameters.AddWithValue("@acc", account);
                 using var r5 = await cmd5.ExecuteReaderAsync();
@@ -1442,6 +1483,8 @@ namespace SQ_Email_Tools
                 {
                     detail.PayTotal         = r5["point"]          == DBNull.Value ? 0 : Convert.ToInt64(r5["point"]);
                     detail.LifetimePayTotal = r5["lifetime_total"] == DBNull.Value ? 0 : Convert.ToInt64(r5["lifetime_total"]);
+                    detail.TotalCheck       = r5["tc"]             == DBNull.Value ? 0 : Convert.ToInt64(r5["tc"]);
+                    detail.PaydataCheck     = r5["ck"]             == DBNull.Value ? 1 : Convert.ToInt32(r5["ck"]);
                 }
                 // 若 paydata 無記錄，PayTotal / LifetimePayTotal 維持 csalogin.PayTotal 的值
             }

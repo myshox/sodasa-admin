@@ -272,6 +272,12 @@ namespace SQ_Email_Tools
         public long   PayTotal         { get; set; }
         /// <summary>歷史總累積儲值（永不歸零）= paydata.lifetime_total</summary>
         public long   LifetimePayTotal { get; set; }
+        /// <summary>已完成循環數 = paydata.totalcheck</summary>
+        public long   TotalCheck       { get; set; }
+        /// <summary>領獎狀態 = paydata.check（0=可領, 1=已領）</summary>
+        public int    PaydataCheck     { get; set; } = 1;
+        /// <summary>是否有未領的循環獎勵（check==0 且 totalCheck>0）</summary>
+        public bool   ClaimReady       => PaydataCheck == 0 && TotalCheck > 0;
         public string QQ         { get; set; }
         public string Uid        { get; set; }
         public string MAC        { get; set; }

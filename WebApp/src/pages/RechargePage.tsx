@@ -20,6 +20,8 @@ interface PaydataInfo {
   account: string; onlineName: string; isOnline: boolean
   gold: number; crystal: number; payTotal: number
   paydataPoint: number; totalCheck: number; lifetimeTotal: number; vipLevel: number
+  paydataCheck: number   // 0=待領獎, 1=已領
+  claimReady: boolean    // true = 本輪獎勵可發放
 }
 
 interface RechargeOrder {
@@ -129,6 +131,22 @@ export default function RechargePage() {
     } finally { setLoading(false) }
   }
 
+  const doClaim = async () => {
+    if (!info) return
+    // 前端防呆：按鈕只有 claimReady 才顯示，這裡再確認一次
+    if (!info.claimReady) { setMsg('⚠ 無可發放的獎勵'); setMsgOk(false); return }
+    if (!window.confirm(`確定要發放「${info.onlineName}」第 ${info.totalCheck} 輪的累積獎勵？\n\n· check 將設為 1（已領）\n· 下次達成 25,000 才能再領`)) return
+    setLoading(true)
+    try {
+      const r = await api.post(`/players/${info.account}/paydata/claim`)
+      setMsg(r.data.message); setMsgOk(true)
+      await loadPlayer(info.account)
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setMsg(err.response?.data?.message || '操作失敗'); setMsgOk(false)
+    } finally { setLoading(false) }
+  }
+
   const doReset = async () => {
     if (!info) return
     if (!window.confirm(`確定要將「${info.onlineName}」的累積充值進度歸零？\n\n· paydata.point → 0\n· check / totalcheck → 0\n\n⚠ 此操作無法復原`)) return
@@ -201,6 +219,21 @@ export default function RechargePage() {
                     歷史總計 NT${(info.lifetimeTotal || info.payTotal).toLocaleString()} | 完成 {info.totalCheck} 輪
                   </div>
                 </div>
+
+                {/* 累積獎勵發放按鈕（防呆：claimReady = check==0 && totalCheck>0） */}
+                {info.claimReady && (
+                  <button onClick={doClaim} disabled={loading}
+                    style={{ width: '100%', marginTop: 8, padding: '7px 0', fontSize: 13, fontWeight: 700,
+                      background: 'rgba(250,204,21,.15)', border: '1px solid rgba(250,204,21,.6)',
+                      borderRadius: 6, color: '#fbbf24', cursor: 'pointer' }}>
+                    🎁 發放第 {info.totalCheck} 輪累積獎勵
+                  </button>
+                )}
+                {!info.claimReady && info.totalCheck > 0 && (
+                  <div style={{ fontSize: 11, color: 'var(--accent-green)', marginTop: 6, textAlign: 'center' }}>
+                    ✓ 第 {info.totalCheck} 輪獎勵已發放
+                  </div>
+                )}
 
                 {/* 維護按鈕 */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>

@@ -858,6 +858,73 @@ namespace SQ_Email_Tools
                 y += 32;
             }
 
+            // 🎁 發放循環獎勵按鈕（防呆：check==0 且 totalCheck>0 才顯示）
+            if (_detail.ClaimReady)
+            {
+                var btnClaim = Theme.MakeButton(
+                    $"🎁 發放第 {_detail.TotalCheck} 輪累積獎勵（{_player.OnlineName}）",
+                    Color.FromArgb(180, 130, 20), Color.White, 400, 30);
+                btnClaim.Font     = new Font(Theme.FontFamily, 9f, FontStyle.Bold);
+                btnClaim.Location = new Point(x + 140, y);
+                btnClaim.Click   += async (s, e) =>
+                {
+                    if (MessageBox.Show(
+                        $"🎁 確定要發放「{_player.OnlineName}」第 {_detail.TotalCheck} 輪的累積獎勵？\n\n" +
+                        "  · paydata.check 將設為 1（已領）\n" +
+                        "  · 下次累積滿 NT$25,000 才能再次領獎\n\n" +
+                        "確認執行？",
+                        "🎁 發放累積獎勵",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+                    var (status, cycle) = await DatabaseManager.Instance.ClaimPaydataRewardAsync(_player.Account);
+                    switch (status)
+                    {
+                        case "ok":
+                            MessageBox.Show(
+                                $"✅ 第 {cycle} 輪獎勵已發放，check 設為 1。\n玩家遊戲內領獎按鈕將消失。",
+                                "發放成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            BuildDetailUI();
+                            break;
+                        case "already_claimed":
+                            MessageBox.Show("⚠ 此輪獎勵已發放過，無法重複操作。", "已領取",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            break;
+                        case "no_cycle":
+                            MessageBox.Show("⚠ 尚未完成任何循環，無獎勵可發放。", "無獎勵",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            break;
+                        default:
+                            MessageBox.Show("⚠ 操作失敗，請確認資料庫連線。", "失敗",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            break;
+                    }
+                };
+                var lblClaim = new Label
+                {
+                    Text      = $"← check=0，第 {_detail.TotalCheck} 輪可領",
+                    ForeColor = Color.FromArgb(255, 200, 80),
+                    Font      = Theme.FontSmall,
+                    AutoSize  = true,
+                    Location  = new Point(x + 548, y + 7)
+                };
+                _bodyPanel.Controls.AddRange(new Control[] { btnClaim, lblClaim });
+                y += 36;
+            }
+            else if (_detail.TotalCheck > 0)
+            {
+                // 已領過：顯示已完成狀態
+                var lblDone = new Label
+                {
+                    Text      = $"✅ 第 {_detail.TotalCheck} 輪獎勵已發放（check=1）",
+                    ForeColor = Color.FromArgb(80, 200, 120),
+                    Font      = Theme.FontSmall,
+                    AutoSize  = true,
+                    Location  = new Point(x + 140, y)
+                };
+                _bodyPanel.Controls.Add(lblDone);
+                y += 22;
+            }
+
             // 歷史總累積儲值（永不歸零）
             {
                 string lifetimeText = lifetimePt == payPt
