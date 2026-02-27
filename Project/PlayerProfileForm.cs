@@ -18,10 +18,18 @@ namespace SQ_Email_Tools
         private Button[]      _tierBtns;
         private Button[]      _bonusBtns;
 
-        public long NewValue      => (long)_nudValue.Value;
+        /// <summary>台幣金額（不含優惠贈金）：選套餐 = 套餐台幣，手動 = 輸入的台幣</summary>
+        public long TwdAmount     => _tierTwd > 0 ? _tierTwd : (long)_nudValue.Value;
+        /// <summary>實際發放金幣（含套餐加成 + 優惠%）</summary>
+        public long NewValue
+        {
+            get
+            {
+                long baseGold = _tierGold > 0 ? _tierGold : TwdAmount * 100L;
+                return (long)Math.Round(baseGold * (1 + _bonus / 100.0));
+            }
+        }
         public int  BonusPercent  => _bonus;
-        /// <summary>選取套餐對應的台幣金額（手動輸入時為 NewValue / 100，無條件進位）</summary>
-        public long TwdAmount     => _tierTwd > 0 ? _tierTwd : (long)Math.Ceiling((double)NewValue / 100.0);
         /// <summary>true = GM 選擇清0累儲（不新增，而是重置進度）</summary>
         public bool IsResetRequest { get; private set; } = false;
 
@@ -190,20 +198,21 @@ namespace SQ_Email_Tools
             Controls.Add(_lblCalc);
             y += 32;
 
-            // ── 手動輸入 ─────────────────────────────────────────────
-            Controls.Add(new Label { Text = "或手動輸入金幣：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 5) });
+            // ── 手動輸入台幣 ─────────────────────────────────────────
+            Controls.Add(new Label { Text = "或手動輸入台幣（NT$）：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 5) });
             _nudValue = new NumericUpDown
             {
-                Location  = new Point(x + 118, y),
-                Width     = 160,
+                Location  = new Point(x + 148, y),
+                Width     = 130,
                 Minimum   = 0,
-                Maximum   = 99_999_999,
+                Maximum   = 999_999,
                 Value     = 0,
                 BackColor = Theme.BgInput,
                 ForeColor = Theme.TextPrimary,
                 Font      = Theme.FontBody,
                 ThousandsSeparator = true
             };
+            _nudValue.ValueChanged += (s, e) => { _tierGold = 0; _tierTwd = 0; RefreshTierButtons(); RecalcAndUpdate(); };
             Controls.Add(_nudValue);
             y += 44;
 
@@ -212,17 +221,21 @@ namespace SQ_Email_Tools
             btnOk.Location = new Point(x + 270, y);
             btnOk.Click += (s, e) =>
             {
-                long v = (long)_nudValue.Value;
-                if (v <= 0)
+                long twd  = TwdAmount;
+                long gold = NewValue;
+                if (twd <= 0)
                 {
-                    MessageBox.Show("請先選擇套餐或輸入金幣數量。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("請先選擇套餐或輸入台幣金額。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                string bonusNote = _bonus > 0 ? $"\n  含 +{_bonus}% 回饋加成" : "";
+                long baseGold = _tierGold > 0 ? _tierGold : twd * 100L;
+                string goldLine = _bonus > 0
+                    ? $"  金幣入帳：+{baseGold:N0}（套餐）＋ +{gold - baseGold:N0}（+{_bonus}%）＝ 共 {gold:N0} 元寶"
+                    : $"  金幣入帳：+{gold:N0} 元寶";
                 if (MessageBox.Show(
                     $"確認給予以下儲值？\n\n" +
-                    $"  金幣入帳：+{v:N0} 元寶{bonusNote}\n" +
-                    $"  換算台幣：≈ NT$ {v / 100m:N0}\n\n" +
+                    $"  台幣金額：NT$ {twd:N0}（累積儲值進度 +NT${twd:N0}，優惠贈金不計入）\n" +
+                    goldLine + "\n\n" +
                     "金幣將立即加入玩家帳戶，並更新累積充值記錄。",
                     "確認給予儲值", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
@@ -289,28 +302,31 @@ namespace SQ_Email_Tools
 
         private void RecalcAndUpdate()
         {
-            if (_tierGold <= 0)
+            long twd = TwdAmount;
+            if (twd <= 0)
             {
-                _lblCalc.Text      = "請選擇套餐後自動計算";
+                _lblCalc.Text      = "請選擇套餐或輸入台幣金額";
                 _lblCalc.ForeColor = Color.FromArgb(120, 130, 160);
                 return;
             }
 
-            long bonus  = (long)Math.Round(_tierGold * _bonus / 100.0);
-            long total  = _tierGold + bonus;
-            total = Math.Min(total, 99_999_999);
+            // 套餐選取時更新台幣輸入框
+            if (_tierTwd > 0 && (long)_nudValue.Value != _tierTwd)
+                _nudValue.Value = Math.Min(_tierTwd, _nudValue.Maximum);
 
-            _nudValue.Value = total;
+            long baseGold = _tierGold > 0 ? _tierGold : twd * 100L;
+            long bonus    = (long)Math.Round(baseGold * _bonus / 100.0);
+            long total    = Math.Min(baseGold + bonus, 99_999_999);
 
             if (_bonus > 0)
             {
                 _lblCalc.Text =
-                    $"💰 {_tierGold:N0}  +  🎁 {bonus:N0}（+{_bonus}%）  =  ✅ {total:N0} 金幣";
+                    $"💰 {baseGold:N0}  +  🎁 {bonus:N0}（+{_bonus}%）  =  ✅ {total:N0} 金幣  ｜  累積儲值 +NT${twd:N0}";
                 _lblCalc.ForeColor = Color.FromArgb(100, 230, 120);
             }
             else
             {
-                _lblCalc.Text      = $"💰 {_tierGold:N0} 金幣（無加成）";
+                _lblCalc.Text      = $"💰 {baseGold:N0} 金幣（無加成）  ｜  累積儲值 +NT${twd:N0}";
                 _lblCalc.ForeColor = Color.FromArgb(80, 200, 255);
             }
         }
