@@ -765,7 +765,7 @@ namespace SQ_Email_Tools
                     _detail.PayTotal         += dlg.TwdAmount;
                     _detail.LifetimePayTotal += dlg.TwdAmount;
                     string goldLine = dlg.GiveGold
-                        ? $"✅ 金幣已入帳：+{dlg.GoldAmount:N0} 金幣（含套餐加成）\n"
+                        ? $"✅ 金幣已入帳：+{dlg.GoldAmount:N0} 金幣（含套餐加成及優惠贈金）\n"
                         : "ℹ️ 本次不發放金幣（僅更新累儲進度）\n";
                     MessageBox.Show(
                         goldLine +
@@ -1498,11 +1498,14 @@ namespace SQ_Email_Tools
 
         // 選取的套餐金幣（-1 = 手動輸入，用 ×100 基礎率）
         private long _selectedGold = -1;
+        // 優惠加成 %（0/5/10/15/20）—— 只影響玩家實際入帳金幣，不影響累積儲值進度
+        private int _bonusPct = 0;
+        private Button[] _bonusBtns = Array.Empty<Button>();
 
-        /// <summary>要加入 paydata.point 的台幣金額</summary>
+        /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）</summary>
         public long TwdAmount  => (long)_nudTwd.Value;
-        /// <summary>要加入 VipPoint 的金幣（含套餐加成；若手動輸入則為 TwdAmount × 100）</summary>
-        public long GoldAmount => _selectedGold >= 0 ? _selectedGold : TwdAmount * 100L;
+        /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
+        public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : TwdAmount * 100L) * (1 + _bonusPct / 100.0));
         public bool GiveGold   => _rbWithGold.Checked;
 
         // (顯示文字, 台幣, 金幣（含加成）)
@@ -1522,7 +1525,7 @@ namespace SQ_Email_Tools
             _currentTotal  = currentPayTotal;
             _lifetimeTotal = lifetimePayTotal;
             Text           = $"💳 調整累積充值 — {playerName}";
-            Size           = new Size(660, 580);
+            Size           = new Size(660, 650);
             BackColor = Theme.BgPage;
             ForeColor      = Theme.TextPrimary;
             Font           = Theme.FontBody;
@@ -1629,6 +1632,48 @@ namespace SQ_Email_Tools
                 bx += 84;
             }
             y += 58;
+
+            // ── 優惠加成 ─────────────────────────────────────────
+            Div(x, y, W); y += 10;
+            Controls.Add(new Label
+            {
+                Text      = "STEP 2  選擇優惠加成%（贈金加成，累積儲值進度只計台幣，贈金不計入進度）：",
+                ForeColor = Color.FromArgb(100, 220, 100), Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 2)
+            });
+            y += 22;
+
+            int[] bonusPcts = { 0, 5, 10, 15, 20 };
+            _bonusBtns = new Button[bonusPcts.Length];
+            int bbx = x;
+            for (int i = 0; i < bonusPcts.Length; i++)
+            {
+                int pct = bonusPcts[i];
+                var bb = new Button
+                {
+                    Text      = pct == 0 ? "無加成" : $"+{pct}%",
+                    Size      = new Size(80, 28),
+                    Location  = new Point(bbx, y),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Theme.BgInput,
+                    ForeColor = Theme.TextSecondary,
+                    Font      = Theme.FontSmall,
+                    Cursor    = Cursors.Hand,
+                    UseVisualStyleBackColor = false,
+                    Tag       = pct,
+                };
+                bb.FlatAppearance.BorderColor = Theme.Border;
+                bb.Click += (s, e) =>
+                {
+                    _bonusPct = (int)((Button)s).Tag;
+                    RefreshBonusBtns();
+                    UpdateGoldPreview();
+                };
+                Controls.Add(bb);
+                _bonusBtns[i] = bb;
+                bbx += 84;
+            }
+            RefreshBonusBtns();
+            y += 36;
 
             // ── 手動輸入台幣 ──────────────────────────────────────
             Div(x, y, W); y += 10;
@@ -1748,13 +1793,18 @@ namespace SQ_Email_Tools
                 if (_rbOnlyProgress.Checked)
                 {
                     modeTitle  = "【僅增加累儲進度】";
-                    modeDetail = $"❌ 不會發放金幣\n✅ 累積充值進度 +NT${twd:N0}{cycNote}\n✅ 歷史總累儲同步更新";
+                    modeDetail = $"❌ 不會發放金幣\n✅ 累積充值進度 +NT${twd:N0}（只計台幣，不含贈金）{cycNote}\n✅ 歷史總累儲同步更新";
                     icon       = "⚠";
                 }
                 else
                 {
+                    long baseGold  = _selectedGold >= 0 ? _selectedGold : twd * 100L;
+                    long bonusGold = gold - baseGold;
+                    string goldBreakdown = _bonusPct > 0
+                        ? $"+{baseGold:N0}（套餐）＋ +{bonusGold:N0}（+{_bonusPct}% 優惠）＝ 共 {gold:N0} 金幣"
+                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : "基礎率 ×100")}）";
                     modeTitle  = "【增加累儲進度 ＋ 同步發放金幣】";
-                    modeDetail = $"✅ 金幣入帳：+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : "基礎率 ×100")}）\n✅ 累積充值進度 +NT${twd:N0}{cycNote}\n✅ 歷史總累儲同步更新";
+                    modeDetail = $"✅ 金幣入帳：{goldBreakdown}\n✅ 累積充值進度 +NT${twd:N0}（只計台幣，優惠贈金不納入）{cycNote}\n✅ 歷史總累儲同步更新";
                     icon       = "💰";
                 }
 
@@ -1796,15 +1846,34 @@ namespace SQ_Email_Tools
 
         private void UpdateGoldPreview()
         {
-            long twd  = (long)_nudTwd.Value;
-            long gold = _selectedGold >= 0 ? _selectedGold : twd * 100L;
+            long twd       = (long)_nudTwd.Value;
+            long baseGold  = _selectedGold >= 0 ? _selectedGold : twd * 100L;
+            long bonusGold = (long)Math.Round(baseGold * _bonusPct / 100.0);
+            long totalGold = baseGold + bonusGold;
             string rateNote = _selectedGold >= 0
-                ? $"（套餐加成，實得 {(double)gold / twd:F1}x）"
-                : "（基礎率 ×100，無套餐加成）";
-            _lblGoldCalc.Text      = $"→ 金幣：{gold:N0} 金幣　{rateNote}";
-            _lblGoldCalc.ForeColor = _selectedGold >= 0
-                ? Color.FromArgb(120, 240, 120)
-                : Color.FromArgb(200, 200, 120);
+                ? $"（套餐加成，{(double)baseGold / twd:F1}x/NT$）"
+                : "（基礎率 ×100）";
+            string bonusNote = _bonusPct > 0
+                ? $"  ＋  {bonusGold:N0}（+{_bonusPct}% 優惠）  ＝  共 {totalGold:N0} 金幣"
+                : "";
+            _lblGoldCalc.Text      = $"→ 金幣：{baseGold:N0}　{rateNote}{bonusNote}";
+            _lblGoldCalc.ForeColor = _bonusPct > 0
+                ? Color.FromArgb(80, 230, 130)
+                : (_selectedGold >= 0 ? Color.FromArgb(120, 240, 120) : Color.FromArgb(200, 200, 120));
+        }
+
+        private void RefreshBonusBtns()
+        {
+            foreach (var btn in _bonusBtns)
+            {
+                int pct = (int)btn.Tag;
+                bool sel = pct == _bonusPct;
+                btn.BackColor = sel ? (pct > 0 ? Color.FromArgb(25, 70, 35) : Theme.BgCard) : Theme.BgInput;
+                btn.ForeColor = sel ? (pct > 0 ? Color.FromArgb(80, 220, 100) : Theme.TextPrimary) : Theme.TextSecondary;
+                btn.FlatAppearance.BorderColor = sel
+                    ? (pct > 0 ? Color.FromArgb(60, 180, 80) : Color.FromArgb(80, 100, 140))
+                    : Theme.Border;
+            }
         }
 
         private void UpdateCycleAfter()

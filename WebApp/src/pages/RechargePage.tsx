@@ -16,6 +16,15 @@ const TIERS = [
 const BONUSES = [0, 5, 10, 15, 20]
 const CYCLE_MAX = 25_000
 
+// 根據台幣金額計算對應金幣（找最高適用套餐匯率）
+function twdToGold(twd: number): { baseGold: number; rate: number; tierLabel: string } {
+  if (twd <= 0) return { baseGold: 0, rate: 100, tierLabel: '—' }
+  let best = TIERS[0]
+  for (const t of TIERS) { if (twd >= t.twd) best = t }
+  const rate = best.gold / best.twd
+  return { baseGold: Math.floor(twd * rate), rate, tierLabel: best.label }
+}
+
 interface PaydataInfo {
   account: string; onlineName: string; isOnline: boolean
   gold: number; crystal: number; payTotal: number
@@ -70,6 +79,10 @@ export default function RechargePage() {
   const [histQ, setHistQ] = useState('')
   const [histRows, setHistRows] = useState<RechargeOrder[]>([])
   const [histLoading, setHistLoading] = useState(false)
+
+  // ── 台幣換算計算機 ────────────────────────
+  const [calcTwd, setCalcTwd] = useState('')
+  const [calcBonus, setCalcBonus] = useState(0)
 
   useEffect(() => {
     const acc = sp.get('account')
@@ -321,6 +334,7 @@ export default function RechargePage() {
                   {giveGold && <PreviewRow label="金幣入帳" value={`+${finalGold.toLocaleString()} 元寶`} color="var(--accent-orange)" />}
                   {bonus > 0 && <PreviewRow label="回饋加成" value={`+${bonus}%`} color="var(--accent-green)" />}
                   <PreviewRow label="循環進度" value={`${currentCycle.toLocaleString()} → ${(afterCycle > CYCLE_MAX ? afterPoint : afterCycle).toLocaleString()}/25,000`} />
+                  {bonus > 0 && <PreviewRow label="⚠ 累積進度計算" value={`只計台幣 NT$${finalTwd.toLocaleString()}，優惠贈金不納入`} color="var(--text-muted)" />}
                   {completedExtra > 0 && <PreviewRow label="跨越循環" value={`完成 ${completedExtra} 輪！check 歸零`} color="var(--accent-blue)" />}
                   {afterVip !== (info?.vipLevel ?? 0) && <PreviewRow label="VIP 升級" value={vipLabel(afterVip)} color={vipColor(afterVip)} />}
                 </div>
@@ -350,6 +364,60 @@ export default function RechargePage() {
           </Card>
         </div>
       </div>
+
+      {/* ── 台幣換算金幣計算機 ── */}
+      <Card title="💱 台幣換算金幣（試算工具）">
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
+          輸入任意台幣金額，自動套用最高適用套餐匯率試算金幣。<strong style={{ color: 'var(--accent-orange)' }}>優惠贈金不計入累積儲值進度。</strong>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }}>
+          <label style={{ flex: '1 1 160px', maxWidth: 220 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>台幣金額 (NT$)</span>
+            <input type="number" value={calcTwd} onChange={e => setCalcTwd(e.target.value)}
+              placeholder="例如 1500" min={1} style={{ width: '100%', marginTop: 2 }} />
+          </label>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>優惠加成</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {BONUSES.map(b => (
+                <button key={b} onClick={() => setCalcBonus(b)}
+                  style={{ padding: '5px 10px', cursor: 'pointer', borderRadius: 4, fontSize: 12,
+                    background: calcBonus === b ? (b > 0 ? 'rgba(86,196,118,.25)' : 'var(--bg-card)') : 'var(--bg-input)',
+                    border: `1px solid ${calcBonus === b ? (b > 0 ? 'var(--accent-green)' : 'var(--border)') : 'var(--border)'}`,
+                    color: b > 0 ? 'var(--accent-green)' : 'var(--text-secondary)',
+                    fontWeight: calcBonus === b ? 700 : 400 }}>
+                  {b === 0 ? '無加成' : `+${b}%`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        {(() => {
+          const n = parseInt(calcTwd) || 0
+          if (n <= 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '8px 0' }}>請輸入台幣金額…</div>
+          const { baseGold, rate, tierLabel } = twdToGold(n)
+          const bonusGold = Math.floor(baseGold * calcBonus / 100)
+          const totalGold = baseGold + bonusGold
+          return (
+            <div style={{ background: 'var(--bg-input)', borderRadius: 8, padding: '14px 16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 20px', fontSize: 13, alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-muted)' }}>適用套餐匯率</span>
+                <span style={{ fontWeight: 600 }}>{tierLabel} 費率（{rate.toFixed(1)} 金幣 / NT$）</span>
+                <span style={{ color: 'var(--text-muted)' }}>基礎金幣</span>
+                <span style={{ color: 'var(--accent-orange)', fontWeight: 700 }}>{baseGold.toLocaleString()} 元寶</span>
+                {calcBonus > 0 && <>
+                  <span style={{ color: 'var(--text-muted)' }}>優惠贈金 +{calcBonus}%</span>
+                  <span style={{ color: 'var(--accent-green)', fontWeight: 700 }}>+{bonusGold.toLocaleString()} 元寶</span>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 700 }}>合計金幣</span>
+                  <span style={{ color: 'var(--accent-orange)', fontWeight: 700, fontSize: 16 }}>{totalGold.toLocaleString()} 元寶</span>
+                </>}
+                <span style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: 11 }}>累積儲值進度（paydata）</span>
+                <span style={{ color: 'var(--text-secondary)', marginTop: 4, fontSize: 11 }}>只計 NT${n.toLocaleString()} 台幣本金，優惠贈金 {bonusGold > 0 ? `+${bonusGold.toLocaleString()}` : ''} 不納入進度</span>
+              </div>
+            </div>
+          )
+        })()}
+      </Card>
 
       {/* ── 充值記錄 ── */}
       <Card title="💳 充值記錄（訂單查詢）">
