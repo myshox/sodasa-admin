@@ -1,0 +1,87 @@
+name: Deploy to gm.sodasa.org
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 1. Build 前端 ──────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: WebApp/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: WebApp
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: WebApp
+        run: npm run build
+
+      # ── 2. Build 後端 ──────────────────────────────────────────
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Publish WebApi
+        working-directory: WebApi
+        run: dotnet publish --configuration Release --output ./publish --runtime linux-x64 --self-contained false
+
+      # ── 3. 複製前端到 API wwwroot ──────────────────────────────
+      - name: Copy frontend dist to wwwroot
+        run: |
+          mkdir -p WebApi/publish/wwwroot
+          cp -rf WebApp/dist/* WebApi/publish/wwwroot/
+
+      # ── 4. 打包並上傳到伺服器 ──────────────────────────────────
+      - name: Package build artifacts
+        run: tar -czf deploy.tar.gz -C WebApi/publish .
+
+      - name: Upload to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: deploy.tar.gz
+          target: /tmp/
+
+      # ── 5. 在伺服器執行更新 ────────────────────────────────────
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            set -e
+            DEPLOY_DIR="${{ secrets.DEPLOY_DIR || '/opt/sodagm' }}"
+
+            echo "==> 解壓到 $DEPLOY_DIR ..."
+            mkdir -p "$DEPLOY_DIR"
+            tar -xzf /tmp/deploy.tar.gz -C "$DEPLOY_DIR"
+            rm -f /tmp/deploy.tar.gz
+
+            echo "==> 複製設定檔（保留現有 appsettings.json）..."
+            if [ ! -f "$DEPLOY_DIR/appsettings.json" ]; then
+              cp "$DEPLOY_DIR/appsettings.example.json" "$DEPLOY_DIR/appsettings.json"
+              echo "⚠ 請記得編輯 $DEPLOY_DIR/appsettings.json 填入設定！"
+            fi
+
+            echo "==> 重啟服務..."
+            sudo systemctl restart ${{ secrets.SERVICE_NAME || 'sodagm' }}
+
+            echo "✓ 部署完成！"
