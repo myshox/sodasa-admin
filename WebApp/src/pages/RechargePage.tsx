@@ -51,14 +51,17 @@ export default function RechargePage() {
   const [selectedTier, setSelectedTier] = useState<typeof TIERS[0] | null>(null)
   const [bonus, setBonus] = useState(0)
   const [customTwd, setCustomTwd] = useState('')
-  const [customGold, setCustomGold] = useState('')
-  const [giveGold, setGiveGold] = useState(true)
+  // STEP 3: null=未選 / 'only'=僅累儲 / 'gold'=累儲+發金幣
+  const [opType, setOpType] = useState<null | 'only' | 'gold'>(null)
 
   // ── 計算結果 ──────────────────────────────
-  const finalTwd  = selectedTier ? selectedTier.twd  : parseInt(customTwd, 10) || 0
-  const finalGold = selectedTier
-    ? Math.floor(selectedTier.gold * (1 + bonus / 100))
-    : parseInt(customGold, 10) || 0
+  const finalTwd  = selectedTier ? selectedTier.twd : parseInt(customTwd, 10) || 0
+  // 金幣自動計算：套餐金幣 × (1+bonus%)；手動台幣則基礎率 ×100
+  const baseGoldAuto = selectedTier
+    ? selectedTier.gold
+    : (parseInt(customTwd, 10) || 0) * 100
+  const finalGold = Math.floor(baseGoldAuto * (1 + bonus / 100))
+  const giveGold = opType === 'gold'
 
   // 預覽循環
   const currentCycle  = info ? info.paydataPoint : 0
@@ -106,13 +109,13 @@ export default function RechargePage() {
 
   const handleSelectTier = (tier: typeof TIERS[0]) => {
     setSelectedTier(prev => prev === tier ? null : tier)
-    setCustomTwd(''); setCustomGold('')
+    setCustomTwd('')
   }
 
   const doRecharge = async () => {
     if (!info) { setMsg('請先搜尋並選定玩家'); setMsgOk(false); return }
     if (finalTwd <= 0) { setMsg('請選擇套餐或輸入台幣金額'); setMsgOk(false); return }
-    if (giveGold && finalGold <= 0) { setMsg('請輸入金幣數量'); setMsgOk(false); return }
+    if (opType === null) { setMsg('⚠ 請在 STEP 3 選擇操作類型（必填）'); setMsgOk(false); return }
     setLoading(true); setMsg('')
     try {
       const r = await api.post(`/players/${info.account}/recharge`, {
@@ -123,7 +126,8 @@ export default function RechargePage() {
       setMsg(r.data.message || '✓ 儲值成功')
       setMsgOk(true)
       setSelectedTier(null)
-      setCustomTwd(''); setCustomGold('')
+      setCustomTwd('')
+      setOpType(null)
       await loadPlayer(info.account)
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } }
@@ -286,7 +290,7 @@ export default function RechargePage() {
             {/* 回饋加成 */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: 'var(--accent-orange)', fontWeight: 700, marginBottom: 8 }}>
-                STEP 3 — 選擇回饋加成
+                STEP 3 — 選擇優惠加成%（贈金加成，累積儲值進度只計台幣，贈金不計入進度）
                 {info && info.vipLevel > 0 && <span style={{ color: vipColor(info.vipLevel), marginLeft: 6 }}>（{vipLabel(info.vipLevel)} 已自動套用）</span>}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -302,36 +306,58 @@ export default function RechargePage() {
               </div>
             </div>
 
-            {/* 手動輸入 */}
+            {/* 手動輸入台幣 + 金幣自動計算預覽 */}
             <div style={{ marginBottom: 12, padding: '10px 12px', background: 'var(--bg-input)', borderRadius: 6 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>或手動輸入（不選套餐）</div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-                <label style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>或手動輸入台幣（不選套餐）— 金幣以基礎率 ×100 自動計算</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <label style={{ flex: '0 0 180px' }}>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>台幣金額 (NT$)</span>
                   <input type="number" value={customTwd} onChange={e => { setCustomTwd(e.target.value); setSelectedTier(null) }}
                     placeholder="例 500" min={1} style={{ width: '100%', marginTop: 2 }} />
                 </label>
-                <label style={{ flex: 1 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>金幣數量</span>
-                  <input type="number" value={customGold} onChange={e => { setCustomGold(e.target.value); setSelectedTier(null) }}
-                    placeholder={`例 ${(parseInt(customTwd,10)||0) * 100}`} min={0} style={{ width: '100%', marginTop: 2 }} />
+                {finalTwd > 0 && (
+                  <div style={{ marginTop: 16, fontSize: 13, color: 'var(--accent-green)', fontWeight: 700 }}>
+                    → 金幣：{finalGold.toLocaleString()} 元寶{bonus > 0 ? `（含 +${bonus}% 加成）` : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* STEP 3 操作類型（必填） */}
+            <div style={{ marginBottom: 14, padding: '12px 14px', background: 'rgba(255,200,80,.07)', border: '1px solid rgba(255,200,80,.3)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,200,80,.9)', marginBottom: 10 }}>
+                ⚠ STEP 4 — 操作類型（必填）— 請明確選擇，系統不設預設值
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 12px', borderRadius: 6,
+                  background: opType === 'only' ? 'rgba(100,180,255,.12)' : 'var(--bg-input)',
+                  border: `1px solid ${opType === 'only' ? 'var(--accent-blue)' : 'var(--border)'}` }}>
+                  <input type="radio" name="opType" checked={opType === 'only'} onChange={() => setOpType('only')} style={{ accentColor: 'var(--accent-blue)' }} />
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--accent-blue)', fontWeight: 700 }}>🔘 僅增加累儲進度</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>不發放金幣 — 用於補資料 / 賽季轉移</div>
+                  </div>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '8px 12px', borderRadius: 6,
+                  background: opType === 'gold' ? 'rgba(86,196,118,.1)' : 'var(--bg-input)',
+                  border: `1px solid ${opType === 'gold' ? 'var(--accent-green)' : 'var(--border)'}` }}>
+                  <input type="radio" name="opType" checked={opType === 'gold'} onChange={() => setOpType('gold')} style={{ accentColor: 'var(--accent-green)' }} />
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--accent-green)', fontWeight: 700 }}>🟡 增加累儲進度 ＋ 同步發放金幣</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>正常補單使用 — 將發放 +{finalGold.toLocaleString()} 元寶</div>
+                  </div>
                 </label>
               </div>
             </div>
 
-            {/* 是否發放金幣 */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={giveGold} onChange={e => setGiveGold(e.target.checked)} />
-              <span>同時發放金幣（將 +{finalGold.toLocaleString()} 元寶 加入玩家帳戶）</span>
-            </label>
-
             {/* 預覽 */}
-            {finalTwd > 0 && (
+            {finalTwd > 0 && opType !== null && (
               <div style={{ background: 'rgba(86,196,118,.08)', border: '1px solid rgba(86,196,118,.3)', borderRadius: 8, padding: '12px 16px', marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 8 }}>📋 確認預覽</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 13 }}>
                   <PreviewRow label="台幣金額" value={`NT$${finalTwd.toLocaleString()}`} />
                   {giveGold && <PreviewRow label="金幣入帳" value={`+${finalGold.toLocaleString()} 元寶`} color="var(--accent-orange)" />}
+                  {!giveGold && <PreviewRow label="操作類型" value="僅累儲進度（不發金幣）" color="var(--accent-blue)" />}
                   {bonus > 0 && <PreviewRow label="回饋加成" value={`+${bonus}%`} color="var(--accent-green)" />}
                   <PreviewRow label="循環進度" value={`${currentCycle.toLocaleString()} → ${(afterCycle > CYCLE_MAX ? afterPoint : afterCycle).toLocaleString()}/25,000`} />
                   {bonus > 0 && <PreviewRow label="⚠ 累積進度計算" value={`只計台幣 NT$${finalTwd.toLocaleString()}，優惠贈金不納入`} color="var(--text-muted)" />}
@@ -356,10 +382,10 @@ export default function RechargePage() {
               </div>
             )}
 
-            <button onClick={doRecharge} disabled={loading || !info || finalTwd <= 0}
+            <button onClick={doRecharge} disabled={loading || !info || finalTwd <= 0 || opType === null}
               style={{ width: '100%', background: 'var(--accent-green)', color: '#fff', padding: '11px 0', fontSize: 15, fontWeight: 700, borderRadius: 8,
-                       opacity: (!info || finalTwd <= 0) ? 0.5 : 1 }}>
-              {loading ? '處理中…' : info ? `💰 確認給予 ${info.onlineName || info.account} 儲值` : '請先選擇玩家'}
+                       opacity: (!info || finalTwd <= 0 || opType === null) ? 0.5 : 1 }}>
+              {loading ? '處理中…' : !info ? '請先選擇玩家' : opType === null ? '請選擇操作類型（STEP 4）' : `💰 確認給予 ${info.onlineName || info.account} 儲值`}
             </button>
           </Card>
         </div>

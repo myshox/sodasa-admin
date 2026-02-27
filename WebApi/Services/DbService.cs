@@ -243,16 +243,6 @@ public class DbService
     }
 
     // ── 改名 ─────────────────────────────────────────────────
-    public async Task<bool> RenamePlayerAsync(string account, string newName)
-    {
-        await using var db = Open(); await db.OpenAsync();
-        await using var cmd = new MySqlCommand(
-            "UPDATE csalogin SET OnlineName=@n WHERE `Name`=@a LIMIT 1", db);
-        cmd.Parameters.AddWithValue("@n", newName);
-        cmd.Parameters.AddWithValue("@a", account);
-        return await cmd.ExecuteNonQueryAsync() > 0;
-    }
-
     // ── 強制下線 ──────────────────────────────────────────────
     public async Task<bool> ForceOfflineAsync(string account)
     {
@@ -311,14 +301,15 @@ public class DbService
     }
 
     // ── 封號 ─────────────────────────────────────────────────
-    public async Task<bool> SetBanAsync(string account, bool ban, int days = 0)
+    public async Task<bool> SetBanAsync(string account, bool ban, int days = 0, double hours = 0)
     {
         await using var db = Open(); await db.OpenAsync();
         if (ban)
         {
-            long endUnix = days > 0
-                ? DateTimeOffset.Now.AddDays(days).ToUnixTimeSeconds()
-                : 0;  // 0 = 永久
+            long endUnix = 0;
+            if (hours > 0) endUnix = (long)DateTimeOffset.Now.AddHours(hours).ToUnixTimeSeconds();
+            else if (days > 0) endUnix = DateTimeOffset.Now.AddDays(days).ToUnixTimeSeconds();
+            // 0 = 永久
             await using var cmd = new MySqlCommand(
                 "INSERT INTO `lock`(`Name`,`time`) VALUES(@n,@t) ON DUPLICATE KEY UPDATE `time`=@t", db);
             cmd.Parameters.AddWithValue("@n", account);
@@ -332,6 +323,18 @@ public class DbService
             cmd.Parameters.AddWithValue("@n", account);
             return await cmd.ExecuteNonQueryAsync() > 0;
         }
+    }
+
+    // ── 改名 ─────────────────────────────────────────────────
+    public async Task<bool> RenamePlayerAsync(string account, string newName)
+    {
+        if (string.IsNullOrWhiteSpace(newName)) return false;
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "UPDATE csalogin SET OnlineName=@n WHERE `Name`=@a", db);
+        cmd.Parameters.AddWithValue("@n", newName.Trim());
+        cmd.Parameters.AddWithValue("@a", account);
+        return await cmd.ExecuteNonQueryAsync() > 0;
     }
 
     // ── 玩家列表（全服，供批量操作用）────────────────────────
@@ -1183,6 +1186,27 @@ public class DbService
     {
         await using var db = Open(); await db.OpenAsync();
         await using var cmd = new MySqlCommand("DELETE FROM admin_users WHERE id=@id AND username<>'admin'", db);
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<bool> SetAdminStatusAsync(int id, bool enabled)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand("UPDATE admin_users SET status=@s WHERE id=@id AND username<>'admin'", db);
+        cmd.Parameters.AddWithValue("@s", enabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@id", id);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    public async Task<bool> ResetAdminPasswordAsync(int id, string newPassword)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword)) return false;
+        await using var db = Open(); await db.OpenAsync();
+        string hash = Convert.ToHexString(
+            System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(newPassword))).ToLower();
+        await using var cmd = new MySqlCommand("UPDATE admin_users SET password=@p WHERE id=@id", db);
+        cmd.Parameters.AddWithValue("@p", hash);
         cmd.Parameters.AddWithValue("@id", id);
         return await cmd.ExecuteNonQueryAsync() > 0;
     }

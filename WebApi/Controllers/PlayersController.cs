@@ -124,10 +124,33 @@ public class PlayersController : ControllerBase
         return ok ? Ok(new { message = "\u2713 \u5DF2\u7D66\u4E88\u5132\u503C" }) : BadRequest(new { message = "\u4FEE\u6539\u5931\u6557" });
     }
 
+    /// <summary>主帳號分配儲值：為旗下多個 CDKEY 各別執行儲值</summary>
+    [HttpPost("master-split-recharge")]
+    public async Task<IActionResult> MasterSplitRecharge([FromBody] List<SplitRechargeItem> items)
+    {
+        if (items == null || items.Count == 0)
+            return BadRequest(new { message = "清單為空" });
+        int done = 0;
+        var results = new List<object>();
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Account) || item.TwdAmount <= 0)
+            {
+                results.Add(new { account = item.Account, ok = false, msg = "台幣金額須 > 0" });
+                continue;
+            }
+            var ok = await _db.AdjustPayDataPointAsync(
+                item.Account.Trim(), item.TwdAmount, item.GoldAmount, item.GiveGold);
+            if (ok) done++;
+            results.Add(new { account = item.Account, ok, msg = ok ? "✓ 成功" : "✗ 失敗" });
+        }
+        return Ok(new { done, total = items.Count, results });
+    }
+
     [HttpPost("{account}/ban")]
     public async Task<IActionResult> Ban(string account, [FromBody] BanRequest req)
     {
-        var ok = await _db.SetBanAsync(account, req.Ban, req.Days);
+        var ok = await _db.SetBanAsync(account, req.Ban, req.Days, req.Hours);
         return ok ? Ok(new { message = req.Ban ? "\u2713 \u5DF2\u5C01\u865F" : "\u2713 \u5DF2\u89E3\u5C01" }) : BadRequest();
     }
 

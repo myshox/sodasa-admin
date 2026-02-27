@@ -81,6 +81,7 @@ export default function PlayersPage() {
   // 封號
   const [showBan, setShowBan] = useState(false)
   const [banDays, setBanDays] = useState(0)
+  const [banHours, setBanHours] = useState(0)  // 0 = 使用天數
   const [banReason, setBanReason] = useState('')
 
   // 充值
@@ -154,9 +155,26 @@ export default function PlayersPage() {
 
   const doBan = async (ban: boolean) => {
     if (!detail) return
-    await api.post(`/players/${detail.account}/ban`, { ban, days: ban ? banDays : 0, reason: banReason })
+    await api.post(`/players/${detail.account}/ban`, {
+      ban,
+      days:   ban && banHours === 0 ? banDays : 0,
+      hours:  ban ? banHours : 0,
+      reason: banReason,
+    })
     setDetail({ ...detail, isBanned: ban })
     setShowBan(false); flash(ban ? S.banned : S.unbanned)
+  }
+
+  const clearGold = async () => {
+    if (!detail || !window.confirm(`確定將「${detail.onlineName}」的金幣清零？`)) return
+    await api.put(`/players/${detail.account}/gold`, { value: 0 })
+    setDetail({ ...detail, gold: 0 }); setGoldVal('0'); flash('已清零金幣')
+  }
+
+  const clearCrystal = async () => {
+    if (!detail || !window.confirm(`確定將「${detail.onlineName}」的水晶清零？`)) return
+    await api.put(`/players/${detail.account}/crystal`, { value: 0 })
+    setDetail({ ...detail, crystal: 0 }); setCrysVal('0'); flash('已清零水晶')
   }
 
   const doMute = async () => {
@@ -448,6 +466,7 @@ export default function PlayersPage() {
               <input value={goldVal} onChange={e => setGoldVal(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveGold()} style={{ flex: 1 }} />
               <button onClick={saveGold} style={{ background: 'var(--accent-blue)', color: '#fff', fontSize: 12, padding: '5px 10px' }}>{S.setGold}</button>
+              <button onClick={clearGold} title="清零金幣" style={{ background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)55', fontSize: 12, padding: '5px 8px' }}>清零</button>
             </div>
             <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 2 }}>加：</span>
@@ -469,6 +488,7 @@ export default function PlayersPage() {
               <input value={crysVal} onChange={e => setCrysVal(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveCrystal()} style={{ flex: 1 }} />
               <button onClick={saveCrystal} style={{ background: 'var(--accent-blue)', color: '#fff', fontSize: 12, padding: '5px 10px' }}>{S.setCrystal}</button>
+              <button onClick={clearCrystal} title="清零水晶" style={{ background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)55', fontSize: 12, padding: '5px 8px' }}>清零</button>
             </div>
 
             {/* 充值點 & R幣 */}
@@ -532,15 +552,25 @@ export default function PlayersPage() {
               )
               : (
                 <div style={{ background: 'rgba(245,101,101,.08)', border: '1px solid var(--accent-red)', borderRadius: 8, padding: 12 }}>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>小時</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                    {[1, 6, 12, 24].map(h => (
+                      <button key={`h${h}`} onClick={() => { setBanHours(h); setBanDays(-1) }}
+                        style={{ fontSize: 12, padding: '3px 8px', background: banHours === h ? 'var(--accent-red)' : 'var(--bg-input)', color: banHours === h ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
+                        {h}時
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>天數 / 永久</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                     {[1, 3, 7, 14, 30].map(d => (
-                      <button key={d} onClick={() => setBanDays(d)}
-                        style={{ fontSize: 12, padding: '3px 8px', background: banDays === d ? 'var(--accent-red)' : 'var(--bg-input)', color: banDays === d ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
+                      <button key={d} onClick={() => { setBanDays(d); setBanHours(0) }}
+                        style={{ fontSize: 12, padding: '3px 8px', background: (banDays === d && banHours === 0) ? 'var(--accent-red)' : 'var(--bg-input)', color: (banDays === d && banHours === 0) ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
                         {d}天
                       </button>
                     ))}
-                    <button onClick={() => setBanDays(0)}
-                      style={{ fontSize: 12, padding: '3px 8px', background: banDays === 0 ? 'var(--accent-red)' : 'var(--bg-input)', color: banDays === 0 ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
+                    <button onClick={() => { setBanDays(0); setBanHours(0) }}
+                      style={{ fontSize: 12, padding: '3px 8px', background: (banDays === 0 && banHours === 0) ? 'var(--accent-red)' : 'var(--bg-input)', color: (banDays === 0 && banHours === 0) ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 4 }}>
                       永久
                     </button>
                   </div>

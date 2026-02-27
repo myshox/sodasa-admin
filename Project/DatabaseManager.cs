@@ -1555,14 +1555,14 @@ namespace SQ_Email_Tools
 
             bool hasId2 = await CsaloginHasIdAsync(conn);
             string idCol2 = hasId2 ? ", c.`id` AS CharDbId" : ", 0 AS CharDbId";
+            // 累積儲值使用 csalogin.PayTotal（與網頁版、AdjustPayDataPointAsync 一致），不用 paydata.point
             string sql = $@"
                 SELECT c.MasterId, c.`Name`, c.OnlineName, c.Online, c.LoginTime, c.ServerId,
-                       IFNULL(p.point, 0)   AS PayTotal,
+                       IFNULL(c.PayTotal, 0) AS PayTotal,
                        IFNULL(pet.cnt, 0)   AS PetCount,
                        IFNULL(m.`Name`,'')  AS MasterName
                        {idCol2}
                 FROM csalogin c
-                LEFT JOIN paydata p         ON p.cdkey = c.`Name`
                 LEFT JOIN csaloginmaster m  ON m.Id    = c.MasterId
                 LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
                        ON pet.cdkey = c.`Name`

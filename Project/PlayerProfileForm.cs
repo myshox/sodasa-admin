@@ -771,11 +771,27 @@ namespace SQ_Email_Tools
                 $"NT$ {inCycle:N0} / 25,000　（遊戲面板顯示值）　|　歷史總計 NT$ {payPt:N0}",
                 Color.FromArgb(255, 200, 80), async () =>
             {
-                using var dlg = new AdjustRechargeDialog(_player.OnlineName, _detail.PayTotal, _detail.LifetimePayTotal);
+                using var dlg = new AdjustRechargeDialog(_player.OnlineName, _detail.PayTotal, _detail.LifetimePayTotal,
+                    _player.Account, _detail.ClaimReady, (int)_detail.TotalCheck);
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
-                bool ok = await DatabaseManager.Instance.AdjustPayDataPointAsync(
+                if (dlg.NeedsRefresh) { BuildDetailUI(); return; }
+                if (dlg.IsResetRequest)
+                {
+                    bool ok = await DatabaseManager.Instance.ResetPaydataProgressAsync(_player.Account);
+                    if (ok)
+                    {
+                        _detail.PayTotal = 0;
+                        MessageBox.Show("✅ 累儲進度已歸零。歷史總累儲保留不動。",
+                            "操作成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        BuildDetailUI();
+                    }
+                    else
+                        MessageBox.Show("⚠ 重置失敗（玩家可能無 paydata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                bool ok2 = await DatabaseManager.Instance.AdjustPayDataPointAsync(
                     _player.Account, dlg.TwdAmount, dlg.GoldAmount, dlg.GiveGold);
-                if (ok)
+                if (ok2)
                 {
                     if (dlg.GiveGold) _detail.Gold += dlg.GoldAmount;
                     _detail.PayTotal         += dlg.TwdAmount;
@@ -1523,6 +1539,14 @@ namespace SQ_Email_Tools
         /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
         public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : TwdAmount * 100L) * (1 + _bonusPct / 100.0));
         public bool GiveGold   => _rbWithGold.Checked;
+        /// <summary>true = 使用者按了「清0累儲進度」</summary>
+        public bool IsResetRequest { get; private set; }
+        /// <summary>true = 對話框內執行了修復循環或發放獎勵，呼叫端應刷新列表/詳情</summary>
+        public bool NeedsRefresh { get; private set; }
+
+        private readonly string _account;       // 可選，用於修復循環 / 發放獎勵
+        private readonly bool   _claimReady;
+        private readonly int   _totalCheck;
 
         // (顯示文字, 台幣, 金幣（含加成）)
         private static readonly (string Label, long Twd, long Gold)[] Tiers =
@@ -1536,10 +1560,17 @@ namespace SQ_Email_Tools
             ("NT$10K\n130萬",  10_000,  1_300_000),
         };
 
-        public AdjustRechargeDialog(string playerName, long currentPayTotal, long lifetimePayTotal)
+        /// <param name="account">玩家帳號（cdkey）；有值時對話框顯示「修復循環顯示」「發放第N輪累積獎勵」</param>
+        /// <param name="claimReady">是否可發放本輪累積獎勵（需 account 有值）</param>
+        /// <param name="totalCheck">已完成循環數（發放按鈕顯示用）</param>
+        public AdjustRechargeDialog(string playerName, long currentPayTotal, long lifetimePayTotal,
+            string account = null, bool claimReady = false, int totalCheck = 0)
         {
             _currentTotal  = currentPayTotal;
             _lifetimeTotal = lifetimePayTotal;
+            _account       = account;
+            _claimReady    = claimReady;
+            _totalCheck    = totalCheck;
             Text           = $"💳 調整累積充值 — {playerName}";
             Size           = new Size(660, 650);
             BackColor = Theme.BgPage;
@@ -1563,7 +1594,7 @@ namespace SQ_Email_Tools
             var infoBox = new Panel { Location = new Point(x, y), Size = new Size(W, 96), BackColor = Theme.BgCard };
             infoBox.Controls.Add(new Label
             {
-                Text      = "累積充值（台幣，費實際付款） — 1 台幣 = 100 元寶",
+                Text      = "累積充值（台幣，實際付款） — 1 台幣 = 100 元寶",
                 ForeColor = Color.FromArgb(150, 165, 200), Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 6)
             });
             infoBox.Controls.Add(new Label
@@ -1778,7 +1809,66 @@ namespace SQ_Email_Tools
             Controls.Add(opBox);
             y += 98;
 
-            // ── 確定 / 取消 ──────────────────────────────────────
+            // ── 修復循環 / 發放獎勵（與玩家詳情頁同功能，兩邊一致）──────────────
+            if (!string.IsNullOrEmpty(_account))
+            {
+                var utilPanel = new Panel { Location = new Point(x, y), Size = new Size(W, 32), BackColor = Color.Transparent };
+                var btnFix = Theme.MakeButton("🔧 修復循環顯示", Color.FromArgb(30, 90, 160), Color.White, 138, 28);
+                btnFix.Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+                btnFix.Click += async (s, e) =>
+                {
+                    long completedCycles = _currentTotal / CYCLE;
+                    if (MessageBox.Show(
+                        $"🔧 根據目前 NT${_currentTotal:N0} 自動計算並補齊循環旗標？\n\n  已完成循環數 = {completedCycles}\n  ✅ paydata.point 不變\n確認執行？",
+                        "🔧 修復循環顯示", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    bool ok = await DatabaseManager.Instance.FixPaydataCheckAsync(_account);
+                    if (ok) { NeedsRefresh = true; MessageBox.Show("✅ check 欄位已修復。", "修復成功", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+                    else MessageBox.Show("⚠ 修復失敗（玩家可能無 paydata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                };
+                utilPanel.Controls.Add(btnFix);
+                int ux = 148;
+                if (_claimReady && _totalCheck > 0)
+                {
+                    var btnClaim = Theme.MakeButton($"🎁 發放第 {_totalCheck} 輪累積獎勵", Color.FromArgb(180, 130, 20), Color.White, 200, 28);
+                    btnClaim.Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+                    btnClaim.Location = new Point(ux, 0);
+                    btnClaim.Click += async (s, e) =>
+                    {
+                        if (MessageBox.Show($"🎁 確定要發放第 {_totalCheck} 輪的累積獎勵？\n  · paydata.check 將設為 1（已領）\n確認執行？",
+                            "🎁 發放累積獎勵", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                        var (status, cycle) = await DatabaseManager.Instance.ClaimPaydataRewardAsync(_account);
+                        if (status == "ok") { NeedsRefresh = true; MessageBox.Show($"✅ 第 {cycle} 輪獎勵已發放。", "發放成功", MessageBoxButtons.OK, MessageBoxIcon.Information); Close(); }
+                        else MessageBox.Show($"⚠ {status}", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    };
+                    utilPanel.Controls.Add(btnClaim);
+                    ux += 208;
+                }
+                utilPanel.Controls.Add(new Label
+                {
+                    Text = "← 修復：補 check bits；發放：標記本輪已領",
+                    ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true,
+                    Location = new Point(ux, 6)
+                });
+                Controls.Add(utilPanel);
+                y += 38;
+            }
+
+            // ── 清0累儲 / 確定 / 取消（與玩家詳情頁一致）──────────────────────
+            var btnReset = Theme.MakeButton("🗑 清0累儲進度", Theme.AccentRed, Color.White, 130, 36);
+            btnReset.Location = new Point(x, y);
+            btnReset.Click += (s, e) =>
+            {
+                if (MessageBox.Show(
+                    "⚠ 確定要將此玩家的累積充值進度歸零？\n\n" +
+                    "  · paydata.point    → 0（當前循環進度清除）\n" +
+                    "  · check / totalcheck → 0（已領取獎勵旗標清除）\n\n" +
+                    "  ✅ 歷史總累儲（lifetime_total）保留不動\n\n此操作無法復原，請確認。",
+                    "⚠ 清0累儲確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                IsResetRequest = true;
+                DialogResult   = DialogResult.OK;
+                Close();
+            };
+
             var btnOk = Theme.MakeButton("✓ 確認執行", Theme.AccentGreen, Color.White, 120, 36);
             btnOk.Location = new Point(x + 350, y);
             btnOk.Click += (s, e) =>
@@ -1837,7 +1927,7 @@ namespace SQ_Email_Tools
             var btnCancel = Theme.MakeButton("✕ 取消", Theme.BgLight, Theme.TextSecondary, 90, 36);
             btnCancel.Location = new Point(x + 480, y);
             btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            Controls.AddRange(new Control[] { btnOk, btnCancel });
+            Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
 
             // 初始化
             RefreshTierButtons(-1);

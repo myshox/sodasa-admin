@@ -135,6 +135,40 @@ public class ExternalController : ControllerBase
 
     // ─────────────────────────────────────────────────────
     /// <summary>
+    /// 主帳號分配儲值（官網後台用）。
+    /// 管理員選擇儲值主帳號後，可將一筆儲值分配給旗下多個 CDKEY，各別輸入台幣金額與金幣，累積儲值會依台幣正確計算。
+    /// POST /api/external/master-split-recharge
+    /// Header: X-Api-Key: {key}
+    /// Body JSON: [ { "account": "cdkey1", "twdAmount": 200, "goldAmount": 23000, "giveGold": true }, ... ]
+    /// </summary>
+    [HttpPost("master-split-recharge")]
+    public async Task<IActionResult> MasterSplitRecharge([FromBody] List<SplitRechargeItem> items)
+    {
+        if (!IsAuthorized())
+            return Unauthorized(new { message = "API Key 錯誤或未設定" });
+
+        if (items == null || items.Count == 0)
+            return BadRequest(new { message = "清單為空" });
+
+        int done = 0;
+        var results = new List<object>();
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Account) || item.TwdAmount <= 0)
+            {
+                results.Add(new { account = item.Account ?? "", ok = false, msg = "台幣金額須 > 0" });
+                continue;
+            }
+            var ok = await _db.AdjustPayDataPointAsync(
+                item.Account.Trim(), item.TwdAmount, item.GoldAmount, item.GiveGold);
+            if (ok) done++;
+            results.Add(new { account = item.Account, ok, msg = ok ? "✓ 成功" : "✗ 失敗" });
+        }
+        return Ok(new { done, total = items.Count, results });
+    }
+
+    // ─────────────────────────────────────────────────────
+    /// <summary>
     /// 驗證 API Key 是否正確（測試用）。
     /// GET /api/external/ping
     /// Header: X-Api-Key: {key}

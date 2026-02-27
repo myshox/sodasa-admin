@@ -115,6 +115,15 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnPlayer);
             };
 
+            var btnRechargeForm = MakeNavBtn("💳", "充值管理", ref y);
+            btnRechargeForm.Click += (s, e) =>
+            {
+                SetActiveNav(btnRechargeForm);
+                if (!CheckConnected()) return;
+                new RechargeForm().ShowDialog(this);
+                SetActiveNav(btnPlayer);
+            };
+
             AddSideGap(ref y);
             AddSectionLabel("紀錄查詢", ref y);
 
@@ -946,14 +955,14 @@ namespace SQ_Email_Tools
                     new GoldDialog(player).ShowDialog(this);
                     break;
                 case "colPayEdit":
-                    using (var dlg = new PayTotalDialog(player.OnlineName, player.PayTotal))
+                    // 與玩家詳情一致：同一對話框（含修復循環、發放獎勵、清0、STEP 3）
+                    using (var dlg = new AdjustRechargeDialog(player.OnlineName, player.PayTotal, player.PayTotal, player.Account, false, 0))
                     {
                         if (dlg.ShowDialog(this) == DialogResult.OK)
                         {
                             bool ok2;
                             if (dlg.IsResetRequest)
                             {
-                                // 清0累儲進度（paydata.point / check 歸零，lifetime_total 保留）
                                 ok2 = await DatabaseManager.Instance.ResetPaydataProgressAsync(player.Account);
                                 if (ok2)
                                 {
@@ -966,8 +975,8 @@ namespace SQ_Email_Tools
                             }
                             else
                             {
-                                // 正常給予儲值
-                                ok2 = await DatabaseManager.Instance.SetPayTotalAsync(player.Account, dlg.TwdAmount, dlg.NewValue);
+                                ok2 = await DatabaseManager.Instance.AdjustPayDataPointAsync(
+                                    player.Account, dlg.TwdAmount, dlg.GoldAmount, dlg.GiveGold);
                                 if (ok2)
                                 {
                                     player.PayTotal += dlg.TwdAmount;
@@ -976,9 +985,15 @@ namespace SQ_Email_Tools
                                         newTotal > 0 ? $"NT$ {newTotal:N0}" : "—";
                                     _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor =
                                         newTotal > 0 ? Color.FromArgb(255, 200, 80) : Theme.TextMuted;
-                                    _lblStatus.Text = $"✓  已更新「{player.OnlineName}」充值 +NT${dlg.TwdAmount:N0}（金幣 +{dlg.NewValue:N0}）";
+                                    _lblStatus.Text = $"✓  已更新「{player.OnlineName}」充值 +NT${dlg.TwdAmount:N0}" +
+                                        (dlg.GiveGold ? $"（金幣 +{dlg.GoldAmount:N0}）" : "（僅累儲進度）");
                                 }
                                 else MessageBox.Show("修改失敗", "錯誤");
+                            }
+                            if (dlg.NeedsRefresh)
+                            {
+                                // 對話框內執行了修復循環或發放獎勵，刷新該列顯示
+                                _dgv.Rows[e.RowIndex].Cells["colPay"].Value = player.PayTotal > 0 ? $"NT$ {player.PayTotal:N0}" : "—";
                             }
                         }
                     }

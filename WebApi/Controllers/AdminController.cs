@@ -27,4 +27,21 @@ public class AdminController : ControllerBase
         var ok = await _db.DeleteAdminUserAsync(id);
         return ok ? Ok(new { message = "已刪除" }) : BadRequest(new { message = "刪除失敗或不可刪除 admin" });
     }
+
+    [HttpPut("users/{id:int}/status")]
+    public async Task<IActionResult> SetStatus(int id, [FromBody] SetAdminStatusRequest req)
+    {
+        var ok = await _db.SetAdminStatusAsync(id, req.Enabled);
+        return ok ? Ok(new { message = req.Enabled ? "已啟用" : "已停用" })
+                  : BadRequest(new { message = "操作失敗或不可修改 admin" });
+    }
+
+    [HttpPut("users/{id:int}/password")]
+    public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetAdminPasswordRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.NewPassword))
+            return BadRequest(new { message = "密碼不可為空" });
+        var ok = await _db.ResetAdminPasswordAsync(id, req.NewPassword);
+        return ok ? Ok(new { message = "密碼已重設" }) : BadRequest(new { message = "重設失敗" });
+    }
 }

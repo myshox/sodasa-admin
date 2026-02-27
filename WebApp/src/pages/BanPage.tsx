@@ -6,7 +6,8 @@ import type { PlayerRow } from '../api'
 
 interface BanRow { account: string; charName: string; endTime: string; isPermanent: boolean }
 
-const BAN_PRESETS = [
+const BAN_HOUR_PRESETS = [1, 6, 12, 24]
+const BAN_DAY_PRESETS = [
   { label: '1天', days: 1 }, { label: '3天', days: 3 }, { label: '7天', days: 7 },
   { label: '14天', days: 14 }, { label: '30天', days: 30 }, { label: '永久', days: 0 },
 ]
@@ -18,8 +19,9 @@ export default function BanPage() {
   const [listQ,   setListQ]   = useState('')
 
   // 快速封號
-  const [banQ,    setBanQ]    = useState('')
-  const [banDays, setBanDays] = useState(0)
+  const [banQ,      setBanQ]      = useState('')
+  const [banDays,   setBanDays]   = useState(0)
+  const [banHours,  setBanHours]  = useState(0)   // 0 = 用天數模式
   const [banReason, setBanReason] = useState('')
   const [customDays, setCustomDays] = useState<number | ''>('')
 
@@ -42,14 +44,18 @@ export default function BanPage() {
 
   const doBan = async () => {
     if (!banQ.trim()) return
-    const days = customDays !== '' ? Number(customDays) : banDays
+    const days  = banHours > 0 ? 0 : (customDays !== '' ? Number(customDays) : banDays)
+    const hours = banHours > 0 ? banHours : 0
     await api.post(`/players/${encodeURIComponent(banQ.trim())}/ban`, {
-      ban: true, days, reason: banReason.trim()
+      ban: true, days, hours, reason: banReason.trim()
     })
-    flash(S.banned); setBanQ(''); setBanReason(''); load(listQ)
+    flash(S.banned); setBanQ(''); setBanReason(''); setBanHours(0); load(listQ)
   }
 
-  const effectiveDays = customDays !== '' ? Number(customDays) : banDays
+  const effectiveDays  = customDays !== '' ? Number(customDays) : banDays
+  const effectiveLabel = banHours > 0
+    ? `封禁 ${banHours} 小時`
+    : effectiveDays === 0 ? '永久封禁' : `封禁 ${effectiveDays} 天`
 
   return (
     <div style={{ padding: 28 }}>
@@ -78,24 +84,33 @@ export default function BanPage() {
           </label>
         </div>
         <div style={{ marginBottom: 10 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, display: 'block' }}>封禁時長</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>小時</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {BAN_HOUR_PRESETS.map(h => (
+              <button key={`h${h}`} onClick={() => { setBanHours(h); setBanDays(-1); setCustomDays('') }}
+                style={{ padding: '4px 10px', fontSize: 12, background: banHours === h ? 'var(--accent-red)' : 'var(--bg-input)', color: banHours === h ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>
+                {h}時
+              </button>
+            ))}
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>天數 / 永久</span>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            {BAN_PRESETS.map(p => (
-              <button key={p.days} onClick={() => { setBanDays(p.days); setCustomDays('') }}
-                style={{ padding: '5px 12px', fontSize: 13, background: (banDays === p.days && customDays === '') ? 'var(--accent-red)' : 'var(--bg-input)', color: (banDays === p.days && customDays === '') ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>
+            {BAN_DAY_PRESETS.map(p => (
+              <button key={p.days} onClick={() => { setBanDays(p.days); setBanHours(0); setCustomDays('') }}
+                style={{ padding: '5px 12px', fontSize: 13, background: (banDays === p.days && customDays === '' && banHours === 0) ? 'var(--accent-red)' : 'var(--bg-input)', color: (banDays === p.days && customDays === '' && banHours === 0) ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>
                 {p.label}
               </button>
             ))}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>自訂：</span>
               <input type="number" value={customDays}
-                onChange={e => { setCustomDays(e.target.value === '' ? '' : +e.target.value); setBanDays(-1) }}
+                onChange={e => { setCustomDays(e.target.value === '' ? '' : +e.target.value); setBanDays(-1); setBanHours(0) }}
                 placeholder="天" min={1} style={{ width: 60, textAlign: 'center' }} />
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>天</span>
             </div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
-            選擇：{effectiveDays === 0 ? '永久封禁' : `封禁 ${effectiveDays} 天`}
+            選擇：{effectiveLabel}
           </div>
         </div>
         <button onClick={doBan} disabled={!banQ.trim()}

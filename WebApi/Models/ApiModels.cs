@@ -54,8 +54,12 @@ public class BanRequest
 {
     public bool   Ban     { get; set; }
     public string Reason  { get; set; } = "";
-    public int    Days    { get; set; }  // 0 = 永久
+    public int    Days    { get; set; }    // 0 = 永久
+    public double Hours   { get; set; }   // > 0 時以小時為單位
 }
+
+public class SetAdminStatusRequest   { public bool   Enabled     { get; set; } }
+public class ResetAdminPasswordRequest { public string NewPassword { get; set; } = ""; }
 
 public class DashboardStats
 {
@@ -184,6 +188,16 @@ public class RechargeRequest
     public bool UpdatePaydata  { get; set; } = true;
     /// <summary>加成百分比 0/5/10/15/20（用於記錄，實際金幣由前端計算後傳入）</summary>
     public int  BonusPercent   { get; set; } = 0;
+}
+
+/// <summary>主帳號分配儲值：單一 CDKEY 的儲值項目</summary>
+public class SplitRechargeItem
+{
+    public string Account    { get; set; } = "";
+    public long   TwdAmount  { get; set; }
+    public long   GoldAmount { get; set; }
+    public bool   GiveGold   { get; set; } = true;
+    public int    BonusPct   { get; set; } = 0;
 }
 
 // 商城分析

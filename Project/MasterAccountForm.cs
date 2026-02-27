@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Threading.Tasks;
@@ -15,11 +15,14 @@ namespace SQ_Email_Tools
         private Label        _lblStatus;
         private Label        _lblSubTitle;
         private Label        _lblSubStatus;
+        private Button       _btnSplitRecharge;
         private SplitContainer _split;
         private string       _currentFilter = "";
         private List<MasterAccount> _masters = new();
         private int          _subLoadToken  = 0;
         private Panel        _selectedRow   = null;
+        private MasterAccount _currentMaster = null;
+        private List<PlayerInfo> _currentSubs = new();
 
         // ──────────────────────────────────────────────────────────────
         public MasterAccountForm()
@@ -186,16 +189,46 @@ namespace SQ_Email_Tools
             tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // grid
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 26f));   // status
 
-            // ① Title
+            // ① Title + 分配儲值按鈕
+            var titleBar = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(14, 20, 36)
+            };
             _lblSubTitle = new Label
             {
                 Text = "  📋  請點選左側主帳號查看旗下角色",
                 ForeColor = Color.FromArgb(120, 150, 200),
                 Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
-                BackColor = Color.FromArgb(14, 20, 36)
             };
-            tbl.Controls.Add(_lblSubTitle, 0, 0);
+            _btnSplitRecharge = new Button
+            {
+                Text = "💰 分配儲值",
+                Dock = DockStyle.Right,
+                Width = 110,
+                BackColor = Color.FromArgb(160, 90, 10),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Enabled = false,
+                Cursor = Cursors.Hand,
+            };
+            _btnSplitRecharge.FlatAppearance.BorderColor = Color.FromArgb(200, 120, 20);
+            _btnSplitRecharge.Click += (s, e) =>
+            {
+                if (_currentMaster == null || _currentSubs.Count == 0)
+                {
+                    MessageBox.Show("請先點選左側主帳號", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                using var dlg = new MasterSplitRechargeDialog(_currentMaster.Name, _currentSubs);
+                dlg.ShowDialog(this);
+                if (dlg.AnyDone) _ = LoadSubAccountsAsync(_currentMaster);
+            };
+            titleBar.Controls.Add(_lblSubTitle);
+            titleBar.Controls.Add(_btnSplitRecharge);
+            tbl.Controls.Add(titleBar, 0, 0);
 
             // ② DataGridView
             _dgvSub = new DataGridView { Dock = DockStyle.Fill };
@@ -457,8 +490,10 @@ namespace SQ_Email_Tools
         {
             int token = System.Threading.Interlocked.Increment(ref _subLoadToken);
 
+            _currentMaster = ma;
             _lblSubTitle.Text  = $"  📋  【{ma.Name}】旗下子帳號（共 {ma.SubCount} 個）";
             _lblSubStatus.Text = "載入中…";
+            _btnSplitRecharge.Enabled = false;
             _dgvSub.Rows.Clear();
 
             try
@@ -479,6 +514,7 @@ namespace SQ_Email_Tools
 
                 if (token != _subLoadToken) return;
                 _dgvSub.Rows.Clear();
+                _currentSubs = subs;
 
                 foreach (var p in subs)
                 {
@@ -497,6 +533,7 @@ namespace SQ_Email_Tools
                 _lblSubStatus.Text = subs.Count > 0
                     ? $"共 {subs.Count} 個子帳號  ·  在線 {online} 個"
                     : $"查無子帳號（主帳號 ID={ma.Id}，名稱：{ma.Name}）";
+                _btnSplitRecharge.Enabled = subs.Count > 0;
             }
             catch (Exception ex) { _lblSubStatus.Text = "✗ " + ex.Message; }
         }
