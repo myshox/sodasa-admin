@@ -12,15 +12,16 @@ import BanPage      from './pages/BanPage'
 import RechargePage from './pages/RechargePage'
 import GoldLogPage  from './pages/GoldLogPage'
 import MailPage     from './pages/MailPage'
-import BatchPage    from './pages/BatchPage'
+// import BatchPage    from './pages/BatchPage'
 import PetCmdPage   from './pages/PetCmdPage'
 import GmLogPage    from './pages/GmLogPage'
 import TradeLogPage      from './pages/TradeLogPage'
+import BatchOpsPage      from './pages/BatchOpsPage'
 import PlayerHistoryPage from './pages/PlayerHistoryPage'
 import StreetShopPage    from './pages/StreetShopPage'
 import VipPage      from './pages/VipPage'
 import RecyclePage  from './pages/RecyclePage'
-import BatchGoldPage from './pages/BatchGoldPage'
+// import BatchGoldPage from './pages/BatchGoldPage'
 import SqlQueryPage from './pages/SqlQueryPage'
 import GmAdminPage   from './pages/GmAdminPage'
 import ItemSendPage  from './pages/ItemSendPage'
@@ -51,9 +52,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="history"    element={<PlayerHistoryPage />} />
         <Route path="streetshop" element={<StreetShopPage />} />
         <Route path="vip"       element={<VipPage />} />
-        <Route path="batch"     element={<BatchPage />} />
+        <Route path="batchops"  element={<BatchOpsPage />} />
+        <Route path="batch"     element={<BatchOpsPage />} />
+        <Route path="batchgold" element={<BatchOpsPage />} />
+        <Route path="itemqueue" element={<BatchOpsPage />} />
+        <Route path="send"      element={<BatchOpsPage />} />
         <Route path="recycle"   element={<RecyclePage />} />
-        <Route path="batchgold" element={<BatchGoldPage />} />
         <Route path="petcmd"    element={<PetCmdPage />} />
         <Route path="sql"       element={<SqlQueryPage />} />
         <Route path="gmlog"     element={<GmLogPage />} />

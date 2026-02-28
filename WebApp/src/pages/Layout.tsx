@@ -5,64 +5,52 @@ type NavGroup = { label: string; items: { to: string; icon: string; label: strin
 
 const navGroups: NavGroup[] = [
   {
-    label: S.grpPlayer,
+    label: '玩家管理',
     items: [
       { to: '/players',  icon: '👥', label: S.navPlayers },
-      { to: '/master',    icon: '👑', label: S.navMaster },
-    ]
-  },
-  {
-    label: S.grpRecord,
-    items: [
-      { to: '/recharge', icon: '💰', label: S.navRecharge },
-      { to: '/tradelog',   icon: '📊', label: S.navTradeLog },
-      { to: '/history',    icon: '🔍', label: '玩家活動歷程' },
-      { to: '/streetshop', icon: '🏪', label: '攤位 & 商城查詢' },
-      { to: '/goldlog',  icon: '💎', label: S.navGoldLog },
-      { to: '/mail',     icon: '📧', label: S.navMail },
-    ]
-  },
-  {
-    label: S.grpVip,
-    items: [
+      { to: '/master',   icon: '👑', label: S.navMaster },
       { to: '/vip',      icon: '💎', label: S.navVip },
-    ]
-  },
-  {
-    label: S.grpMonitor,
-    items: [
       { to: '/online',   icon: '🟢', label: S.navOnline },
       { to: '/ban',      icon: '🔒', label: S.navBan },
     ]
   },
   {
-    label: S.grpGm,
+    label: '紀錄查詢',
     items: [
+      { to: '/history',    icon: '🔍', label: '玩家活動歷程' },
+      { to: '/streetshop', icon: '🏪', label: '攤位 & 商城查詢' },
+      { to: '/recharge',   icon: '💰', label: S.navRecharge },
+      { to: '/tradelog',   icon: '📊', label: S.navTradeLog },
+      { to: '/goldlog',    icon: '💎', label: S.navGoldLog },
+      { to: '/mail',       icon: '📧', label: S.navMail },
+    ]
+  },
+  {
+    label: 'GM 工具',
+    items: [
+      { to: '/batchops', icon: '⚙️', label: '批量操作' },
       { to: '/petcmd',   icon: '🐾', label: S.navPetCmd },
-      { to: '/batch',    icon: '📢', label: S.navBatch },
       { to: '/recycle',  icon: '🗑', label: S.navRecycle },
-      { to: '/itemqueue',icon: '📬', label: S.navItemQueue },
-      { to: '/batchgold',icon: '💰', label: S.navBatchGold },
       { to: '/sql',      icon: '💻', label: S.navSql },
-      { to: '/shopstats',icon: '🏪', label: S.navShop },
-      { to: '/',         icon: '📈', label: S.navDashboard },
-    ]
-  },
-  {
-    label: S.grpAnalysis,
-    items: [
-      { to: '/analytics/player',   icon: '📊', label: S.navPlayerAna },
-      { to: '/analytics/recharge',icon: '💰', label: S.navRechargeAna },
-      { to: '/tradeaudit',        icon: '🔍', label: S.navTradeAudit },
-    ]
-  },
-  {
-    label: S.grpSystem,
-    items: [
-      { to: '/gmlog',    icon: '📋', label: S.navGmLog },
-      { to: '/gmperm',   icon: '🛡', label: S.navGmPerm },
-      { to: '/backup',   icon: '💾', label: S.navBackup },
       { to: '/gmadmin',  icon: '🔑', label: S.navGmAdmin },
+    ]
+  },
+  {
+    label: '數據分析',
+    items: [
+      { to: '/',                   icon: '📈', label: S.navDashboard },
+      { to: '/shopstats',          icon: '🏪', label: S.navShop },
+      { to: '/analytics/player',   icon: '📊', label: S.navPlayerAna },
+      { to: '/analytics/recharge', icon: '💰', label: S.navRechargeAna },
+      { to: '/tradeaudit',         icon: '🔍', label: S.navTradeAudit },
+    ]
+  },
+  {
+    label: '系統',
+    items: [
+      { to: '/gmlog',   icon: '📋', label: S.navGmLog },
+      { to: '/gmperm',  icon: '🛡', label: S.navGmPerm },
+      { to: '/backup',  icon: '💾', label: S.navBackup },
     ]
   },
 ]
