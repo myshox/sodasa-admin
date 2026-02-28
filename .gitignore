@@ -1,4 +1,6 @@
 # ===== 敏感設定（絕對不上傳）=====
+.cursor/rules/
+update-server.ps1
 WebApi/appsettings.json
 WebApi/appsettings.*.json
 !WebApi/appsettings.example.json
