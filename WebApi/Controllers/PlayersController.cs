@@ -241,8 +241,8 @@ public class PlayersController : ControllerBase
     [HttpPost("fix-old-mails")]
     public async Task<IActionResult> FixOldMails([FromBody] FixOldMailsRequest req)
     {
-        var (fixed_, total) = await _db.FixOldWebMailsAsync(req.Account);
-        return Ok(new { fixed = fixed_, total, message = $"已修正 {fixed_} 筆（共掃描 {total} 筆）" });
+        var (fixedCount, total) = await _db.FixOldWebMailsAsync(req.Account);
+        return Ok(new { fixedCount, total, message = $"已修正 {fixedCount} 筆（共掃描 {total} 筆）" });
     }
 }
 
