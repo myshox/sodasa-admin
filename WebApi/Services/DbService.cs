@@ -955,7 +955,7 @@ public class DbService
                     cmd.Parameters.AddWithValue("@data",  item.ItemId);   // 整數型別，與 EXE 一致
                     cmd.Parameters.AddWithValue("@now",   now);
                     cmd.Parameters.AddWithValue("@end",   end);
-                    cmd.Parameters.AddWithValue("@buff3", item.Buff3 ?? "");
+                    cmd.Parameters.AddWithValue("@buff3", "");   // 與 EXE 一致：固定空字串
                     try
                     {
                         if (await cmd.ExecuteNonQueryAsync() > 0) { totalSent++; accSent++; }
@@ -1741,7 +1741,7 @@ public class DbService
                     cmd.Parameters.AddWithValue("@data",  item.ItemId);   // 整數型別，與 EXE 一致
                     cmd.Parameters.AddWithValue("@now",   now);
                     cmd.Parameters.AddWithValue("@end",   end);
-                    cmd.Parameters.AddWithValue("@buff3", item.Buff3 ?? "");
+                    cmd.Parameters.AddWithValue("@buff3", "");   // 與 EXE 一致：固定空字串
                     if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
                 }
                 catch { fail++; }
