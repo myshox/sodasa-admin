@@ -34,6 +34,7 @@ function SingleSendTab() {
   const [mailRaw, setMailRaw] = useState<MailRawEntry[]>([])
   const [showRaw, setShowRaw] = useState(false)
   const [rawLoading, setRawLoading] = useState(false)
+  const [sentSummary, setSentSummary] = useState<{ account: string; name: string; items: CartItem[] } | null>(null)
 
   useEffect(() => {
     const acc = sp.get('account')
@@ -53,8 +54,11 @@ function SingleSendTab() {
     if (cart.length === 0) { setResult('購物車為空，請加入道具'); return }
     setLoading(true); setResult('')
     try {
+      const sentItems = [...cart]
       const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })), title: title.trim(), content: content.trim() })
-      setResult(r.data.message || `已發送 ${r.data.success} 筆`); setCart([])
+      setResult(r.data.message || `已發送 ${r.data.success} 筆`)
+      setSentSummary({ account: selectedAccount, name: selectedName, items: sentItems })
+      setCart([])
     } catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setResult(err.response?.data?.message || '發送失敗') }
     finally { setLoading(false) }
   }
@@ -104,6 +108,24 @@ function SingleSendTab() {
             {loading ? '發送中…' : `📬 發送至 ${selectedName || '玩家'}`}
           </button>
         </Card>
+        {sentSummary && (
+          <Card title="✅ 發送完成">
+            <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(86,196,118,.12)', border: '1px solid var(--accent-green)', borderRadius: 6 }}>
+              <div style={{ fontSize: 13, color: 'var(--accent-green)', fontWeight: 700, marginBottom: 6 }}>
+                已發送至：{sentSummary.name}（{sentSummary.account}）
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {sentSummary.items.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                    <span>#{c.itemId}{c.name ? ` ${c.name}` : ''}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>× {c.qty}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => setSentSummary(null)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>關閉</button>
+          </Card>
+        )}
         {showHistory && <Card title="📜 郵件歷史">
           <button onClick={() => setShowHistory(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 6, padding: 0 }}>收起</button>
           {mailHistory.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>無道具郵件記錄</p>
