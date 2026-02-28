@@ -30,6 +30,7 @@ export default function PlayerHistoryPage() {
   const [players, setPlayers]       = useState<PlayerRow[]>([])
   const [listFilter, setListFilter] = useState('')
   const [listLoading, setListLoading] = useState(true)
+  const [showAll, setShowAll]       = useState(false)
 
   // 查詢狀態
   const [query, setQuery]     = useState(sp.get('account') || '')
@@ -92,10 +93,13 @@ export default function PlayerHistoryPage() {
     })
   }
 
-  const filteredPlayers = players.filter(p => {
+  const filteredPlayers = (() => {
     const q = listFilter.toLowerCase()
-    return !q || p.account.toLowerCase().includes(q) || (p.onlineName || '').toLowerCase().includes(q)
-  })
+    const filtered = q
+      ? players.filter(p => p.account.toLowerCase().includes(q) || (p.onlineName || '').toLowerCase().includes(q))
+      : showAll ? players : players.filter(p => p.isOnline)
+    return filtered
+  })()
 
   return (
     <div style={{ display: 'flex', height: '100%', gap: 0 }}>
@@ -107,8 +111,13 @@ export default function PlayerHistoryPage() {
         height: '100vh', position: 'sticky', top: 0, overflowY: 'auto'
       }}>
         <div style={{ padding: '14px 12px 8px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
-            玩家名單（{filteredPlayers.length}）
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{listFilter ? `搜尋結果（${filteredPlayers.length}）` : showAll ? `全部玩家（${filteredPlayers.length}）` : `在線玩家（${filteredPlayers.length}）`}</span>
+            {!listFilter && (
+              <button onClick={() => setShowAll(v => !v)} style={{ fontSize: 10, padding: '2px 6px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                {showAll ? '在線' : '全部'}
+              </button>
+            )}
           </div>
           <input
             value={listFilter}
