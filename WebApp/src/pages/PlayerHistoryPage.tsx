@@ -14,14 +14,20 @@ interface StreetLog {
 }
 interface SpeedLog  { time: string; speedTime: number; speedCnt: number }
 interface CostLog   { time: string; name: string; point: number; check: number }
+interface ShopLog   {
+  time: string; charName: string; itemId: number; itemName: string
+  itemNum: number; oldPoint: number; newPoint: number; cost: number; shopType: 'fame' | 'vip'
+}
+interface VipPointLog { time: string; point: number; oldPoint: number; newPoint: number; buff: string }
 
 interface HistoryResult {
   trades: TradeLog[]; street: StreetLog[]
   speed: SpeedLog[];  cost: CostLog[]
+  shopLogs: ShopLog[]; vipPointLog: VipPointLog[]
   tradeSent: number;  tradeReceived: number
 }
 
-type Tab = 'trade' | 'street' | 'speed' | 'cost'
+type Tab = 'trade' | 'street' | 'shop' | 'speed' | 'cost'
 
 export default function PlayerHistoryPage() {
   const [sp] = useSearchParams()
@@ -192,19 +198,20 @@ export default function PlayerHistoryPage() {
         {data && (
           <>
             {/* 統計摘要 */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-              <StatCard label="交易送出" value={data.tradeSent}     color="var(--accent-orange)" />
-              <StatCard label="交易收到" value={data.tradeReceived} color="var(--accent-green)"  />
-              <StatCard label="街頭商店" value={data.street.length} color="var(--accent-blue)"   />
-              <StatCard label="速度警告" value={data.speed.length}  color={data.speed.length > 0 ? 'var(--accent-red)' : 'var(--text-muted)'} />
-              <StatCard label="消費紀錄" value={data.cost.length}   color="var(--text-secondary)" />
+          <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+              <StatCard label="交易送出" value={data.tradeSent}       color="var(--accent-orange)" />
+              <StatCard label="交易收到" value={data.tradeReceived}   color="var(--accent-green)"  />
+              <StatCard label="街頭商店" value={data.street.length}   color="var(--accent-blue)"   />
+              <StatCard label="商城購買" value={data.shopLogs.length} color="var(--accent-purple, #b97cf3)" />
+              <StatCard label="速度警告" value={data.speed.length}    color={data.speed.length > 0 ? 'var(--accent-red)' : 'var(--text-muted)'} />
             </div>
 
             {/* Tab 切換 */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 0, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
               {([
                 ['trade',  `💱 玩家交易（${data.trades.length}）`],
                 ['street', `🏪 街頭商店（${data.street.length}）`],
+                ['shop',   `🛒 商城購買（${data.shopLogs.length}）`],
                 ['speed',  `⚡ 速度異常（${data.speed.length}）`],
                 ['cost',   `💸 消費紀錄（${data.cost.length}）`],
               ] as [Tab, string][]).map(([t, label]) => (
@@ -309,6 +316,42 @@ export default function PlayerHistoryPage() {
                         ))}
                       </tbody>
                     </table>
+              )}
+
+              {/* 商城購買 */}
+              {tab === 'shop' && (
+                data.shopLogs.length === 0
+                  ? <Empty text="無商城購買紀錄" />
+                  : <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-sidebar)', textAlign: 'left' }}>
+                            <TH>時間</TH><TH>商城</TH><TH>角色</TH><TH>物品</TH><TH style={{ textAlign: 'right' }}>數量</TH><TH style={{ textAlign: 'right' }}>花費點數</TH><TH style={{ textAlign: 'right' }}>剩餘點數</TH>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.shopLogs.map((s, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={TD}>{s.time}</td>
+                              <td style={TD}>
+                                <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                                  background: s.shopType === 'vip' ? 'rgba(100,180,255,.15)' : 'rgba(185,124,243,.15)',
+                                  color: s.shopType === 'vip' ? 'var(--accent-blue)' : '#b97cf3' }}>
+                                  {s.shopType === 'vip' ? '💎 VIP商城' : '⭐ 聲望商城'}
+                                </span>
+                              </td>
+                              <td style={{ ...TD, fontWeight: 600 }}>{s.charName}</td>
+                              <td style={{ ...TD, fontWeight: 600, color: 'var(--text-primary)' }}>{s.itemName}</td>
+                              <td style={{ ...TD, textAlign: 'right' }}>×{s.itemNum}</td>
+                              <td style={{ ...TD, textAlign: 'right', color: 'var(--accent-red)', fontWeight: 700 }}>
+                                -{(s.oldPoint - s.newPoint).toLocaleString()}
+                              </td>
+                              <td style={{ ...TD, textAlign: 'right', color: 'var(--text-muted)' }}>{s.newPoint.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
               )}
 
               {/* 速度異常 */}

@@ -255,12 +255,34 @@ public class CostLogDto
     public long   Point { get; set; }
     public int    Check { get; set; }
 }
+public class ShopLogDto
+{
+    public string Time      { get; set; } = "";
+    public string CharName  { get; set; } = "";
+    public int    ItemId    { get; set; }
+    public string ItemName  { get; set; } = "";
+    public int    ItemNum   { get; set; }
+    public int    OldPoint  { get; set; }
+    public int    NewPoint  { get; set; }
+    public int    Cost      => OldPoint - NewPoint;
+    public string ShopType  { get; set; } = ""; // "fame" | "vip"
+}
+public class VipPointLogDto
+{
+    public string Time     { get; set; } = "";
+    public int    Point    { get; set; }
+    public int    OldPoint { get; set; }
+    public int    NewPoint { get; set; }
+    public string Buff     { get; set; } = "";
+}
 public class PlayerHistoryResult
 {
-    public List<TradeLogDto>  Trades  { get; set; } = new();
-    public List<StreetLogDto> Street  { get; set; } = new();
-    public List<SpeedLogDto>  Speed   { get; set; } = new();
-    public List<CostLogDto>   Cost    { get; set; } = new();
+    public List<TradeLogDto>    Trades      { get; set; } = new();
+    public List<StreetLogDto>   Street      { get; set; } = new();
+    public List<SpeedLogDto>    Speed       { get; set; } = new();
+    public List<CostLogDto>     Cost        { get; set; } = new();
+    public List<ShopLogDto>     ShopLogs    { get; set; } = new();
+    public List<VipPointLogDto> VipPointLog { get; set; } = new();
     public int TradeSent     { get; set; }
     public int TradeReceived { get; set; }
 }

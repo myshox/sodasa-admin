@@ -1817,6 +1817,80 @@ public class DbService
                 Check = r4.GetInt32("check"),
             });
         }
+        await r4.CloseAsync();
+
+        // ── 聲望商城購買紀錄 ──────────────────────────────────────
+        await using var cmd5 = new MySqlCommand(
+            @"SELECT cdkey, name, itemid, itemname, itemnum, oldpoint, newpoint,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+              FROM fameshop WHERE cdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd5.Parameters.AddWithValue("@a", account);
+        cmd5.Parameters.AddWithValue("@lim", limit);
+        await using var r5 = await cmd5.ExecuteReaderAsync();
+        while (await r5.ReadAsync())
+        {
+            result.ShopLogs.Add(new ShopLogDto
+            {
+                Time      = r5.GetString("time"),
+                CharName  = r5.IsDBNull(r5.GetOrdinal("name")) ? "" : r5.GetString("name"),
+                ItemId    = r5.GetInt32("itemid"),
+                ItemName  = r5.IsDBNull(r5.GetOrdinal("itemname")) ? "" : r5.GetString("itemname"),
+                ItemNum   = r5.GetInt32("itemnum"),
+                OldPoint  = r5.GetInt32("oldpoint"),
+                NewPoint  = r5.GetInt32("newpoint"),
+                ShopType  = "fame",
+            });
+        }
+        await r5.CloseAsync();
+
+        // ── VIP 商城購買紀錄 ──────────────────────────────────────
+        await using var cmd6 = new MySqlCommand(
+            @"SELECT cdkey, name, itemid, itemname, itemnum, oldpoint, newpoint,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+              FROM vipshop WHERE cdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd6.Parameters.AddWithValue("@a", account);
+        cmd6.Parameters.AddWithValue("@lim", limit);
+        await using var r6 = await cmd6.ExecuteReaderAsync();
+        while (await r6.ReadAsync())
+        {
+            result.ShopLogs.Add(new ShopLogDto
+            {
+                Time      = r6.GetString("time"),
+                CharName  = r6.IsDBNull(r6.GetOrdinal("name")) ? "" : r6.GetString("name"),
+                ItemId    = r6.GetInt32("itemid"),
+                ItemName  = r6.IsDBNull(r6.GetOrdinal("itemname")) ? "" : r6.GetString("itemname"),
+                ItemNum   = r6.GetInt32("itemnum"),
+                OldPoint  = r6.GetInt32("oldpoint"),
+                NewPoint  = r6.GetInt32("newpoint"),
+                ShopType  = "vip",
+            });
+        }
+        await r6.CloseAsync();
+        // 依時間排序
+        result.ShopLogs.Sort((a, b) => string.Compare(b.Time, a.Time, StringComparison.Ordinal));
+
+        // ── VIP 點數增減紀錄 ──────────────────────────────────────
+        await using var cmd7 = new MySqlCommand(
+            @"SELECT point, oldpoint, newpoint, buff,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+              FROM vippointlog WHERE cdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd7.Parameters.AddWithValue("@a", account);
+        cmd7.Parameters.AddWithValue("@lim", limit);
+        await using var r7 = await cmd7.ExecuteReaderAsync();
+        while (await r7.ReadAsync())
+        {
+            result.VipPointLog.Add(new VipPointLogDto
+            {
+                Time     = r7.GetString("time"),
+                Point    = r7.GetInt32("point"),
+                OldPoint = r7.GetInt32("oldpoint"),
+                NewPoint = r7.GetInt32("newpoint"),
+                Buff     = r7.IsDBNull(r7.GetOrdinal("buff")) ? "" : r7.GetString("buff"),
+            });
+        }
 
         return result;
     }
