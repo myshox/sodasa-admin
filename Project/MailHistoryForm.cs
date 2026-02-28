@@ -11,7 +11,7 @@ namespace SQ_Email_Tools
     public class MailHistoryForm : Form
     {
         private TextBox      _searchBox;
-        private Button       _btnSearch, _btnExport;
+        private Button       _btnSearch, _btnExport, _btnDiag;
         private DataGridView _dgv;
         private Label        _statusLbl, _countLbl;
         private List<MailRecord> _records = new List<MailRecord>();
@@ -69,7 +69,10 @@ namespace SQ_Email_Tools
             _btnExport = Theme.MakeButton("📥 匯出", Theme.AccentGreen, Color.White, 86, 28);
             _btnExport.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _btnExport.Click += BtnExport_Click;
-            searchPanel.Controls.AddRange(new Control[] { searchIcon, _searchBox, _btnSearch, _btnExport });
+            _btnDiag = Theme.MakeButton("🔬 診斷選取", Color.FromArgb(80, 60, 120), Color.White, 96, 28);
+            _btnDiag.Anchor  = AnchorStyles.Top | AnchorStyles.Right;
+            _btnDiag.Click  += BtnDiag_Click;
+            searchPanel.Controls.AddRange(new Control[] { searchIcon, _searchBox, _btnSearch, _btnExport, _btnDiag });
             searchPanel.Resize += (s, e) =>
             {
                 int pw = searchPanel.ClientSize.Width;
@@ -77,7 +80,9 @@ namespace SQ_Email_Tools
                 _btnSearch.Top   = 32;
                 _btnExport.Left  = _btnSearch.Left - _btnExport.Width - 8;
                 _btnExport.Top   = 32;
-                _searchBox.Width = Math.Max(100, _btnExport.Left - _searchBox.Left - 8);
+                _btnDiag.Left    = _btnExport.Left - _btnDiag.Width - 8;
+                _btnDiag.Top     = 32;
+                _searchBox.Width = Math.Max(100, _btnDiag.Left - _searchBox.Left - 8);
             };
 
             // ── 狀態列 ──
@@ -138,12 +143,19 @@ namespace SQ_Email_Tools
             _dgv.Rows.Clear();
             foreach (var r in _records)
             {
+                // 顯示 RawData（原始字串）供診斷用；若與 Data(int) 不同代表格式異常
+                string dataDisplay = r.RawData.Length > 0 && r.RawData != r.Data.ToString()
+                    ? $"{r.Data} ⚠{r.RawData}" : r.Data.ToString();
                 int i = _dgv.Rows.Add(
-                    r.Id, r.TypeStr, r.Cdkey, r.Data,
+                    r.TypeStr, r.Cdkey, dataDisplay,
                     r.Buff1, r.Buff3, r.SendTimeStr, r.EndTimeStr, r.StatusStr);
                 _dgv.Rows[i].Tag = r;
-                if (r.CheckFlag == 1)
+                if (r.Deleamill == 1)
+                    _dgv.Rows[i].DefaultCellStyle.ForeColor = Color.FromArgb(100, 100, 100);
+                else if (r.CheckFlag == 1)
                     _dgv.Rows[i].DefaultCellStyle.ForeColor = Theme.TextMuted;
+                else
+                    _dgv.Rows[i].DefaultCellStyle.ForeColor = Color.FromArgb(120, 220, 120); // 未領取 = 綠色
             }
             _countLbl.Text  = $"共 {_records.Count} 筆";
             _statusLbl.Text = _records.Count > 0 ? "✓ 查詢完成" : "查無資料";
@@ -201,6 +213,36 @@ namespace SQ_Email_Tools
             {
                 MessageBox.Show("匯出失敗：" + ex.Message, "錯誤");
             }
+        }
+
+        private void BtnDiag_Click(object sender, EventArgs e)
+        {
+            if (_dgv.CurrentRow?.Tag is not MailRecord rec)
+            {
+                MessageBox.Show("請先點選一列郵件記錄", "提示");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"━━━ 郵件 ID: {rec.Id}  帳號: {rec.Cdkey} ━━━");
+            sb.AppendLine($"type      = {rec.Type}  ({rec.TypeStr})");
+            sb.AppendLine($"data      = 「{rec.RawData}」  (int 解析: {rec.Data})");
+            sb.AppendLine($"buff1     = {rec.Buff1}");
+            sb.AppendLine($"buff2     = {rec.Buff2}");
+            sb.AppendLine($"buff3     = {rec.Buff3}");
+            sb.AppendLine($"sendtime  = {rec.SendTime}  ({rec.SendTimeStr})");
+            sb.AppendLine($"endtime   = {rec.EndTime}  ({rec.EndTimeStr})");
+            sb.AppendLine($"check     = {rec.CheckFlag}  ({rec.StatusStr})");
+            sb.AppendLine($"deleamill = {rec.Deleamill}");
+            sb.AppendLine();
+            sb.AppendLine("▶ 診斷提示：");
+            sb.AppendLine("  • type=1 為道具，type=2 為寵物，遊戲端若不認識該 type 會無法領取");
+            sb.AppendLine("  • data 欄位須符合遊戲 maildata 格式（可對比可正常領取的郵件）");
+            sb.AppendLine("  • buff3 若含道具數量/屬性，格式錯誤也會導致無法領取");
+            sb.AppendLine("  • check=0 代表未領取（綠色），check=1 為已領取，deleamill=1 為已刪除");
+
+            MessageBox.Show(sb.ToString(), $"🔬 信件格式診斷 — ID {rec.Id}",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

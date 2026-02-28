@@ -163,6 +163,7 @@ namespace SQ_Email_Tools
         public string Buff1     { get; set; }
         public string Buff2     { get; set; }
         public int    Data      { get; set; }
+        public string RawData   { get; set; } = "";
         public int    SendTime  { get; set; }
         public int    EndTime   { get; set; }
         public int    CheckFlag { get; set; }

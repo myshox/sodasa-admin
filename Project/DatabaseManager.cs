@@ -279,19 +279,23 @@ namespace SQ_Email_Tools
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
+                // data 欄位可能是 VARCHAR（遊戲儲存複雜格式如 "1234,5"），以字串讀取避免 FormatException
+                string rawData = r["data"]?.ToString() ?? "";
+                int.TryParse(rawData, out int dataInt);
                 list.Add(new MailRecord
                 {
                     Id        = r.GetInt32("id"),
                     Type      = r.GetInt32("type"),
-                    Buff1     = r.GetString("buff1"),
-                    Buff2     = r.GetString("buff2"),
-                    Data      = r.GetInt32("data"),
-                    SendTime  = r.GetInt32("sendtime"),
-                    EndTime   = r.GetInt32("endtime"),
-                    CheckFlag = r.GetInt32("check"),
-                    Deleamill = r.GetInt32("deleamill"),
-                    Buff3     = r.GetString("buff3"),
-                    Cdkey     = defaultCdkey.Length > 0 ? defaultCdkey : r.GetString("cdkey")
+                    Buff1     = r["buff1"]?.ToString() ?? "",
+                    Buff2     = r["buff2"]?.ToString() ?? "",
+                    Data      = dataInt,
+                    RawData   = rawData,
+                    SendTime  = r["sendtime"]  == DBNull.Value ? 0 : Convert.ToInt32(r["sendtime"]),
+                    EndTime   = r["endtime"]   == DBNull.Value ? 0 : Convert.ToInt32(r["endtime"]),
+                    CheckFlag = r["check"]     == DBNull.Value ? 0 : Convert.ToInt32(r["check"]),
+                    Deleamill = r["deleamill"] == DBNull.Value ? 0 : Convert.ToInt32(r["deleamill"]),
+                    Buff3     = r["buff3"]?.ToString() ?? "",
+                    Cdkey     = defaultCdkey.Length > 0 ? defaultCdkey : (r["cdkey"]?.ToString() ?? "")
                 });
             }
             return list;
@@ -387,7 +391,13 @@ namespace SQ_Email_Tools
                     if (batchOk) success += batch.Count;
                     else         { success += rows / Math.Max(1, qty); fail += batch.Count - rows / Math.Max(1, qty); }
                 }
-                catch { fail += batch.Count; }
+                catch (Exception batchEx)
+                {
+                    fail += batch.Count;
+                    // 通知呼叫方這批次的錯誤訊息
+                    progress?.Report((Math.Min(i + batchSize, total), total,
+                        $"[DB錯誤] {batchEx.Message}", false));
+                }
 
                 int done = Math.Min(i + batchSize, total);
                 progress?.Report((done, total, batch[^1], batchOk));
@@ -2992,6 +3002,371 @@ namespace SQ_Email_Tools
             }
             catch (Exception dbEx) { System.Diagnostics.Debug.WriteLine("[DB] " + dbEx.Message); }
             return (false, "");
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // 玩家活動歷程（PlayerHistoryForm 使用）
+        // ══════════════════════════════════════════════════════════
+
+        public async Task<List<(string time, string dir, string otherAcc, string otherName, string items, string pets, long gold)>>
+            GetPlayerHistoryTradesAsync(string account, int limit = 150)
+        {
+            var list = new List<(string, string, string, string, string, string, long)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT mecdkey,mename,tocdkey,toname,
+                             DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time,
+                             item, pet, gold
+                      FROM tradelog
+                      WHERE mecdkey=@a OR tocdkey=@a
+                      ORDER BY time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a",   account);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    string from = r.GetString("mecdkey");
+                    bool   sent = from == account;
+                    string dir  = sent ? "→ 送出" : "← 收到";
+                    string otherAcc  = sent ? r.GetString("tocdkey") : from;
+                    string otherName = sent ? (r["toname"]?.ToString() ?? "") : (r["mename"]?.ToString() ?? "");
+                    list.Add((
+                        r["time"]?.ToString() ?? "",
+                        dir, otherAcc, otherName,
+                        r["item"]?.ToString() ?? "",
+                        r["pet"]?.ToString()  ?? "",
+                        r["gold"] == DBNull.Value ? 0 : Convert.ToInt64(r["gold"])
+                    ));
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/History/Trade] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string role, string itemName, int num, int price, string otherAcc, string otherName)>>
+            GetPlayerHistoryStreetAsync(string account, int limit = 150)
+        {
+            var list = new List<(string, string, string, int, int, string, string)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT sellcdkey, name, num, point, buycdkey, buyname,
+                             FROM_UNIXTIME(time,'%Y-%m-%d %H:%i:%S') time
+                      FROM streetlog
+                      WHERE sellcdkey=@a OR buycdkey=@a
+                      ORDER BY time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a",   account);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    string seller = r.GetString("sellcdkey");
+                    bool   isSell = seller == account;
+                    string role   = isSell ? "賣出" : "買入";
+                    string other  = isSell ? (r["buycdkey"]?.ToString() ?? "") : seller;
+                    string otherN = isSell ? (r["buyname"]?.ToString()  ?? "") : "";
+                    list.Add((
+                        r["time"]?.ToString() ?? "",
+                        role,
+                        r["name"]?.ToString() ?? "",
+                        r["num"]   == DBNull.Value ? 0 : Convert.ToInt32(r["num"]),
+                        r["point"] == DBNull.Value ? 0 : Convert.ToInt32(r["point"]),
+                        other, otherN
+                    ));
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/History/Street] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string shopType, string itemName, int num, int cost)>>
+            GetPlayerHistoryShopAsync(string account, int limit = 150)
+        {
+            var list = new List<(string, string, string, int, int)>();
+            foreach (var tbl in new[] { ("fameshop", "聲望商城"), ("vipshop", "金幣商城") })
+            {
+                try
+                {
+                    using var conn = GetConnection(); await conn.OpenAsync();
+                    using var cmd = new MySqlCommand(
+                        $@"SELECT DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time,
+                                  itemname, itemnum, oldpoint, newpoint
+                           FROM `{tbl.Item1}` WHERE cdkey=@a
+                           ORDER BY time DESC LIMIT @lim", conn);
+                    cmd.Parameters.AddWithValue("@a",   account);
+                    cmd.Parameters.AddWithValue("@lim", limit);
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        int old_ = r["oldpoint"] == DBNull.Value ? 0 : Convert.ToInt32(r["oldpoint"]);
+                        int new_ = r["newpoint"] == DBNull.Value ? 0 : Convert.ToInt32(r["newpoint"]);
+                        list.Add((
+                            r["time"]?.ToString()     ?? "",
+                            tbl.Item2,
+                            r["itemname"]?.ToString() ?? "",
+                            r["itemnum"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemnum"]),
+                            old_ - new_
+                        ));
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DB/History/Shop/{tbl.Item1}] " + ex.Message); }
+            }
+            list.Sort((a, b) => string.Compare(b.Item1, a.Item1, StringComparison.Ordinal));
+            return list;
+        }
+
+        public async Task<List<(string time, int speedTime, int speedCnt)>>
+            GetPlayerHistorySpeedAsync(string account, int limit = 100)
+        {
+            var list = new List<(string, int, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT speedtime, speedcnt,
+                             DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+                      FROM speedlog WHERE cdkey=@a
+                      ORDER BY time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a",   account);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["time"]?.ToString() ?? "",
+                        r["speedtime"] == DBNull.Value ? 0 : Convert.ToInt32(r["speedtime"]),
+                        r["speedcnt"]  == DBNull.Value ? 0 : Convert.ToInt32(r["speedcnt"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/History/Speed] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string name, long point)>>
+            GetPlayerHistoryCostAsync(string account, int limit = 150)
+        {
+            var list = new List<(string, string, long)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT cdkey, name, point,
+                             DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+                      FROM costdata WHERE cdkey=@a
+                      ORDER BY time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a",   account);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["time"]?.ToString()  ?? "",
+                        r["name"]?.ToString()  ?? "",
+                        r["point"] == DBNull.Value ? 0 : Convert.ToInt64(r["point"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/History/Cost] " + ex.Message); }
+            return list;
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // 攤位 & 市場查詢（StreetShopForm 使用）
+        // ══════════════════════════════════════════════════════════
+
+        public async Task<List<(string cdkey, string charName, int itemCount)>> GetAllVendorsAsync()
+        {
+            var list = new List<(string, string, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT si.cdkey, IFNULL(c.OnlineName,'') charName, COUNT(*) AS cnt
+                      FROM streetitem si
+                      LEFT JOIN csalogin c ON c.Name = si.cdkey
+                      GROUP BY si.cdkey, c.OnlineName
+                      ORDER BY cnt DESC", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r.GetString("cdkey"),
+                        r["charName"]?.ToString() ?? "",
+                        r["cnt"] == DBNull.Value ? 0 : Convert.ToInt32(r["cnt"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/Vendors] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(int itemId, string itemName, int num, int price)>>
+            GetVendorItemsAsync(string cdkey)
+        {
+            var list = new List<(int, string, int, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT ITEM_ID, ITEM_NAME, ITEM_USEPILENUMS, price
+                      FROM streetitem WHERE cdkey=@a ORDER BY price ASC", conn);
+                cmd.Parameters.AddWithValue("@a", cdkey);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["ITEM_ID"]           == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_ID"]),
+                        r["ITEM_NAME"]?.ToString() ?? "",
+                        r["ITEM_USEPILENUMS"]  == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_USEPILENUMS"]),
+                        r["price"]             == DBNull.Value ? 0 : Convert.ToInt32(r["price"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/VendorItems] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string itemName, int num, int price, string buyCdkey, string buyName)>>
+            GetVendorSalesAsync(string cdkey, int limit = 200)
+        {
+            var list = new List<(string, string, int, int, string, string)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT name, num, point, buycdkey, buyname,
+                             FROM_UNIXTIME(time,'%Y-%m-%d %H:%i:%S') time
+                      FROM streetlog WHERE sellcdkey=@a
+                      ORDER BY time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a",   cdkey);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["time"]?.ToString()     ?? "",
+                        r["name"]?.ToString()     ?? "",
+                        r["num"]     == DBNull.Value ? 0 : Convert.ToInt32(r["num"]),
+                        r["point"]   == DBNull.Value ? 0 : Convert.ToInt32(r["point"]),
+                        r["buycdkey"]?.ToString() ?? "",
+                        r["buyname"]?.ToString()  ?? ""
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/VendorSales] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string cdkey, string charName, string itemName, int num, int price)>>
+            GetListingsByItemAsync(string keyword, int limit = 200)
+        {
+            var list = new List<(string, string, string, int, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT si.cdkey, IFNULL(c.OnlineName,'') charName,
+                             si.ITEM_NAME, si.ITEM_USEPILENUMS, si.price
+                      FROM streetitem si
+                      LEFT JOIN csalogin c ON c.Name = si.cdkey
+                      WHERE si.ITEM_NAME LIKE @kw
+                      ORDER BY si.price ASC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@kw",  $"%{keyword}%");
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["cdkey"]?.ToString()    ?? "",
+                        r["charName"]?.ToString() ?? "",
+                        r["ITEM_NAME"]?.ToString() ?? "",
+                        r["ITEM_USEPILENUMS"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_USEPILENUMS"]),
+                        r["price"]            == DBNull.Value ? 0 : Convert.ToInt32(r["price"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/ListingsByItem] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string sellCdkey, string sellerName, string buyCdkey, string buyName, string itemName, int num, int price)>>
+            GetStreetBuyersByItemAsync(string keyword, int limit = 300)
+        {
+            var list = new List<(string, string, string, string, string, string, int, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT sl.sellcdkey, IFNULL(cs.OnlineName,'') sellerName,
+                             sl.buycdkey, sl.buyname, sl.name, sl.num, sl.point,
+                             FROM_UNIXTIME(sl.time,'%Y-%m-%d %H:%i:%S') time
+                      FROM streetlog sl
+                      LEFT JOIN csalogin cs ON cs.Name = sl.sellcdkey
+                      WHERE sl.name LIKE @kw
+                      ORDER BY sl.time DESC LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@kw",  $"%{keyword}%");
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["time"]?.ToString()       ?? "",
+                        r["sellcdkey"]?.ToString()  ?? "",
+                        r["sellerName"]?.ToString() ?? "",
+                        r["buycdkey"]?.ToString()   ?? "",
+                        r["buyname"]?.ToString()    ?? "",
+                        r["name"]?.ToString()       ?? "",
+                        r["num"]   == DBNull.Value  ? 0 : Convert.ToInt32(r["num"]),
+                        r["point"] == DBNull.Value  ? 0 : Convert.ToInt32(r["point"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/StreetBuyersByItem] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string time, string shopType, string cdkey, string charName, string itemName, int num, int cost)>>
+            GetShopBuyersByItemAsync(string keyword, int limit = 200)
+        {
+            var list = new List<(string, string, string, string, string, int, int)>();
+            foreach (var tbl in new[] { ("fameshop", "聲望商城"), ("vipshop", "金幣商城") })
+            {
+                try
+                {
+                    using var conn = GetConnection(); await conn.OpenAsync();
+                    using var cmd = new MySqlCommand(
+                        $@"SELECT DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time,
+                                  cdkey, name, itemname, itemnum, oldpoint, newpoint
+                           FROM `{tbl.Item1}` WHERE itemname LIKE @kw
+                           ORDER BY time DESC LIMIT @lim", conn);
+                    cmd.Parameters.AddWithValue("@kw",  $"%{keyword}%");
+                    cmd.Parameters.AddWithValue("@lim", limit);
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        int old_ = r["oldpoint"] == DBNull.Value ? 0 : Convert.ToInt32(r["oldpoint"]);
+                        int new_ = r["newpoint"] == DBNull.Value ? 0 : Convert.ToInt32(r["newpoint"]);
+                        list.Add((
+                            r["time"]?.ToString()     ?? "",
+                            tbl.Item2,
+                            r["cdkey"]?.ToString()    ?? "",
+                            r["name"]?.ToString()     ?? "",
+                            r["itemname"]?.ToString() ?? "",
+                            r["itemnum"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemnum"]),
+                            old_ - new_
+                        ));
+                    }
+                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[DB/ShopBuyersByItem/{tbl.Item1}] " + ex.Message); }
+            }
+            list.Sort((a, b) => string.Compare(b.Item1, a.Item1, StringComparison.Ordinal));
+            return list;
+        }
+
+        /// <summary>根據帳號或角色名稱找出 cdkey；找不到則原樣返回輸入值。</summary>
+        public async Task<string> ResolveAccountAsync(string nameOrOnlineName)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "SELECT `Name` FROM csalogin WHERE `Name`=@q OR OnlineName=@q LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@q", nameOrOnlineName);
+                var r = await cmd.ExecuteScalarAsync();
+                if (r != null && r != DBNull.Value) return r.ToString() ?? nameOrOnlineName;
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/ResolveAccount] " + ex.Message); }
+            return nameOrOnlineName;
         }
 
         public async Task<(int totalTrades, int uniquePairs, int suspiciousPairs, int sameIpPairs)> GetTradeAuditSummaryAsync()

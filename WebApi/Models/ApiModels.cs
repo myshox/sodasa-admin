@@ -149,7 +149,7 @@ public class SendItemRequest
     public string Content  { get; set; } = "";
 }
 
-public class CartItem     { public int ItemId { get; set; } public int Qty { get; set; } public int Type { get; set; } }
+public class CartItem     { public int ItemId { get; set; } public int Qty { get; set; } public int Type { get; set; } public string Buff3 { get; set; } = ""; }
 public class SendCartRequest
 {
     public string     Account  { get; set; } = "";
@@ -348,6 +348,20 @@ public class StreetVendorResult
     public string             CharName     { get; set; } = "";
     public List<StreetItemDto> CurrentItems { get; set; } = new();
     public List<StreetSaleDto> SaleHistory  { get; set; } = new();
+}
+
+// ── 信件原始診斷 DTO ─────────────────────────────────────────
+public class MailRawDto
+{
+    public int    Id       { get; set; }
+    public int    Type     { get; set; }
+    public string Buff1    { get; set; } = "";
+    public string Buff2    { get; set; } = "";
+    public string RawData  { get; set; } = "";
+    public string Buff3    { get; set; } = "";
+    public string SendTime { get; set; } = "";
+    public bool   IsRead   { get; set; }
+    public bool   Deleted  { get; set; }
 }
 
 // ── 外部 API 追加請求（供官網後台 GM 操作呼叫）─────────────

@@ -77,13 +77,18 @@ public class PlayersController : ControllerBase
     {
         if (req.Cart == null || req.Cart.Count == 0)
             return BadRequest(new { message = "購物車為空" });
-        var (count, sentAccounts) = await _db.BatchSendCartAsync(
+        var (count, fail, sentAccounts, lastError) = await _db.BatchSendCartAsync(
             req.Target, req.CustomList, req.Cart, req.Title, req.Content);
         if (sentAccounts.Count == 0)
-            return Ok(new { count = 0, accounts = sentAccounts,
-                message = "⚠ 無玩家收到道具（在線名單可能為空，或全部寫入失敗）" });
-        return Ok(new { count, accounts = sentAccounts,
-            message = $"✓ 已發送至 {sentAccounts.Count} 人（共 {count} 筆郵件）" });
+        {
+            string errHint = string.IsNullOrEmpty(lastError) ? "" : $"\n錯誤：{lastError}";
+            return Ok(new { count = 0, fail, accounts = sentAccounts,
+                message = $"⚠ 無玩家收到道具（在線名單可能為空，或全部寫入失敗）{errHint}" });
+        }
+        string warnPart = fail > 0 ? $"，失敗 {fail} 筆" : "";
+        if (!string.IsNullOrEmpty(lastError)) warnPart += $"（錯誤：{lastError}）";
+        return Ok(new { count, fail, accounts = sentAccounts,
+            message = $"✓ 已發送至 {sentAccounts.Count} 人（共 {count} 筆郵件{warnPart}）" });
     }
 
     [HttpPost("send-item")]
@@ -226,6 +231,11 @@ public class PlayersController : ControllerBase
     [HttpGet("{account}/mail-history")]
     public async Task<IActionResult> MailHistory(string account)
         => Ok(await _db.GetPlayerMailHistoryAsync(account));
+
+    /// <summary>顯示 maildata 原始欄位（type/data/buff3）用於診斷無法領取問題</summary>
+    [HttpGet("{account}/mail-raw")]
+    public async Task<IActionResult> MailRaw(string account, [FromQuery] int limit = 50)
+        => Ok(await _db.GetMailRawAsync(account, limit));
 }
 
 [ApiController, Route("api/stats"), Authorize]

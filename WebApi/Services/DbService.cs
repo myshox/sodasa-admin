@@ -815,11 +815,11 @@ public class DbService
     }
 
     // ── 發送道具至玩家信箱（maildata，type=1）──────────────────
-    public async Task<(int success, int fail)> SendItemMailAsync(string account, int itemId, int quantity, string title = "", string content = "")
+    public async Task<(int success, int fail)> SendItemMailAsync(string account, int itemId, int quantity, string title = "", string content = "", string buff3 = "")
     {
         if (quantity < 1) quantity = 1;
-        string buff1 = string.IsNullOrWhiteSpace(title) ? $"[GM] 道具 #{itemId}" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具" : content.Trim();
+        string buff1 = string.IsNullOrWhiteSpace(title)   ? $"[GM] 道具 #{itemId}" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具"           : content.Trim();
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         long end = now + 30 * 24 * 3600;
         int success = 0, fail = 0;
@@ -830,13 +830,14 @@ public class DbService
             {
                 await using var cmd = new MySqlCommand(
                     @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                      VALUES(1,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
+                      VALUES(1,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,@buff3)", db);
                 cmd.Parameters.AddWithValue("@cdkey", account);
                 cmd.Parameters.AddWithValue("@buff1", buff1);
                 cmd.Parameters.AddWithValue("@buff2", buff2);
-                cmd.Parameters.AddWithValue("@data", itemId.ToString());
-                cmd.Parameters.AddWithValue("@now", now);
-                cmd.Parameters.AddWithValue("@end", end);
+                cmd.Parameters.AddWithValue("@data",  itemId);   // 整數型別，與 EXE 一致
+                cmd.Parameters.AddWithValue("@now",   now);
+                cmd.Parameters.AddWithValue("@end",   end);
+                cmd.Parameters.AddWithValue("@buff3", buff3 ?? "");
                 if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
             }
             catch { fail++; }
@@ -903,10 +904,10 @@ public class DbService
     }
 
     // ── 批量購物車發送 ──────────────────────────────────────────
-    public async Task<(int count, List<string> sentAccounts)> BatchSendCartAsync(
+    public async Task<(int count, int fail, List<string> sentAccounts, string lastError)> BatchSendCartAsync(
         string target, string customList, List<CartItem> cart, string title, string content)
     {
-        if (cart == null || cart.Count == 0) return (0, new List<string>());
+        if (cart == null || cart.Count == 0) return (0, 0, new List<string>(), "購物車為空");
         await using var db = Open(); await db.OpenAsync();
         List<string> accounts = new();
         if (target == "custom")
@@ -922,36 +923,46 @@ public class DbService
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
-        if (accounts.Count == 0) return (0, new List<string>());
+        if (accounts.Count == 0) return (0, 0, new List<string>(), "找不到符合條件的玩家帳號");
         long now  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         long end  = now + 30 * 24 * 3600;
         string buff1 = string.IsNullOrWhiteSpace(title)   ? "[GM] 批量發送" : title.Trim();
         string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 批量發放"   : content.Trim();
         int totalSent = 0;
+        int totalFail = 0;
+        string lastError = "";
         var sentAccounts = new List<string>();
         foreach (var acc in accounts)
         {
             int accSent = 0;
             foreach (var item in cart)
             {
+                if (item.ItemId <= 0) { totalFail++; continue; } // 跳過無效 ItemId
+                int mailType = item.Type > 0 ? item.Type : 1;
                 for (int i = 0; i < Math.Max(1, item.Qty); i++)
                 {
                     await using var cmd = new MySqlCommand(
                         @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
-                    cmd.Parameters.AddWithValue("@type",  item.Type > 0 ? item.Type : 1);
+                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,@buff3)", db);
+                    cmd.Parameters.AddWithValue("@type",  mailType);
                     cmd.Parameters.AddWithValue("@cdkey", acc);
-                    cmd.Parameters.AddWithValue("@buff1", buff1);
-                    cmd.Parameters.AddWithValue("@buff2", buff2);
-                    cmd.Parameters.AddWithValue("@data",  item.ItemId.ToString());
+                    cmd.Parameters.AddWithValue("@buff1", buff1.Length > 200 ? buff1[..200] : buff1);
+                    cmd.Parameters.AddWithValue("@buff2", buff2.Length > 200 ? buff2[..200] : buff2);
+                    cmd.Parameters.AddWithValue("@data",  item.ItemId);   // 整數型別，與 EXE 一致
                     cmd.Parameters.AddWithValue("@now",   now);
                     cmd.Parameters.AddWithValue("@end",   end);
-                    try { if (await cmd.ExecuteNonQueryAsync() > 0) { totalSent++; accSent++; } } catch { }
+                    cmd.Parameters.AddWithValue("@buff3", item.Buff3 ?? "");
+                    try
+                    {
+                        if (await cmd.ExecuteNonQueryAsync() > 0) { totalSent++; accSent++; }
+                        else totalFail++;
+                    }
+                    catch (Exception ex) { totalFail++; lastError = ex.Message; }
                 }
             }
             if (accSent > 0) sentAccounts.Add(acc);
         }
-        return (totalSent, sentAccounts);
+        return (totalSent, totalFail, sentAccounts, lastError);
     }
 
     // ── 交易記錄（tradelog）────────────────────────────────────
@@ -1622,6 +1633,47 @@ public class DbService
         };
     }
 
+    // ── 信件原始診斷（用於排查無法領取的道具）────────────────
+    public async Task<List<MailRawDto>> GetMailRawAsync(string account, int limit = 50)
+    {
+        var list = new List<MailRawDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT id, type, cdkey,
+                         IFNULL(buff1,'') buff1, IFNULL(buff2,'') buff2,
+                         IFNULL(data,'')  rawData,
+                         IFNULL(buff3,'') buff3,
+                         sendtime, endtime,
+                         IFNULL(`check`,0) isRead,
+                         IFNULL(deleamill,0) deleted
+                  FROM maildata
+                  WHERE cdkey=@acc
+                  ORDER BY id DESC LIMIT @lim", db);
+            cmd.Parameters.AddWithValue("@acc", account);
+            cmd.Parameters.AddWithValue("@lim", Math.Min(limit, 200));
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new MailRawDto
+                {
+                    Id       = r.GetInt32("id"),
+                    Type     = r.GetInt32("type"),
+                    Buff1    = r.GetString("buff1"),
+                    Buff2    = r.GetString("buff2"),
+                    RawData  = r.GetString("rawData"),
+                    Buff3    = r.GetString("buff3"),
+                    SendTime = DateTimeOffset.FromUnixTimeSeconds(
+                                   r["sendtime"] == DBNull.Value ? 0 : Convert.ToInt64(r["sendtime"]))
+                               .LocalDateTime.ToString("MM-dd HH:mm"),
+                    IsRead   = r.GetInt32("isRead") == 1,
+                    Deleted  = r.GetInt32("deleted") == 1,
+                });
+        }
+        catch { }
+        return list;
+    }
+
     // ── 玩家郵件歷史（已收道具）──────────────────────────────
     public async Task<List<MailHistoryDto>> GetPlayerMailHistoryAsync(string account)
     {
@@ -1661,8 +1713,8 @@ public class DbService
         if (cart == null || cart.Count == 0) return (0, 0);
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         long end = now + 30 * 24 * 3600;
-        string buff1 = string.IsNullOrWhiteSpace(title) ? "[GM] 道具發送" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具" : content.Trim();
+        string buff1 = string.IsNullOrWhiteSpace(title)   ? "[GM] 道具發送" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具"   : content.Trim();
         int success = 0, fail = 0;
         await using var db = Open(); await db.OpenAsync();
         foreach (var item in cart)
@@ -1673,14 +1725,15 @@ public class DbService
                 {
                     await using var cmd = new MySqlCommand(
                         @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db);
-                    cmd.Parameters.AddWithValue("@type", item.Type > 0 ? item.Type : 1);
+                          VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,@buff3)", db);
+                    cmd.Parameters.AddWithValue("@type",  item.Type > 0 ? item.Type : 1);
                     cmd.Parameters.AddWithValue("@cdkey", account);
                     cmd.Parameters.AddWithValue("@buff1", buff1);
                     cmd.Parameters.AddWithValue("@buff2", buff2);
-                    cmd.Parameters.AddWithValue("@data", item.ItemId.ToString());
-                    cmd.Parameters.AddWithValue("@now", now);
-                    cmd.Parameters.AddWithValue("@end", end);
+                    cmd.Parameters.AddWithValue("@data",  item.ItemId);   // 整數型別，與 EXE 一致
+                    cmd.Parameters.AddWithValue("@now",   now);
+                    cmd.Parameters.AddWithValue("@end",   end);
+                    cmd.Parameters.AddWithValue("@buff3", item.Buff3 ?? "");
                     if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
                 }
                 catch { fail++; }

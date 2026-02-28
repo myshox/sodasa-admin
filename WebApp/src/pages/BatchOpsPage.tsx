@@ -9,7 +9,8 @@ import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 
 type MainTab = 'single' | 'batch' | 'gold'
-interface CartItem { itemId: number; qty: number; type: number; name?: string }
+interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
+interface MailRawEntry { id: number; type: number; buff1: string; buff2: string; rawData: string; buff3: string; sendTime: string; isRead: boolean; deleted: boolean }
 
 // ────────────────────────────────────────────────────────────
 // Tab 1 — 道具給予（單人）
@@ -30,6 +31,9 @@ function SingleSendTab() {
   const [mailHistory, setMailHistory] = useState<MailHistoryItem[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [mailRaw, setMailRaw] = useState<MailRawEntry[]>([])
+  const [showRaw, setShowRaw] = useState(false)
+  const [rawLoading, setRawLoading] = useState(false)
 
   useEffect(() => {
     const acc = sp.get('account')
@@ -39,16 +43,17 @@ function SingleSendTab() {
   const addToCart = (item: CartItem) =>
     setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
-  const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })
+  const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
 
   const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${selectedAccount}/mail-history`); setMailHistory(r.data); setShowHistory(true) } finally { setHistoryLoading(false) } }
+  const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${selectedAccount}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } finally { setRawLoading(false) } }
 
   const send = async () => {
     if (!selectedAccount) { setResult('請先選定玩家'); return }
     if (cart.length === 0) { setResult('購物車為空，請加入道具'); return }
     setLoading(true); setResult('')
     try {
-      const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })), title: title.trim(), content: content.trim() })
+      const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })), title: title.trim(), content: content.trim() })
       setResult(r.data.message || `已發送 ${r.data.success} 筆`); setCart([])
     } catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setResult(err.response?.data?.message || '發送失敗') }
     finally { setLoading(false) }
@@ -63,7 +68,10 @@ function SingleSendTab() {
           <PlayerAutocomplete value={playerQ} onChange={setPlayerQ} onSelect={p => { setSelectedAccount(p.account); setSelectedName(p.onlineName || p.account); setPlayerQ(p.onlineName || p.account) }} placeholder="輸入帳號或角色名稱" />
           {selectedAccount && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
             <p style={{ fontSize: 13, color: 'var(--accent-green)' }}>✓ 已選：{selectedName}（{selectedAccount}）</p>
-            <button onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>{historyLoading ? '載入中…' : '📜 郵件歷史'}</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>{historyLoading ? '載入中…' : '📜 郵件歷史'}</button>
+              <button onClick={loadRaw} disabled={rawLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(255,159,10,.15)', border: '1px solid var(--accent-orange)', borderRadius: 4, color: 'var(--accent-orange)' }}>{rawLoading ? '載入中…' : '🔬 診斷格式'}</button>
+            </div>
           </div>}
         </Card>
         <Card title="STEP 2 — 加入道具 / 寵物">
@@ -101,6 +109,37 @@ function SingleSendTab() {
           {mailHistory.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>無道具郵件記錄</p>
             : <div style={{ maxHeight: 200, overflowY: 'auto' }}>{mailHistory.map(m => <div key={m.mailId} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}><span><span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>#{m.itemId}</span><span style={{ marginLeft: 4, color: 'var(--text-secondary)' }}>{m.itemName}</span></span><span style={{ color: m.isRead ? 'var(--accent-green)' : 'var(--accent-orange)' }}>{m.isRead ? '已領' : '未領'}</span></div>)}</div>}
         </Card>}
+        {showRaw && <Card title="🔬 maildata 原始格式診斷">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>比較「已領取✓」與「未領取○」的 type/data/buff3 欄位差異，可找出格式問題</p>
+            <button onClick={() => setShowRaw(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>收起</button>
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: 300, overflowY: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+              <thead><tr style={{ background: 'var(--bg-dark)', position: 'sticky', top: 0 }}>
+                {['狀態','ID','type','data（物品）','buff1（標題）','buff3','時間'].map(h => (
+                  <th key={h} style={{ padding: '5px 8px', textAlign: 'left', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {mailRaw.map(m => (
+                  <tr key={m.id} style={{ borderBottom: '1px solid var(--border)', background: m.deleted ? 'rgba(245,101,101,.05)' : 'transparent' }}>
+                    <td style={{ padding: '4px 8px', color: m.deleted ? 'var(--text-muted)' : m.isRead ? 'var(--accent-green)' : 'var(--accent-orange)', fontWeight: 600 }}>{m.deleted ? '🗑 刪' : m.isRead ? '✓ 已領' : '○ 未領'}</td>
+                    <td style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{m.id}</td>
+                    <td style={{ padding: '4px 8px' }}><span style={{ background: 'var(--bg-input)', borderRadius: 3, padding: '1px 5px', color: m.type === 1 ? 'var(--accent-blue)' : m.type === 2 ? 'var(--accent-purple)' : 'var(--accent-orange)' }}>type={m.type}</span></td>
+                    <td style={{ padding: '4px 8px', color: 'var(--accent-blue)', fontWeight: 700 }}>{m.rawData}</td>
+                    <td style={{ padding: '4px 8px', color: 'var(--text-secondary)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.buff1}</td>
+                    <td style={{ padding: '4px 8px', color: m.buff3 ? 'var(--accent-orange)' : 'var(--text-muted)' }}>{m.buff3 || '(空)'}</td>
+                    <td style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{m.sendTime}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(255,159,10,.08)', border: '1px solid rgba(255,159,10,.3)', borderRadius: 6, fontSize: 11, color: 'var(--accent-orange)', lineHeight: 1.8 }}>
+            💡 <b>診斷方法：</b>找一筆「✓ 已領取」的信件，記下它的 <b>type 值</b>和 <b>data 格式</b>（可能是純數字、或 "ID,數量" 等格式），與我們發送的信件比較。若格式不同，請告知即可修正。
+          </div>
+        </Card>}
       </div>
     </div>
   )
@@ -130,7 +169,7 @@ function BatchSendTab() {
 
   const addToCart = (item: CartItem) => setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
-  const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })
+  const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
   const toggleSelect = (acc: string) => { const s = new Set(selected); s.has(acc) ? s.delete(acc) : s.add(acc); setSelected(s) }
   const btnStyle = (v: string) => ({ padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, background: target === v ? 'var(--accent-blue)' : 'var(--bg-input)', color: target === v ? '#fff' : 'var(--text-secondary)', border: `1px solid ${target === v ? 'var(--accent-blue)' : 'var(--border)'}`, cursor: 'pointer' })
 
@@ -147,7 +186,7 @@ function BatchSendTab() {
     try {
       const r = await api.post('/players/batch-send-cart', {
         target: targetStr, customList: customListStr,
-        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })),
+        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })),
         title, content,
       })
       const ok = (r.data.accounts?.length ?? 0) > 0

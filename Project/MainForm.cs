@@ -12,6 +12,9 @@ namespace SQ_Email_Tools
     {
         // ── 側邊欄 & 內容區 ──────────────────────────────────────
         private Panel   _sidebar, _contentArea, _navPanel;
+        private Panel   _playerPage;        // 玩家管理的所有控件放在此 Panel
+        private Panel   _currentHubPanel;   // 目前嵌入的 Hub 面板
+        private Button  _btnPlayerNav;      // 玩家管理導覽按鈕（用於 Hub 關閉後還原高亮）
         private Label   _lblDbDot, _lblDbText, _lblGmName;
 
         // ── 玩家管理視圖 ──────────────────────────────────────────
@@ -102,240 +105,109 @@ namespace SQ_Email_Tools
             // ── 導覽項目（加入 _navPanel）────────────────────────
             int y = 8;
 
+            // ══ 玩家帳號 ══
             AddSectionLabel("玩家帳號", ref y);
-            var btnPlayer = MakeNavBtn("👥", "玩家管理", ref y, isDefault: true);
-            btnPlayer.Click += (s, e) => SetActiveNav(btnPlayer);
+
+            _btnPlayerNav = MakeNavBtn("👥", "玩家管理", ref y, isDefault: true);
+            _btnPlayerNav.Click += (s, e) =>
+            {
+                SetActiveNav(_btnPlayerNav);
+                SwitchToPlayers();
+            };
 
             var btnMaster = MakeNavBtn("👑", "主帳號查詢", ref y);
             btnMaster.Click += (s, e) =>
             {
-                SetActiveNav(btnMaster);
                 if (!CheckConnected()) return;
                 new MasterAccountForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             var btnRechargeForm = MakeNavBtn("💳", "充值管理", ref y);
             btnRechargeForm.Click += (s, e) =>
             {
-                SetActiveNav(btnRechargeForm);
                 if (!CheckConnected()) return;
                 new RechargeForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
-            AddSideGap(ref y);
-            AddSectionLabel("紀錄查詢", ref y);
-
-            var btnRecharge = MakeNavBtn("💰", "充值記錄", ref y);
-            btnRecharge.Click += (s, e) =>
-            {
-                SetActiveNav(btnRecharge);
-                if (!CheckConnected()) return;
-                new RechargeHistoryForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnTrade = MakeNavBtn("📊", "交易記錄", ref y);
-            btnTrade.Click += (s, e) =>
-            {
-                SetActiveNav(btnTrade);
-                if (!CheckConnected()) return;
-                new TradeLogForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnGoldLog = MakeNavBtn("💎", "金幣日誌", ref y);
-            btnGoldLog.Click += (s, e) =>
-            {
-                SetActiveNav(btnGoldLog);
-                if (!CheckConnected()) return;
-                new GoldLogForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnMail = MakeNavBtn("📧", "郵件記錄", ref y);
-            btnMail.Click += (s, e) =>
-            {
-                SetActiveNav(btnMail);
-                if (!CheckConnected()) return;
-                new MailHistoryForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            AddSideGap(ref y);
-            AddSectionLabel("VIP 系統", ref y);
-
-            var btnVip = MakeNavBtn("💎", "VIP 玩家管理", ref y);
+            var btnVip = MakeNavBtn("💎", "VIP 管理", ref y);
             btnVip.Click += (s, e) =>
             {
-                SetActiveNav(btnVip);
                 if (!CheckConnected()) return;
                 new VipForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
-
-            AddSideGap(ref y);
-            AddSectionLabel("玩家監控", ref y);
 
             var btnOnline = MakeNavBtn("🟢", "線上玩家", ref y);
             btnOnline.Click += (s, e) =>
             {
-                SetActiveNav(btnOnline);
                 if (!CheckConnected()) return;
                 new OnlineMonitorForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             var btnBan = MakeNavBtn("🔒", "封號管理", ref y);
             btnBan.Click += (s, e) =>
             {
-                SetActiveNav(btnBan);
                 if (!CheckConnected()) return;
                 new BanForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             AddSideGap(ref y);
-            AddSectionLabel("GM 功能", ref y);
+
+            // ══ 4 大 Hub（嵌入主視窗）══
+            var btnRecords = MakeNavBtn("📂", "紀錄查詢", ref y);
+            btnRecords.Click += (s, e) =>
+            {
+                SetActiveNav(btnRecords);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RecordsHubForm());
+            };
+
+            var btnBatchOps = MakeNavBtn("📢", "批量操作", ref y);
+            btnBatchOps.Click += (s, e) =>
+            {
+                SetActiveNav(btnBatchOps);
+                if (!CheckConnected()) return;
+                SwitchToHub(new BatchOpsHubForm());
+            };
+
+            var btnAnalytics = MakeNavBtn("📈", "數據分析", ref y);
+            btnAnalytics.Click += (s, e) =>
+            {
+                SetActiveNav(btnAnalytics);
+                if (!CheckConnected()) return;
+                SwitchToHub(new AnalyticsHubForm());
+            };
+
+            var btnSystem = MakeNavBtn("⚙", "系統管理", ref y);
+            btnSystem.Click += (s, e) =>
+            {
+                SetActiveNav(btnSystem);
+                SwitchToHub(new SystemHubForm());
+            };
+
+            AddSideGap(ref y);
+
+            // ══ GM 工具（快速入口）══
+            AddSectionLabel("GM 工具", ref y);
 
             var btnGmPet = MakeNavBtn("🐾", "GM 寵物指令", ref y);
             btnGmPet.Click += (s, e) =>
             {
-                SetActiveNav(btnGmPet);
                 if (!CheckConnected()) return;
                 new GmPetForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnBatch = MakeNavBtn("📢", "批量發送", ref y);
-            btnBatch.Click += (s, e) =>
-            {
-                SetActiveNav(btnBatch);
-                if (!CheckConnected()) return;
-                new BatchSendForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             var btnRecycle = MakeNavBtn("🗑", "角色回收桶", ref y);
             btnRecycle.Click += (s, e) =>
             {
-                SetActiveNav(btnRecycle);
                 if (!CheckConnected()) return;
                 new RecycleBinForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnItemQueue = MakeNavBtn("📬", "道具給予", ref y);
-            btnItemQueue.Click += (s, e) =>
-            {
-                SetActiveNav(btnItemQueue);
-                if (!CheckConnected()) return;
-                new ItemQueueForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
-            btnBatchGold.Click += (s, e) =>
-            {
-                SetActiveNav(btnBatchGold);
-                if (!CheckConnected()) return;
-                new BatchGoldForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             var btnSql = MakeNavBtn("💻", "SQL 查詢", ref y);
             btnSql.Click += (s, e) =>
             {
-                SetActiveNav(btnSql);
                 if (!CheckConnected()) return;
                 new SqlQueryForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnShop = MakeNavBtn("🏪", "商城分析", ref y);
-            btnShop.Click += (s, e) =>
-            {
-                SetActiveNav(btnShop);
-                if (!CheckConnected()) return;
-                new ShopStatsForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnStats = MakeNavBtn("📈", "統計面板", ref y);
-            btnStats.Click += (s, e) =>
-            {
-                SetActiveNav(btnStats);
-                if (!CheckConnected()) return;
-                new DashboardForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            AddSideGap(ref y);
-            AddSectionLabel("數據分析", ref y);
-
-            var btnPlayerAna = MakeNavBtn("📊", "玩家活躍分析", ref y);
-            btnPlayerAna.Click += (s, e) =>
-            {
-                SetActiveNav(btnPlayerAna);
-                if (!CheckConnected()) return;
-                new PlayerAnalyticsForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnRechargeAna = MakeNavBtn("💰", "儲值趨勢分析", ref y);
-            btnRechargeAna.Click += (s, e) =>
-            {
-                SetActiveNav(btnRechargeAna);
-                if (!CheckConnected()) return;
-                new RechargeAnalyticsForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnTradeAudit = MakeNavBtn("🔍", "交易稽核", ref y);
-            btnTradeAudit.Click += (s, e) =>
-            {
-                SetActiveNav(btnTradeAudit);
-                if (!CheckConnected()) return;
-                new TradeAuditForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            AddSideGap(ref y);
-            AddSectionLabel("系統管理", ref y);
-
-            var btnGmLog = MakeNavBtn("📋", "GM 操作日誌", ref y);
-            btnGmLog.Click += (s, e) =>
-            {
-                SetActiveNav(btnGmLog);
-                new GmLogForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnGmPerm = MakeNavBtn("🛡", "GM 權限管理", ref y);
-            btnGmPerm.Click += (s, e) =>
-            {
-                SetActiveNav(btnGmPerm);
-                if (!CheckConnected()) return;
-                new GmPermForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnBackup = MakeNavBtn("💾", "備份還原", ref y);
-            btnBackup.Click += (s, e) =>
-            {
-                SetActiveNav(btnBackup);
-                if (!CheckConnected()) return;
-                new BackupForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
-            };
-
-            var btnGmAdmin = MakeNavBtn("🔑", "工具帳號", ref y);
-            btnGmAdmin.Click += (s, e) =>
-            {
-                SetActiveNav(btnGmAdmin);
-                new GmAdminForm().ShowDialog(this);
-                SetActiveNav(btnPlayer);
             };
 
             // ── 底部：連線狀態（固定底部，96px）────────────────────
@@ -529,13 +401,54 @@ namespace SQ_Email_Tools
         {
             _contentArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
 
+            // 所有玩家管理控件放入 _playerPage，方便切換 Hub 時整體顯示/隱藏
+            _playerPage = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
+
             BuildStatusBar();
             BuildPlayerGrid();
             BuildHintBar();
             BuildSearchBar();
             BuildContentHeader();
 
+            _contentArea.Controls.Add(_playerPage);
             Controls.Add(_contentArea);
+        }
+
+        // ── Hub 切換 ───────────────────────────────────────────
+        private void SwitchToHub(Form hub)
+        {
+            // 移除舊 Hub
+            if (_currentHubPanel != null)
+            {
+                _contentArea.Controls.Remove(_currentHubPanel);
+                _currentHubPanel.Dispose();
+                _currentHubPanel = null;
+            }
+
+            // 隱藏玩家管理頁
+            _playerPage.Visible = false;
+
+            // 嵌入新 Hub
+            hub.TopLevel        = false;
+            hub.FormBorderStyle = FormBorderStyle.None;
+            hub.Dock            = DockStyle.Fill;
+            hub.BackColor       = Theme.BgPage;
+
+            _currentHubPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
+            _currentHubPanel.Controls.Add(hub);
+            _contentArea.Controls.Add(_currentHubPanel);
+            hub.Show();
+        }
+
+        private void SwitchToPlayers()
+        {
+            if (_currentHubPanel != null)
+            {
+                _contentArea.Controls.Remove(_currentHubPanel);
+                _currentHubPanel.Dispose();
+                _currentHubPanel = null;
+            }
+            _playerPage.Visible = true;
         }
 
         private void BuildContentHeader()
@@ -551,15 +464,20 @@ namespace SQ_Email_Tools
                 Location  = new Point(20, 14)
             });
 
-            var btnBatch = Theme.MakePrimaryButton("📢 批量發送", 110, 32);
+            var btnBatch = Theme.MakePrimaryButton("📢 批量操作", 110, 32);
             btnBatch.Location = new Point(hdr.Width - 128, 12);
             btnBatch.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
-            btnBatch.Click   += (s, e) => { if (CheckConnected()) new BatchSendForm().ShowDialog(this); };
+            btnBatch.Click   += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav); // 先更新高亮（等待 Hub 按鈕後續切換）
+                SwitchToHub(new BatchOpsHubForm());
+            };
             hdr.Controls.Add(btnBatch);
 
             hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
-            _contentArea.Controls.Add(hdr);
+            _playerPage.Controls.Add(hdr);
         }
 
         private void BuildSearchBar()
@@ -635,7 +553,7 @@ namespace SQ_Email_Tools
 
             bar.Controls.Add(tbl);
             bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
-            _contentArea.Controls.Add(bar);
+            _playerPage.Controls.Add(bar);
         }
 
         private void BuildHintBar()
@@ -651,7 +569,7 @@ namespace SQ_Email_Tools
                 AutoEllipsis = true
             });
             bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(40, 70, 120) });
-            _contentArea.Controls.Add(bar);
+            _playerPage.Controls.Add(bar);
         }
 
         private void BuildStatusBar()
@@ -661,7 +579,7 @@ namespace SQ_Email_Tools
             _lblCount  = new Label { Text = "共 0 筆", ForeColor = Theme.TextMuted,      Font = Theme.FontSmall, AutoSize = true, Location = new Point(16, 8) };
             _lblStatus = new Label { Text = "",       ForeColor = Theme.TextSecondary,  Font = Theme.FontSmall, AutoSize = true, Location = new Point(88, 8) };
             bar.Controls.AddRange(new Control[] { _lblCount, _lblStatus });
-            _contentArea.Controls.Add(bar);
+            _playerPage.Controls.Add(bar);
         }
 
         private void BuildPlayerGrid()
@@ -818,7 +736,7 @@ namespace SQ_Email_Tools
                     (_dgv.Width - sz.Width) / 2f, _dgv.Height / 2f - 12);
             };
 
-            _contentArea.Controls.Add(_dgv);
+            _playerPage.Controls.Add(_dgv);
         }
 
         private void AddTextCol(string name, string header, int w) =>
