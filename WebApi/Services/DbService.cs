@@ -1714,4 +1714,111 @@ public class DbService
         return list;
     }
 
+    // ── 玩家活動歷程 ──────────────────────────────────────────────
+    public async Task<PlayerHistoryResult> GetPlayerHistoryAsync(string account, int limit = 100)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var result = new PlayerHistoryResult();
+
+        // ── 交易紀錄（送出 + 收到）────────────────────────────────
+        await using var cmd1 = new MySqlCommand(
+            @"SELECT mecdkey,mename,tocdkey,toname,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time,
+                     item, pet, gold
+              FROM tradelog
+              WHERE mecdkey=@a OR tocdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd1.Parameters.AddWithValue("@a", account);
+        cmd1.Parameters.AddWithValue("@lim", limit);
+        await using var r1 = await cmd1.ExecuteReaderAsync();
+        while (await r1.ReadAsync())
+        {
+            var from = r1.GetString("mecdkey");
+            result.Trades.Add(new TradeLogDto
+            {
+                Time      = r1.GetString("time"),
+                FromCdkey = from,
+                FromName  = r1.GetString("mename"),
+                ToCdkey   = r1.GetString("tocdkey"),
+                ToName    = r1.GetString("toname"),
+                Items     = r1.IsDBNull(r1.GetOrdinal("item")) ? "" : r1.GetString("item"),
+                Pets      = r1.IsDBNull(r1.GetOrdinal("pet"))  ? "" : r1.GetString("pet"),
+                Gold      = r1.GetInt64("gold"),
+                Direction = from == account ? "sent" : "received",
+            });
+        }
+        await r1.CloseAsync();
+        result.TradeSent     = result.Trades.Count(t => t.Direction == "sent");
+        result.TradeReceived = result.Trades.Count(t => t.Direction == "received");
+
+        // ── 街頭商店買賣 ──────────────────────────────────────────
+        await using var cmd2 = new MySqlCommand(
+            @"SELECT sellcdkey, type, name, num, point, buycdkey, buyname,
+                     FROM_UNIXTIME(time,'%Y-%m-%d %H:%i:%S') time
+              FROM streetlog
+              WHERE sellcdkey=@a OR buycdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd2.Parameters.AddWithValue("@a", account);
+        cmd2.Parameters.AddWithValue("@lim", limit);
+        await using var r2 = await cmd2.ExecuteReaderAsync();
+        while (await r2.ReadAsync())
+        {
+            result.Street.Add(new StreetLogDto
+            {
+                Time      = r2.GetString("time"),
+                SellCdkey = r2.GetString("sellcdkey"),
+                BuyCdkey  = r2.IsDBNull(r2.GetOrdinal("buycdkey")) ? "" : r2.GetString("buycdkey"),
+                BuyName   = r2.IsDBNull(r2.GetOrdinal("buyname"))  ? "" : r2.GetString("buyname"),
+                ItemName  = r2.GetString("name"),
+                Num       = r2.GetInt32("num"),
+                Price     = r2.GetInt32("point"),
+                Type      = r2.GetInt32("type"),
+                Role      = r2.GetString("sellcdkey") == account ? "seller" : "buyer",
+            });
+        }
+        await r2.CloseAsync();
+
+        // ── 速度異常偵測 ──────────────────────────────────────────
+        await using var cmd3 = new MySqlCommand(
+            @"SELECT speedtime, speedcnt,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+              FROM speedlog WHERE cdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd3.Parameters.AddWithValue("@a", account);
+        cmd3.Parameters.AddWithValue("@lim", 50);
+        await using var r3 = await cmd3.ExecuteReaderAsync();
+        while (await r3.ReadAsync())
+        {
+            result.Speed.Add(new SpeedLogDto
+            {
+                Time      = r3.GetString("time"),
+                SpeedTime = r3.GetInt32("speedtime"),
+                SpeedCnt  = r3.GetInt32("speedcnt"),
+            });
+        }
+        await r3.CloseAsync();
+
+        // ── 消費紀錄 ──────────────────────────────────────────────
+        await using var cmd4 = new MySqlCommand(
+            @"SELECT cdkey, name, point, `check`,
+                     DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+              FROM costdata WHERE cdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd4.Parameters.AddWithValue("@a", account);
+        cmd4.Parameters.AddWithValue("@lim", limit);
+        await using var r4 = await cmd4.ExecuteReaderAsync();
+        while (await r4.ReadAsync())
+        {
+            result.Cost.Add(new CostLogDto
+            {
+                Time  = r4.GetString("time"),
+                Name  = r4.IsDBNull(r4.GetOrdinal("name")) ? "" : r4.GetString("name"),
+                Point = r4.GetInt64("point"),
+                Check = r4.GetInt32("check"),
+            });
+        }
+
+        return result;
+    }
+
 }

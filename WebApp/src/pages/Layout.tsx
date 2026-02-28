@@ -16,6 +16,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/recharge', icon: '💰', label: S.navRecharge },
       { to: '/tradelog', icon: '📊', label: S.navTradeLog },
+      { to: '/history',  icon: '🔍', label: '玩家活動歷程' },
       { to: '/goldlog',  icon: '💎', label: S.navGoldLog },
       { to: '/mail',     icon: '📧', label: S.navMail },
     ]

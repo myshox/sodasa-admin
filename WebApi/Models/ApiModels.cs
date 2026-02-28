@@ -217,6 +217,54 @@ public class TopTraderDto { public string Account { get; set; } = ""; public str
 public class GmPermDto { public string Account { get; set; } = ""; public string OnlineName { get; set; } = ""; public int GroupId { get; set; } public int NeiCe { get; set; } public bool IsOnline { get; set; } }
 public class SetGmPermRequest { public int NeiCe { get; set; } public int GroupId { get; set; } }
 
+// ── 玩家活動歷程 ────────────────────────────────────────────
+public class TradeLogDto
+{
+    public string Time       { get; set; } = "";
+    public string FromCdkey  { get; set; } = "";
+    public string FromName   { get; set; } = "";
+    public string ToCdkey    { get; set; } = "";
+    public string ToName     { get; set; } = "";
+    public string Items      { get; set; } = "";
+    public string Pets       { get; set; } = "";
+    public long   Gold       { get; set; }
+    public string Direction  { get; set; } = ""; // "sent" | "received"
+}
+public class StreetLogDto
+{
+    public string Time      { get; set; } = "";
+    public string SellCdkey { get; set; } = "";
+    public string BuyCdkey  { get; set; } = "";
+    public string BuyName   { get; set; } = "";
+    public string ItemName  { get; set; } = "";
+    public int    Num       { get; set; }
+    public int    Price     { get; set; }
+    public int    Type      { get; set; } // 0=bought/sold
+    public string Role      { get; set; } = ""; // "seller"|"buyer"
+}
+public class SpeedLogDto
+{
+    public string Time      { get; set; } = "";
+    public int    SpeedTime { get; set; }
+    public int    SpeedCnt  { get; set; }
+}
+public class CostLogDto
+{
+    public string Time  { get; set; } = "";
+    public string Name  { get; set; } = "";
+    public long   Point { get; set; }
+    public int    Check { get; set; }
+}
+public class PlayerHistoryResult
+{
+    public List<TradeLogDto>  Trades  { get; set; } = new();
+    public List<StreetLogDto> Street  { get; set; } = new();
+    public List<SpeedLogDto>  Speed   { get; set; } = new();
+    public List<CostLogDto>   Cost    { get; set; } = new();
+    public int TradeSent     { get; set; }
+    public int TradeReceived { get; set; }
+}
+
 // ── 外部 API 追加請求（供官網後台 GM 操作呼叫）─────────────
 public class ExternalSetGoldRequest  { public long Gold    { get; set; } }
 public class ExternalBanRequest      { public bool Ban     { get; set; } public int Days { get; set; } = 0; }
