@@ -1985,6 +1985,36 @@ public class DbService
         return result;
     }
 
+    // ── 目前上架查詢（依物品名稱搜 streetitem）───────────────────
+    public async Task<List<StreetListingDto>> GetStreetListingsByItemAsync(string itemName, int limit = 200)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<StreetListingDto>();
+        var kw = $"%{itemName}%";
+        await using var cmd = new MySqlCommand(
+            @"SELECT si.cdkey, c.OnlineName AS charName,
+                     si.ITEM_NAME, si.ITEM_USEPILENUMS, si.price
+              FROM streetitem si
+              LEFT JOIN csalogin c ON c.Name = si.cdkey
+              WHERE si.ITEM_NAME LIKE @kw
+              ORDER BY si.price ASC LIMIT @lim", db);
+        cmd.Parameters.AddWithValue("@kw", kw);
+        cmd.Parameters.AddWithValue("@lim", limit);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new StreetListingDto
+            {
+                CdKey    = r.GetString("cdkey"),
+                CharName = r.IsDBNull(r.GetOrdinal("charName")) ? "" : r.GetString("charName"),
+                ItemName = r.IsDBNull(r.GetOrdinal("ITEM_NAME")) ? "" : r.GetString("ITEM_NAME"),
+                Num      = r.GetInt32("ITEM_USEPILENUMS"),
+                Price    = r.GetInt32("price"),
+            });
+        }
+        return list;
+    }
+
     // ── 攤位商品反查（依物品名稱查 streetlog）────────────────────
     public async Task<List<StreetBuyerDto>> GetStreetBuyersAsync(string itemName, int limit = 300)
     {

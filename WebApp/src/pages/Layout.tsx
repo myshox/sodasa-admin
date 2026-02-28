@@ -18,6 +18,7 @@ const navGroups: NavGroup[] = [
     label: '紀錄查詢',
     items: [
       { to: '/history',    icon: '🔍', label: '玩家活動歷程' },
+      { to: '/itemsearch', icon: '🎁', label: '物品查詢' },
       { to: '/streetshop', icon: '🏪', label: '攤位 & 商城查詢' },
       { to: '/recharge',   icon: '💰', label: S.navRecharge },
       { to: '/tradelog',   icon: '📊', label: S.navTradeLog },

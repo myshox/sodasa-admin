@@ -19,6 +19,7 @@ import TradeLogPage      from './pages/TradeLogPage'
 import BatchOpsPage      from './pages/BatchOpsPage'
 import PlayerHistoryPage from './pages/PlayerHistoryPage'
 import StreetShopPage    from './pages/StreetShopPage'
+import ItemSearchPage    from './pages/ItemSearchPage'
 import VipPage      from './pages/VipPage'
 import RecyclePage  from './pages/RecyclePage'
 // import BatchGoldPage from './pages/BatchGoldPage'
@@ -51,6 +52,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="tradelog"   element={<TradeLogPage />} />
         <Route path="history"    element={<PlayerHistoryPage />} />
         <Route path="streetshop" element={<StreetShopPage />} />
+        <Route path="itemsearch" element={<ItemSearchPage />} />
         <Route path="vip"       element={<VipPage />} />
         <Route path="batchops"  element={<BatchOpsPage />} />
         <Route path="batch"     element={<BatchOpsPage />} />
