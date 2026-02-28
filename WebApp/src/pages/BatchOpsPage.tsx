@@ -511,6 +511,9 @@ export default function BatchOpsPage() {
       {tab === 'single' && <SingleSendTab />}
       {tab === 'batch'  && <BatchSendTab />}
       {tab === 'gold'   && <BatchGoldTab />}
+
+      {/* ── 維護工具列 ── */}
+      <GlobalFixBar />
     </div>
   )
 }
@@ -530,3 +533,30 @@ const Divider = () => (
     <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
   </div>
 )
+
+function GlobalFixBar() {
+  const [msg, setMsg] = useState('')
+  const [loading, setLoading] = useState(false)
+  const doFix = async (account = '') => {
+    const label = account ? `玩家 ${account}` : '全伺服器'
+    if (!window.confirm(`確定要修正${label}所有 buff3 為空的舊郵件？\n（會自動從現有記錄補上 buff3，讓道具可領取）`)) return
+    setLoading(true); setMsg('')
+    try {
+      const r = await api.post('/players/fix-old-mails', { account })
+      setMsg(r.data.message || '完成')
+    } catch { setMsg('修正失敗') }
+    finally { setLoading(false) }
+  }
+  return (
+    <div style={{ marginTop: 24, padding: '14px 18px', background: 'rgba(245,101,101,.06)', border: '1px solid rgba(245,101,101,.25)', borderRadius: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--accent-red)', fontWeight: 700 }}>🔧 維護工具</span>
+        <button onClick={() => doFix('')} disabled={loading}
+          style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.4)', borderRadius: 6, color: 'var(--accent-red)', cursor: 'pointer' }}>
+          {loading ? '處理中…' : '修正全服舊郵件 buff3（讓舊道具可領取）'}
+        </button>
+        {msg && <span style={{ fontSize: 12, color: msg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)', whiteSpace: 'pre-line' }}>{msg}</span>}
+      </div>
+    </div>
+  )
+}

@@ -1640,25 +1640,62 @@ public class DbService
     }
 
     // ── 修正舊版網頁發送的郵件（buff1/buff2 使用固定 GM 文字）──
-    public async Task<(int fixed_, int total)> FixOldWebMailsAsync(string account)
+    public async Task<(int fixed_, int total, int buff3Fixed)> FixOldWebMailsAsync(string account)
     {
         await using var db = Open(); await db.OpenAsync();
-        // 先統計
-        string where = string.IsNullOrWhiteSpace(account)
-            ? "WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')"
-            : "WHERE `check`=0 AND deleamill=0 AND cdkey=@acc AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')";
-        await using var cnt = new MySqlCommand($"SELECT COUNT(*) FROM maildata {where}", db);
+
+        // ── 1. 統計 buff3 為空且未領取的郵件總數 ──
+        string accFilter = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc";
+        await using var cnt = new MySqlCommand(
+            $"SELECT COUNT(*) FROM maildata WHERE `check`=0 AND deleamill=0 AND (buff3 IS NULL OR buff3='') {accFilter}", db);
         if (!string.IsNullOrWhiteSpace(account)) cnt.Parameters.AddWithValue("@acc", account);
         int total = Convert.ToInt32(await cnt.ExecuteScalarAsync());
-        if (total == 0) return (0, 0);
-        // 修正：把 buff1/buff2 改成道具名稱，buff3 保留（遊戲伺服器需要）
-        string upd = string.IsNullOrWhiteSpace(account)
-            ? "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送' OR buff1='道具#22006' OR buff1='道具#22006')"
-            : "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND cdkey=@acc2 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')";
-        await using var fix = new MySqlCommand(upd, db);
-        if (!string.IsNullOrWhiteSpace(account)) fix.Parameters.AddWithValue("@acc2", account);
-        int fixed_ = await fix.ExecuteNonQueryAsync();
-        return (fixed_, total);
+
+        // ── 2. 修正 buff1/buff2：把舊的通用標題改成「道具#ID」格式 ──
+        string updTitle = string.IsNullOrWhiteSpace(account)
+            ? @"UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data)
+                WHERE `check`=0 AND deleamill=0
+                AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送'
+                     OR buff1 LIKE '[GM] %')"
+            : @"UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data)
+                WHERE `check`=0 AND deleamill=0 AND cdkey=@acc2
+                AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送'
+                     OR buff1 LIKE '[GM] %')";
+        await using var fixTitle = new MySqlCommand(updTitle, db);
+        if (!string.IsNullOrWhiteSpace(account)) fixTitle.Parameters.AddWithValue("@acc2", account);
+        int fixed_ = await fixTitle.ExecuteNonQueryAsync();
+
+        // ── 3. 從同表已有 buff3 的記錄自動回填 buff3 ──
+        // 策略：找出每個 data（道具ID）在 maildata 中最常出現的非空 buff3，
+        //        套用到 buff3 為空的未領郵件
+        string updBuff3 = string.IsNullOrWhiteSpace(account)
+            ? @"UPDATE maildata m
+                JOIN (
+                    SELECT data, buff3
+                    FROM maildata
+                    WHERE buff3 IS NOT NULL AND buff3 != ''
+                    GROUP BY data, buff3
+                    ORDER BY COUNT(*) DESC
+                ) ref ON m.data = ref.data
+                SET m.buff3 = ref.buff3
+                WHERE m.`check`=0 AND m.deleamill=0 AND (m.buff3 IS NULL OR m.buff3='')"
+            : @"UPDATE maildata m
+                JOIN (
+                    SELECT data, buff3
+                    FROM maildata
+                    WHERE buff3 IS NOT NULL AND buff3 != ''
+                    GROUP BY data, buff3
+                    ORDER BY COUNT(*) DESC
+                ) ref ON m.data = ref.data
+                SET m.buff3 = ref.buff3
+                WHERE m.`check`=0 AND m.deleamill=0 AND (m.buff3 IS NULL OR m.buff3='')
+                AND m.cdkey=@acc3";
+        await using var fixBuff3 = new MySqlCommand(updBuff3, db);
+        if (!string.IsNullOrWhiteSpace(account)) fixBuff3.Parameters.AddWithValue("@acc3", account);
+        int buff3Fixed = 0;
+        try { buff3Fixed = await fixBuff3.ExecuteNonQueryAsync(); } catch { /* 若無參考資料則跳過 */ }
+
+        return (fixed_, total, buff3Fixed);
     }
 
     // ── maildata 完整欄位診斷（SELECT *）──────────────────────

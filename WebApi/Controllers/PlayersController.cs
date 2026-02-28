@@ -251,8 +251,10 @@ public class PlayersController : ControllerBase
     [HttpPost("fix-old-mails")]
     public async Task<IActionResult> FixOldMails([FromBody] FixOldMailsRequest req)
     {
-        var (fixedCount, total) = await _db.FixOldWebMailsAsync(req.Account);
-        return Ok(new { fixedCount, total, message = $"已修正 {fixedCount} 筆（共掃描 {total} 筆）" });
+        var (fixedCount, total, buff3Fixed) = await _db.FixOldWebMailsAsync(req.Account);
+        string scope = string.IsNullOrWhiteSpace(req.Account) ? "全部玩家" : req.Account;
+        string msg = $"✓ 修正完成（{scope}）\n• 標題修正：{fixedCount} 筆\n• buff3 回填：{buff3Fixed} 筆\n• 掃描 buff3 空筆數：{total} 筆";
+        return Ok(new { fixedCount, buff3Fixed, total, message = msg });
     }
 }
 
