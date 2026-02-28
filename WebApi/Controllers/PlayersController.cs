@@ -251,14 +251,20 @@ public class PlayersController : ControllerBase
     [HttpPost("fix-old-mails")]
     public async Task<IActionResult> FixOldMails([FromBody] FixOldMailsRequest req)
     {
-        var (fixedCount, total, buff3Fixed) = await _db.FixOldWebMailsAsync(req.Account);
+        var descs = req.ItemDescriptions?
+            .Where(d => d.ItemId > 0 && !string.IsNullOrWhiteSpace(d.Desc))
+            .Select(d => (d.ItemId, d.Desc!))
+            .ToList();
+        var (fixedCount, total, buff3Fixed) = await _db.FixOldWebMailsAsync(req.Account, descs);
         string scope = string.IsNullOrWhiteSpace(req.Account) ? "全部玩家" : req.Account;
-        string msg = $"✓ 修正完成（{scope}）\n• 標題修正：{fixedCount} 筆\n• buff3 回填：{buff3Fixed} 筆\n• 掃描 buff3 空筆數：{total} 筆";
+        string descNote = descs?.Count > 0 ? $"（使用 {descs.Count} 種道具描述）" : "（無道具描述，僅從資料庫比對）";
+        string msg = $"✓ 修正完成（{scope}）{descNote}\n• 標題修正：{fixedCount} 筆\n• buff3 回填：{buff3Fixed} 筆\n• 掃描 buff3 空筆數：{total} 筆";
         return Ok(new { fixedCount, buff3Fixed, total, message = msg });
     }
 }
 
-public class FixOldMailsRequest { public string Account { get; set; } = ""; }
+public class ItemDescEntry { public int ItemId { get; set; } public string? Desc { get; set; } }
+public class FixOldMailsRequest { public string Account { get; set; } = ""; public List<ItemDescEntry>? ItemDescriptions { get; set; } }
 
 [ApiController, Route("api/stats"), Authorize]
 public class StatsController : ControllerBase

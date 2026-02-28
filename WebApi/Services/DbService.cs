@@ -1640,7 +1640,8 @@ public class DbService
     }
 
     // ── 修正舊版網頁發送的郵件（buff1/buff2 使用固定 GM 文字）──
-    public async Task<(int fixed_, int total, int buff3Fixed)> FixOldWebMailsAsync(string account)
+    public async Task<(int fixed_, int total, int buff3Fixed)> FixOldWebMailsAsync(
+        string account, List<(int ItemId, string Desc)>? itemDescriptions = null)
     {
         await using var db = Open(); await db.OpenAsync();
 
@@ -1665,9 +1666,26 @@ public class DbService
         if (!string.IsNullOrWhiteSpace(account)) fixTitle.Parameters.AddWithValue("@acc2", account);
         int fixed_ = await fixTitle.ExecuteNonQueryAsync();
 
-        // ── 3. 從同表已有 buff3 的記錄自動回填 buff3 ──
-        // 策略：找出每個 data（道具ID）在 maildata 中最常出現的非空 buff3，
-        //        套用到 buff3 為空的未領郵件
+        int buff3Fixed = 0;
+
+        // ── 3a. 優先用前端傳來的 items.xlsx 描述清單逐一 UPDATE ──
+        if (itemDescriptions != null && itemDescriptions.Count > 0)
+        {
+            string accWhere = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc3";
+            foreach (var (itemId, desc) in itemDescriptions)
+            {
+                if (string.IsNullOrWhiteSpace(desc)) continue;
+                await using var upd = new MySqlCommand(
+                    $@"UPDATE maildata SET buff3=@desc
+                       WHERE data=@itemId AND `check`=0 AND (buff3 IS NULL OR buff3='') {accWhere}", db);
+                upd.Parameters.AddWithValue("@desc",   desc);
+                upd.Parameters.AddWithValue("@itemId", itemId);
+                if (!string.IsNullOrWhiteSpace(account)) upd.Parameters.AddWithValue("@acc3", account);
+                try { buff3Fixed += await upd.ExecuteNonQueryAsync(); } catch { }
+            }
+        }
+
+        // ── 3b. 補救：從資料庫內既有的非空 buff3 記錄回填剩餘的 ──
         string updBuff3 = string.IsNullOrWhiteSpace(account)
             ? @"UPDATE maildata m
                 JOIN (
@@ -1689,11 +1707,10 @@ public class DbService
                 ) ref ON m.data = ref.data
                 SET m.buff3 = ref.buff3
                 WHERE m.`check`=0 AND m.deleamill=0 AND (m.buff3 IS NULL OR m.buff3='')
-                AND m.cdkey=@acc3";
+                AND m.cdkey=@acc4";
         await using var fixBuff3 = new MySqlCommand(updBuff3, db);
-        if (!string.IsNullOrWhiteSpace(account)) fixBuff3.Parameters.AddWithValue("@acc3", account);
-        int buff3Fixed = 0;
-        try { buff3Fixed = await fixBuff3.ExecuteNonQueryAsync(); } catch { /* 若無參考資料則跳過 */ }
+        if (!string.IsNullOrWhiteSpace(account)) fixBuff3.Parameters.AddWithValue("@acc4", account);
+        try { buff3Fixed += await fixBuff3.ExecuteNonQueryAsync(); } catch { }
 
         return (fixed_, total, buff3Fixed);
     }

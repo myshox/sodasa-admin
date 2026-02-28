@@ -7,6 +7,7 @@ import ItemBrowser from '../components/ItemBrowser'
 import ItemAutocomplete from '../components/ItemAutocomplete'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
+import { getApiItems, getApiPets } from '../components/ItemBrowser'
 
 type MainTab = 'single' | 'batch' | 'gold'
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
@@ -537,25 +538,40 @@ const Divider = () => (
 function GlobalFixBar() {
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const buildItemDescs = () => {
+    // 合併道具 + 寵物的 {itemId, desc} 清單（只傳 desc 非空的）
+    const all = [...getApiItems(), ...getApiPets()]
+    return all.filter(i => i.desc).map(i => ({ itemId: i.id, desc: i.desc }))
+  }
+
   const doFix = async (account = '') => {
+    const descs = buildItemDescs()
     const label = account ? `玩家 ${account}` : '全伺服器'
-    if (!window.confirm(`確定要修正${label}所有 buff3 為空的舊郵件？\n（會自動從現有記錄補上 buff3，讓道具可領取）`)) return
+    const descInfo = descs.length > 0 ? `\n已載入 ${descs.length} 種道具描述，將逐一比對回填` : '\n⚠ 尚未載入 items.xlsx，只能用資料庫內既有記錄回填（可能不完整）'
+    if (!window.confirm(`確定要修正${label}所有 buff3 為空的舊郵件？${descInfo}`)) return
     setLoading(true); setMsg('')
     try {
-      const r = await api.post('/players/fix-old-mails', { account })
+      const r = await api.post('/players/fix-old-mails', { account, itemDescriptions: descs })
       setMsg(r.data.message || '完成')
     } catch { setMsg('修正失敗') }
     finally { setLoading(false) }
   }
+
+  const descCount = buildItemDescs().length
+
   return (
     <div style={{ marginTop: 24, padding: '14px 18px', background: 'rgba(245,101,101,.06)', border: '1px solid rgba(245,101,101,.25)', borderRadius: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: 'var(--accent-red)', fontWeight: 700 }}>🔧 維護工具</span>
         <button onClick={() => doFix('')} disabled={loading}
           style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.4)', borderRadius: 6, color: 'var(--accent-red)', cursor: 'pointer' }}>
-          {loading ? '處理中…' : '修正全服舊郵件 buff3（讓舊道具可領取）'}
+          {loading ? '處理中…' : `修正全服舊郵件 buff3（讓舊道具可領取）`}
         </button>
-        {msg && <span style={{ fontSize: 12, color: msg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)', whiteSpace: 'pre-line' }}>{msg}</span>}
+        {descCount > 0
+          ? <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ 已載入 {descCount} 種道具描述，可完整修復</span>
+          : <span style={{ fontSize: 11, color: 'var(--accent-orange)' }}>⚠ 請先在左側載入 items.xlsx 以確保所有道具都能修復</span>}
+        {msg && <div style={{ width: '100%', marginTop: 6, fontSize: 12, color: msg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)', whiteSpace: 'pre-line' }}>{msg}</div>}
       </div>
     </div>
   )
