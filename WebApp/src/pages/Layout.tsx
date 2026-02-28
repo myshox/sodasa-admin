@@ -7,23 +7,17 @@ const navGroups: NavGroup[] = [
   {
     label: '玩家管理',
     items: [
-      { to: '/players',  icon: '👥', label: S.navPlayers },
-      { to: '/master',   icon: '👑', label: S.navMaster },
-      { to: '/vip',      icon: '💎', label: S.navVip },
-      { to: '/online',   icon: '🟢', label: S.navOnline },
-      { to: '/ban',      icon: '🔒', label: S.navBan },
+      { to: '/players', icon: '👥', label: '玩家管理' },
+      { to: '/master',  icon: '👑', label: S.navMaster },
+      { to: '/vip',     icon: '💎', label: S.navVip },
     ]
   },
   {
     label: '紀錄查詢',
     items: [
-      { to: '/history',    icon: '🔍', label: '玩家活動歷程' },
-      { to: '/itemsearch', icon: '🎁', label: '物品查詢' },
-      { to: '/streetshop', icon: '🏪', label: '攤位 & 商城查詢' },
-      { to: '/recharge',   icon: '💰', label: S.navRecharge },
-      { to: '/tradelog',   icon: '📊', label: S.navTradeLog },
-      { to: '/goldlog',    icon: '💎', label: S.navGoldLog },
-      { to: '/mail',       icon: '📧', label: S.navMail },
+      { to: '/history', icon: '🔍', label: '玩家活動歷程' },
+      { to: '/market',  icon: '🏪', label: '市場查詢' },
+      { to: '/records', icon: '📋', label: '全服紀錄' },
     ]
   },
   {
@@ -39,19 +33,13 @@ const navGroups: NavGroup[] = [
   {
     label: '數據分析',
     items: [
-      { to: '/',                   icon: '📈', label: S.navDashboard },
-      { to: '/shopstats',          icon: '🏪', label: S.navShop },
-      { to: '/analytics/player',   icon: '📊', label: S.navPlayerAna },
-      { to: '/analytics/recharge', icon: '💰', label: S.navRechargeAna },
-      { to: '/tradeaudit',         icon: '🔍', label: S.navTradeAudit },
+      { to: '/analytics', icon: '📈', label: '數據分析' },
     ]
   },
   {
     label: '系統',
     items: [
-      { to: '/gmlog',   icon: '📋', label: S.navGmLog },
-      { to: '/gmperm',  icon: '🛡', label: S.navGmPerm },
-      { to: '/backup',  icon: '💾', label: S.navBackup },
+      { to: '/system', icon: '⚙️', label: '系統管理' },
     ]
   },
 ]
