@@ -918,93 +918,77 @@ public class DbService
         else
         {
             string wh = target == "online" ? "WHERE Online=1" : "";
-            await using var cmd2 = new MySqlCommand(
-                $"SELECT `Name` FROM csalogin {wh}", db);
+            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {wh}", db);
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
         if (accounts.Count == 0) return (0, 0, new List<string>(), "找不到符合條件的玩家帳號");
-        long now  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        long end  = now + 30 * 24 * 3600;
-        string titleFixed   = title.Trim();
-        string contentFixed = content.Trim();
-        int totalSent = 0;
-        int totalFail = 0;
+
+        int  nowInt = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        int  endInt = nowInt + 30 * 24 * 3600;
+        string tf   = title.Trim();
+        string cf   = content.Trim();
+        int totalSent = 0, totalFail = 0;
         string lastError = "";
         var sentAccounts = new List<string>();
 
-        // 預先計算每個 cart item 的 buff1/buff2/type
-        var cartRows = cart.Where(item => item.ItemId > 0).Select(item => new
+        // 預先整理 cart 資料（與 EXE 完全一致的欄位格式）
+        var rows = cart.Where(c => c.ItemId > 0).Select(c =>
         {
-            item.ItemId,
-            MailType = item.Type > 0 ? item.Type : 1,
-            Qty      = Math.Max(1, item.Qty),
-            Buff1    = (string.IsNullOrWhiteSpace(titleFixed)
-                ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                : titleFixed).Length > 200
-                ? (string.IsNullOrWhiteSpace(titleFixed)
-                    ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                    : titleFixed)[..200]
-                : (string.IsNullOrWhiteSpace(titleFixed)
-                    ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                    : titleFixed),
-            Buff2    = (string.IsNullOrWhiteSpace(contentFixed)
-                ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                : contentFixed).Length > 200
-                ? (string.IsNullOrWhiteSpace(contentFixed)
-                    ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                    : contentFixed)[..200]
-                : (string.IsNullOrWhiteSpace(contentFixed)
-                    ? (string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name)
-                    : contentFixed),
+            string nm   = string.IsNullOrWhiteSpace(c.Name) ? $"道具#{c.ItemId}" : c.Name;
+            string b1   = string.IsNullOrWhiteSpace(tf) ? nm : tf;
+            string b2   = string.IsNullOrWhiteSpace(cf) ? nm : cf;
+            return new {
+                c.ItemId,
+                MailType = c.Type > 0 ? c.Type : 1,
+                Qty      = Math.Max(1, c.Qty),
+                Buff1    = b1.Length > 200 ? b1[..200] : b1,
+                Buff2    = b2.Length > 200 ? b2[..200] : b2,
+            };
         }).ToList();
 
-        // 用 Transaction 大幅提升寫入速度
-        await using var trx = await db.BeginTransactionAsync();
-        try
-        {
-            await using var cmd = new MySqlCommand(
-                @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                  VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db, (MySqlConnector.MySqlTransaction)trx);
-            cmd.Parameters.Add("@type",  MySqlConnector.MySqlDbType.Int32);
-            cmd.Parameters.Add("@cdkey", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@buff1", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@buff2", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@data",  MySqlConnector.MySqlDbType.Int32);
-            cmd.Parameters.Add("@now",   MySqlConnector.MySqlDbType.Int64);
-            cmd.Parameters.Add("@end",   MySqlConnector.MySqlDbType.Int64);
-            await cmd.PrepareAsync();
+        // 每批帳號用一條大 INSERT（與 EXE BatchSendMailAsync 相同策略）
+        const int batchSize = 200;
+        const string sqlTpl =
+            "INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3) VALUES ";
 
-            foreach (var acc in accounts)
-            {
-                int accSent = 0;
-                foreach (var row in cartRows)
-                {
-                    for (int i = 0; i < row.Qty; i++)
-                    {
-                        cmd.Parameters["@type"].Value  = row.MailType;
-                        cmd.Parameters["@cdkey"].Value = acc;
-                        cmd.Parameters["@buff1"].Value = row.Buff1;
-                        cmd.Parameters["@buff2"].Value = row.Buff2;
-                        cmd.Parameters["@data"].Value  = row.ItemId;
-                        cmd.Parameters["@now"].Value   = now;
-                        cmd.Parameters["@end"].Value   = end;
-                        try
-                        {
-                            if (await cmd.ExecuteNonQueryAsync() > 0) { totalSent++; accSent++; }
-                            else totalFail++;
-                        }
-                        catch (Exception ex) { totalFail++; lastError = ex.Message; }
-                    }
-                }
-                if (accSent > 0) sentAccounts.Add(acc);
-            }
-            await trx.CommitAsync();
-        }
-        catch (Exception ex)
+        for (int bi = 0; bi < accounts.Count; bi += batchSize)
         {
-            await trx.RollbackAsync();
-            lastError = ex.Message;
+            var batch = accounts.Skip(bi).Take(batchSize).ToList();
+            var valueParts = new List<string>();
+            await using var cmd = new MySqlCommand();
+            cmd.Connection = db;
+            cmd.Parameters.AddWithValue("@sendtime", nowInt);
+            cmd.Parameters.AddWithValue("@endtime",  endInt);
+
+            int pIdx = 0;
+            foreach (var acc in batch)
+            {
+                string cpName = $"@ck{pIdx}";
+                cmd.Parameters.AddWithValue(cpName, acc);
+                foreach (var row in rows)
+                {
+                    string tpName  = $"@t{pIdx}";
+                    string b1Name  = $"@b1_{pIdx}";
+                    string b2Name  = $"@b2_{pIdx}";
+                    string datName = $"@d{pIdx}";
+                    cmd.Parameters.AddWithValue(tpName,  row.MailType);
+                    cmd.Parameters.AddWithValue(b1Name,  row.Buff1);
+                    cmd.Parameters.AddWithValue(b2Name,  row.Buff2);
+                    cmd.Parameters.AddWithValue(datName, row.ItemId);
+                    for (int q = 0; q < row.Qty; q++)
+                        valueParts.Add($"({tpName},{cpName},{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,'')");
+                    pIdx++;
+                }
+            }
+            cmd.CommandText = sqlTpl + string.Join(",", valueParts);
+            try
+            {
+                int inserted = await cmd.ExecuteNonQueryAsync();
+                foreach (var acc in batch) sentAccounts.Add(acc);
+                totalSent += inserted;
+            }
+            catch (Exception ex) { totalFail += batch.Count; lastError = ex.Message; }
         }
         return (totalSent, totalFail, sentAccounts, lastError);
     }
@@ -1751,57 +1735,53 @@ public class DbService
         return list;
     }
 
-    // ── 多道具購物車發送 ─────────────────────────────────────
+    // ── 多道具購物車發送（單人）─────────────────────────────────────
     public async Task<(int success, int fail)> SendCartMailAsync(string account, List<CartItem> cart, string title, string content)
     {
         if (cart == null || cart.Count == 0) return (0, 0);
-        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        long end = now + 30 * 24 * 3600;
-        string titleFixed   = title.Trim();
-        string contentFixed = content.Trim();
+        // 與 EXE 完全一致：用 (int) 型別的 unix timestamp
+        int nowInt = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        int endInt = nowInt + 30 * 24 * 3600;
+        string tf  = title.Trim();
+        string cf  = content.Trim();
         int success = 0, fail = 0;
         await using var db = Open(); await db.OpenAsync();
-        await using var trx = await db.BeginTransactionAsync();
-        try
-        {
-            await using var cmd = new MySqlCommand(
-                @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                  VALUES(@type,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,'')", db, (MySqlConnector.MySqlTransaction)trx);
-            cmd.Parameters.Add("@type",  MySqlConnector.MySqlDbType.Int32);
-            cmd.Parameters.Add("@cdkey", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@buff1", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@buff2", MySqlConnector.MySqlDbType.VarChar);
-            cmd.Parameters.Add("@data",  MySqlConnector.MySqlDbType.Int32);
-            cmd.Parameters.Add("@now",   MySqlConnector.MySqlDbType.Int64);
-            cmd.Parameters.Add("@end",   MySqlConnector.MySqlDbType.Int64);
-            await cmd.PrepareAsync();
 
-            foreach (var item in cart)
-            {
-                // 與 EXE 一致：無標題時使用道具名稱
-                string itemName = string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name;
-                string buff1 = string.IsNullOrWhiteSpace(titleFixed)   ? itemName : titleFixed;
-                string buff2 = string.IsNullOrWhiteSpace(contentFixed) ? itemName : contentFixed;
-                cmd.Parameters["@type"].Value  = item.Type > 0 ? item.Type : 1;
-                cmd.Parameters["@cdkey"].Value = account;
-                cmd.Parameters["@buff1"].Value = buff1.Length > 200 ? buff1[..200] : buff1;
-                cmd.Parameters["@buff2"].Value = buff2.Length > 200 ? buff2[..200] : buff2;
-                cmd.Parameters["@data"].Value  = item.ItemId;
-                cmd.Parameters["@now"].Value   = now;
-                cmd.Parameters["@end"].Value   = end;
-                for (int i = 0; i < Math.Max(1, item.Qty); i++)
-                {
-                    try { if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++; }
-                    catch { fail++; }
-                }
-            }
-            await trx.CommitAsync();
-        }
-        catch
+        // 用單一大 INSERT 提升速度（與 EXE BatchSendMailAsync 相同策略）
+        var valueParts = new List<string>();
+        await using var cmd = new MySqlCommand();
+        cmd.Connection = db;
+        cmd.Parameters.AddWithValue("@cdkey",    account);
+        cmd.Parameters.AddWithValue("@sendtime", nowInt);
+        cmd.Parameters.AddWithValue("@endtime",  endInt);
+
+        int pIdx = 0;
+        foreach (var item in cart.Where(c => c.ItemId > 0))
         {
-            await trx.RollbackAsync();
-            fail = cart.Sum(c => Math.Max(1, c.Qty));
+            string nm    = string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name;
+            string buff1 = string.IsNullOrWhiteSpace(tf) ? nm : tf;
+            string buff2 = string.IsNullOrWhiteSpace(cf) ? nm : cf;
+            if (buff1.Length > 200) buff1 = buff1[..200];
+            if (buff2.Length > 200) buff2 = buff2[..200];
+            int mailType = item.Type > 0 ? item.Type : 1;
+            string tpName  = $"@t{pIdx}";
+            string b1Name  = $"@b1_{pIdx}";
+            string b2Name  = $"@b2_{pIdx}";
+            string datName = $"@d{pIdx}";
+            cmd.Parameters.AddWithValue(tpName,  mailType);
+            cmd.Parameters.AddWithValue(b1Name,  buff1);
+            cmd.Parameters.AddWithValue(b2Name,  buff2);
+            cmd.Parameters.AddWithValue(datName, item.ItemId);
+            for (int q = 0; q < Math.Max(1, item.Qty); q++)
+                valueParts.Add($"({tpName},@cdkey,{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,'')");
+            pIdx++;
         }
+        if (valueParts.Count == 0) return (0, 0);
+        cmd.CommandText =
+            "INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3) VALUES "
+            + string.Join(",", valueParts);
+        try { success = await cmd.ExecuteNonQueryAsync(); }
+        catch { fail = cart.Sum(c => Math.Max(1, c.Qty)); }
         return (success, fail);
     }
 
