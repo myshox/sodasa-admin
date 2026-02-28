@@ -1,0 +1,12 @@
+[Unit]
+Description=SodaGM Web Tool
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/gmtool/publish
+ExecStart=/usr/bin/dotnet --roll-forward LatestMajor /opt/gmtool/publish/WebApi.dll
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
