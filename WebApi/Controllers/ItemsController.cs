@@ -47,7 +47,11 @@ public class ItemsController : ControllerBase
     public IActionResult SaveItems([FromBody] SaveItemsRequest req)
     {
         Directory.CreateDirectory(DataDir);
-        var opts = new JsonSerializerOptions { WriteIndented = false };
+        var opts = new JsonSerializerOptions
+        {
+            WriteIndented = false,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
         if (req.Items != null)
             System.IO.File.WriteAllText(Path.Combine(DataDir, "items.json"), JsonSerializer.Serialize(req.Items, opts));
         if (req.Pets != null)

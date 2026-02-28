@@ -18,9 +18,15 @@ let _apiListeners: (() => void)[] = []
 export async function loadItemsFromApi(): Promise<void> {
   try {
     const r = await api.get('/items')
-    const d = r.data as { items: ItemInfo[]; pets: ItemInfo[] }
-    _apiItems = (d.items || []).map(i => ({ ...i, isPet: false }))
-    _apiPets  = (d.pets  || []).map(i => ({ ...i, isPet: true }))
+    const d = r.data as { items: any[]; pets: any[] }
+    const normalize = (i: any, isPet: boolean): ItemInfo => ({
+      id:    i.id    ?? i.Id    ?? 0,
+      name:  i.name  ?? i.Name  ?? '',
+      desc:  i.desc  ?? i.Desc  ?? '',
+      isPet,
+    })
+    _apiItems = (d.items || []).map(i => normalize(i, false))
+    _apiPets  = (d.pets  || []).map(i => normalize(i, true))
     _apiLoaded = true
     // 同步到 localStorage
     try { localStorage.setItem(LS_ITEMS, JSON.stringify(_apiItems)) } catch { }
