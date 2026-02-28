@@ -77,8 +77,13 @@ public class PlayersController : ControllerBase
     {
         if (req.Cart == null || req.Cart.Count == 0)
             return BadRequest(new { message = "購物車為空" });
-        var count = await _db.BatchSendCartAsync(req.Target, req.CustomList, req.Cart, req.Title, req.Content);
-        return Ok(new { count, message = $"已發送 {count} 筆道具郵件" });
+        var (count, sentAccounts) = await _db.BatchSendCartAsync(
+            req.Target, req.CustomList, req.Cart, req.Title, req.Content);
+        if (sentAccounts.Count == 0)
+            return Ok(new { count = 0, accounts = sentAccounts,
+                message = "⚠ 無玩家收到道具（在線名單可能為空，或全部寫入失敗）" });
+        return Ok(new { count, accounts = sentAccounts,
+            message = $"✓ 已發送至 {sentAccounts.Count} 人（共 {count} 筆郵件）" });
     }
 
     [HttpPost("send-item")]

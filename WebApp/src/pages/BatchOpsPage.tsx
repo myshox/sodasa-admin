@@ -116,6 +116,9 @@ function BatchSendTab() {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
+  const [resultOk, setResultOk] = useState(true)
+  const [sentAccounts, setSentAccounts] = useState<string[]>([])
+  const [showSent, setShowSent] = useState(false)
   const [searchQ, setSearchQ] = useState('')
   const [searchList, setSearchList] = useState<PlayerRow[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -132,14 +135,32 @@ function BatchSendTab() {
   const btnStyle = (v: string) => ({ padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, background: target === v ? 'var(--accent-blue)' : 'var(--bg-input)', color: target === v ? '#fff' : 'var(--text-secondary)', border: `1px solid ${target === v ? 'var(--accent-blue)' : 'var(--border)'}`, cursor: 'pointer' })
 
   const send = async () => {
-    if (cart.length === 0) { setResult('請加入至少一種道具'); return }
+    if (cart.length === 0) { setResult('請加入至少一種道具'); setResultOk(false); return }
     let targetStr = target, customListStr = custom
-    if (target === 'search') { if (selected.size === 0) { setResult('請勾選至少一位玩家'); return }; targetStr = 'custom'; customListStr = Array.from(selected).join('\n') }
+    if (target === 'search') {
+      if (selected.size === 0) { setResult('請勾選至少一位玩家'); setResultOk(false); return }
+      targetStr = 'custom'; customListStr = Array.from(selected).join('\n')
+    }
     const label = target === 'all' ? '全部玩家' : target === 'online' ? '在線玩家' : target === 'search' ? `${selected.size} 位玩家` : '自訂名單'
     if (!window.confirm(`確認批量發送？\n目標：${label}\n道具：${cart.length} 種`)) return
-    setLoading(true); setResult('')
-    try { const r = await api.post('/players/batch-send-cart', { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })), title, content }); setResult(r.data.message || `已發送至 ${r.data.count || '?'} 人`); setCart([]) }
-    catch { setResult('發送失敗') } finally { setLoading(false) }
+    setLoading(true); setResult(''); setSentAccounts([]); setShowSent(false)
+    try {
+      const r = await api.post('/players/batch-send-cart', {
+        target: targetStr, customList: customListStr,
+        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })),
+        title, content,
+      })
+      const ok = (r.data.accounts?.length ?? 0) > 0
+      setResult(r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`)
+      setResultOk(ok)
+      setSentAccounts(r.data.accounts ?? [])
+      setShowSent(ok)
+      if (ok) setCart([])
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } }
+      setResult(err?.response?.data?.message || '發送失敗（請確認伺服器連線）')
+      setResultOk(false)
+    } finally { setLoading(false) }
   }
 
   return (
@@ -189,9 +210,34 @@ function BatchSendTab() {
         <Card title="STEP 3 — 郵件設定">
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="郵件標題" style={{ width: '100%', marginBottom: 8 }} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="郵件內容" style={{ width: '100%', height: 60, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />
-          {result && <p style={{ color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: 8, fontSize: 13 }}>{result}</p>}
+          {result && (
+            <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, fontSize: 13,
+              background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)',
+              border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`,
+              color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+              {result}
+            </div>
+          )}
           <button onClick={send} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 24px', fontSize: 14, marginTop: 10 }}>{loading ? '發送中…' : `📤 批量發送`}</button>
         </Card>
+
+        {showSent && sentAccounts.length > 0 && (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-input)' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}>
+                ✓ 已發送至以下 {sentAccounts.length} 位玩家
+              </span>
+              <button onClick={() => setShowSent(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>收起</button>
+            </div>
+            <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 4, padding: 12 }}>
+              {sentAccounts.map(acc => (
+                <span key={acc} style={{ padding: '3px 10px', background: 'rgba(86,196,118,.12)', border: '1px solid rgba(86,196,118,.3)', borderRadius: 20, fontSize: 12, color: 'var(--accent-green)' }}>
+                  {acc}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div style={{ width: 260, flexShrink: 0 }}>
         <Card title={`🛒 購物車（${cart.length} 種）`}>

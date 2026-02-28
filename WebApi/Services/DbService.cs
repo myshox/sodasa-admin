@@ -903,9 +903,10 @@ public class DbService
     }
 
     // ── 批量購物車發送 ──────────────────────────────────────────
-    public async Task<int> BatchSendCartAsync(string target, string customList, List<CartItem> cart, string title, string content)
+    public async Task<(int count, List<string> sentAccounts)> BatchSendCartAsync(
+        string target, string customList, List<CartItem> cart, string title, string content)
     {
-        if (cart == null || cart.Count == 0) return 0;
+        if (cart == null || cart.Count == 0) return (0, new List<string>());
         await using var db = Open(); await db.OpenAsync();
         List<string> accounts = new();
         if (target == "custom")
@@ -916,18 +917,21 @@ public class DbService
         else
         {
             string wh = target == "online" ? "WHERE Online=1" : "";
-            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {wh}", db);
+            await using var cmd2 = new MySqlCommand(
+                $"SELECT `Name`, IFNULL(OnlineName,'') onlineName FROM csalogin {wh}", db);
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
-        if (accounts.Count == 0) return 0;
-        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        long end = now + 30 * 24 * 3600;
-        string buff1 = string.IsNullOrWhiteSpace(title) ? "[GM] 批量發送" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 批量發放" : content.Trim();
-        int sent = 0;
+        if (accounts.Count == 0) return (0, new List<string>());
+        long now  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long end  = now + 30 * 24 * 3600;
+        string buff1 = string.IsNullOrWhiteSpace(title)   ? "[GM] 批量發送" : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 批量發放"   : content.Trim();
+        int totalSent = 0;
+        var sentAccounts = new List<string>();
         foreach (var acc in accounts)
         {
+            int accSent = 0;
             foreach (var item in cart)
             {
                 for (int i = 0; i < Math.Max(1, item.Qty); i++)
@@ -942,11 +946,12 @@ public class DbService
                     cmd.Parameters.AddWithValue("@data",  item.ItemId.ToString());
                     cmd.Parameters.AddWithValue("@now",   now);
                     cmd.Parameters.AddWithValue("@end",   end);
-                    try { if (await cmd.ExecuteNonQueryAsync() > 0) sent++; } catch { }
+                    try { if (await cmd.ExecuteNonQueryAsync() > 0) { totalSent++; accSent++; } } catch { }
                 }
             }
+            if (accSent > 0) sentAccounts.Add(acc);
         }
-        return sent;
+        return (totalSent, sentAccounts);
     }
 
     // ── 交易記錄（tradelog）────────────────────────────────────
