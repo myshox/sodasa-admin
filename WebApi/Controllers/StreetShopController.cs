@@ -11,12 +11,20 @@ public class StreetShopController : ControllerBase
     private readonly DbService _db;
     public StreetShopController(DbService db) => _db = db;
 
-    /// <summary>查詢攤主目前商品 + 歷史成交</summary>
-    [HttpGet("api/street/vendor/{cdkey}")]
-    public async Task<IActionResult> GetVendor(string cdkey, [FromQuery] int limit = 100)
+    /// <summary>取得所有攤主清單</summary>
+    [HttpGet("api/street/vendors")]
+    public async Task<IActionResult> GetAllVendors()
     {
-        if (string.IsNullOrWhiteSpace(cdkey)) return BadRequest();
-        var result = await _db.GetStreetVendorAsync(cdkey.Trim(), Math.Clamp(limit, 10, 500));
+        var result = await _db.GetAllVendorsAsync();
+        return Ok(result);
+    }
+
+    /// <summary>查詢攤主目前商品 + 歷史成交（支援 cdkey 或角色名）</summary>
+    [HttpGet("api/street/vendor/{query}")]
+    public async Task<IActionResult> GetVendor(string query, [FromQuery] int limit = 100)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return BadRequest();
+        var result = await _db.GetStreetVendorAsync(query.Trim(), Math.Clamp(limit, 10, 500));
         return Ok(result);
     }
 

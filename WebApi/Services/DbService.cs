@@ -1895,11 +1895,51 @@ public class DbService
         return result;
     }
 
-    // ── 攤位查詢（依攤主 cdkey）────────────────────────────────
-    public async Task<StreetVendorResult> GetStreetVendorAsync(string cdkey, int limit = 100)
+    // ── 取得所有目前有攤位的攤主清單 ──────────────────────────────
+    public async Task<List<VendorSummaryDto>> GetAllVendorsAsync()
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<VendorSummaryDto>();
+        await using var cmd = new MySqlCommand(
+            @"SELECT si.cdkey, c.OnlineName, COUNT(*) AS item_count
+              FROM streetitem si
+              LEFT JOIN csalogin c ON si.cdkey = c.Name
+              GROUP BY si.cdkey, c.OnlineName
+              ORDER BY item_count DESC", db);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new VendorSummaryDto
+            {
+                CdKey     = r.GetString("cdkey"),
+                CharName  = r.IsDBNull(r.GetOrdinal("OnlineName")) ? "" : r.GetString("OnlineName"),
+                ItemCount = (int)r.GetInt64("item_count"),
+            });
+        }
+        return list;
+    }
+
+    // ── 攤位查詢（依攤主 cdkey 或角色名）──────────────────────────
+    public async Task<StreetVendorResult> GetStreetVendorAsync(string query, int limit = 100)
     {
         await using var db = Open(); await db.OpenAsync();
         var result = new StreetVendorResult();
+
+        // 先解析 query → 取得 cdkey 和角色名
+        string cdkey = query, charName = "";
+        await using var findCmd = new MySqlCommand(
+            @"SELECT Name, OnlineName FROM csalogin
+              WHERE Name=@q OR OnlineName=@q LIMIT 1", db);
+        findCmd.Parameters.AddWithValue("@q", query);
+        await using var findR = await findCmd.ExecuteReaderAsync();
+        if (await findR.ReadAsync())
+        {
+            cdkey    = findR.GetString("Name");
+            charName = findR.IsDBNull(findR.GetOrdinal("OnlineName")) ? "" : findR.GetString("OnlineName");
+        }
+        await findR.CloseAsync();
+        result.CdKey    = cdkey;
+        result.CharName = charName;
 
         // 目前上架商品
         await using var cmd1 = new MySqlCommand(

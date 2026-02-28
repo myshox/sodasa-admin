@@ -317,8 +317,16 @@ public class ShopBuyerDto
     public int    NewPoint { get; set; }
     public string ShopType { get; set; } = "";
 }
+public class VendorSummaryDto
+{
+    public string CdKey      { get; set; } = "";
+    public string CharName   { get; set; } = "";
+    public int    ItemCount  { get; set; }
+}
 public class StreetVendorResult
 {
+    public string             CdKey        { get; set; } = "";
+    public string             CharName     { get; set; } = "";
     public List<StreetItemDto> CurrentItems { get; set; } = new();
     public List<StreetSaleDto> SaleHistory  { get; set; } = new();
 }
