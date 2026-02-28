@@ -7,7 +7,7 @@ import type { ItemInfo } from '../components/ItemBrowser'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { PlayerRow } from '../api'
 
-interface CartItem { itemId: number; qty: number; type: number; name?: string }
+interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 
 export default function BatchPage() {
   const [target,  setTarget]  = useState<'all'|'online'|'custom'|'search'>('online')
@@ -61,7 +61,7 @@ export default function BatchPage() {
   }
 
   const addFromAutocomplete = (item: ItemInfo) => {
-    addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name })
+    addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
   }
 
   const send = async () => {
@@ -83,7 +83,7 @@ export default function BatchPage() {
 
     setLoading(true); setResult('')
     try {
-      const body = { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })), title, content }
+      const body = { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })), title, content }
       const r = await api.post('/players/batch-send-cart', body)
       setResult(r.data.message || `已發送至 ${r.data.count || '?'} 人`)
       setCart([])

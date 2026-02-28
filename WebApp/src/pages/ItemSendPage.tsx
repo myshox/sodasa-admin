@@ -8,7 +8,7 @@ import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import ItemAutocomplete from '../components/ItemAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 
-interface CartItem { itemId: number; qty: number; type: number; name?: string }
+interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 
 export default function ItemSendPage() {
   const [sp] = useSearchParams()
@@ -84,7 +84,7 @@ export default function ItemSendPage() {
   }
 
   const addFromAutocomplete = (item: ItemInfo) => {
-    addToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })
+    addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
   }
 
   const removeFromCart = (idx: number) => setCart(cart.filter((_, i) => i !== idx))
@@ -98,7 +98,7 @@ export default function ItemSendPage() {
     try {
       const r = await api.post('/players/send-cart', {
         account: selectedAccount,
-        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type })),
+        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })),
         title: title.trim(), content: content.trim(),
       })
       setResult(r.data.message || `已發送 ${r.data.success} 筆`)
