@@ -3,6 +3,16 @@ import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { S } from '../strings'
 
+function useIsMobile() {
+  const [m, setM] = useState(window.innerWidth < 768)
+  useEffect(() => {
+    const h = () => setM(window.innerWidth < 768)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+  return m
+}
+
 const TIERS = [
   { label: 'NT$100',  subLabel: '1萬',    twd: 100,    gold: 10_000 },
   { label: 'NT$300',  subLabel: '3.2萬',  twd: 300,    gold: 32_000 },
@@ -37,6 +47,7 @@ interface RechargeOrder {
 }
 
 export default function RechargePage() {
+  const isMobile = useIsMobile()
   const [sp] = useSearchParams()
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
   const [info, setInfo] = useState<PaydataInfo | null>(null)
@@ -140,28 +151,28 @@ export default function RechargePage() {
   const canSubmit = !!info && finalTwd > 0 && opType !== null
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1200 }}>
+    <div style={{ padding: isMobile ? '16px 14px' : '28px 32px', maxWidth: 1200 }}>
       {/* ── 標題 ── */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, background: 'linear-gradient(135deg,#4ade80,#22d3ee)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+      <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+        <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, margin: 0, background: 'linear-gradient(135deg,#4ade80,#22d3ee)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           💳 {S.pageRecharge}
         </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>手動補單 · 充值記錄查詢 · 累儲進度管理</p>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>手動補單 · 充值記錄 · 累儲進度</p>
       </div>
 
       {/* ── 全域訊息 ── */}
       {msg && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', marginBottom: 20, borderRadius: 10,
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', marginBottom: 16, borderRadius: 10,
           background: msgOk ? 'rgba(74,222,128,.1)' : 'rgba(248,113,113,.1)',
           border: `1px solid ${msgOk ? 'rgba(74,222,128,.4)' : 'rgba(248,113,113,.4)'}`,
           color: msgOk ? '#4ade80' : '#f87171', fontSize: 14, fontWeight: 600 }}>
           <span style={{ fontSize: 18 }}>{msgOk ? '✅' : '❌'}</span>
-          {msg}
-          <button onClick={() => setMsg('')} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.6, fontSize: 16 }}>✕</button>
+          <span style={{ flex: 1 }}>{msg}</span>
+          <button onClick={() => setMsg('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.6, fontSize: 18, minHeight: 0, padding: '0 4px' }}>✕</button>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 20, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '300px 1fr', gap: isMobile ? 14 : 20, alignItems: 'flex-start' }}>
 
         {/* ══════════ 左欄：玩家卡片 ══════════ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -266,7 +277,7 @@ export default function RechargePage() {
           {/* STEP 2：套餐 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
             <StepLabel n={2} text="選擇套餐" sub="1台幣 = 100金幣，大額有加成" />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8, marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 6 : 8, marginTop: 14 }}>
               {TIERS.map(tier => {
                 const sel = selectedTier === tier
                 return (
@@ -327,7 +338,7 @@ export default function RechargePage() {
           {/* STEP 4：操作類型 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 12, padding: 20 }}>
             <StepLabel n={4} text="操作類型" sub="必填，請明確選擇" warn />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginTop: 14 }}>
               <OpCard
                 selected={opType === 'only'} onClick={() => setOpType('only')}
                 icon="📦" color="#60a5fa"
@@ -347,7 +358,7 @@ export default function RechargePage() {
           {finalTwd > 0 && opType !== null && (
             <div style={{ background: 'linear-gradient(135deg,rgba(74,222,128,.08),rgba(34,211,238,.05))', border: '1px solid rgba(74,222,128,.3)', borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80', marginBottom: 12 }}>📋 確認預覽</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 10 }}>
                 <PreviewCard label="台幣" value={`NT$${finalTwd.toLocaleString()}`} color="#fb923c" />
                 {giveGold
                   ? <PreviewCard label="金幣入帳" value={`+${finalGold.toLocaleString()}`} color="#fbbf24" />
@@ -384,7 +395,7 @@ export default function RechargePage() {
       </div>
 
       {/* ── 台幣計算機 ── */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginTop: 24 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20, marginTop: isMobile ? 14 : 24 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>💱 台幣換算計算機</div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <label style={{ minWidth: 160 }}>
@@ -425,7 +436,7 @@ export default function RechargePage() {
       </div>
 
       {/* ── 充值記錄 ── */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginTop: 16 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>📋 充值記錄（訂單查詢）</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input value={histQ} onChange={e => setHistQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadHistory()}
