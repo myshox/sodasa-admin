@@ -933,7 +933,7 @@ public class DbService
         string lastError = "";
         var sentAccounts = new List<string>();
 
-        // 預先整理 cart 資料（與 EXE 完全一致的欄位格式）
+        // 預先整理 cart 資料（buff3 使用道具描述，與 EXE 一致）
         var rows = cart.Where(c => c.ItemId > 0).Select(c =>
         {
             string nm   = string.IsNullOrWhiteSpace(c.Name) ? $"道具#{c.ItemId}" : c.Name;
@@ -945,6 +945,7 @@ public class DbService
                 Qty      = Math.Max(1, c.Qty),
                 Buff1    = b1.Length > 200 ? b1[..200] : b1,
                 Buff2    = b2.Length > 200 ? b2[..200] : b2,
+                Buff3    = c.Buff3 ?? "",
             };
         }).ToList();
 
@@ -973,12 +974,14 @@ public class DbService
                     string b1Name  = $"@b1_{pIdx}";
                     string b2Name  = $"@b2_{pIdx}";
                     string datName = $"@d{pIdx}";
+                    string b3Name  = $"@b3_{pIdx}";
                     cmd.Parameters.AddWithValue(tpName,  row.MailType);
                     cmd.Parameters.AddWithValue(b1Name,  row.Buff1);
                     cmd.Parameters.AddWithValue(b2Name,  row.Buff2);
                     cmd.Parameters.AddWithValue(datName, row.ItemId);
+                    cmd.Parameters.AddWithValue(b3Name,  row.Buff3);
                     for (int q = 0; q < row.Qty; q++)
-                        valueParts.Add($"({tpName},{cpName},{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,'')");
+                        valueParts.Add($"({tpName},{cpName},{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,{b3Name})");
                     pIdx++;
                 }
             }
@@ -1648,9 +1651,9 @@ public class DbService
         if (!string.IsNullOrWhiteSpace(account)) cnt.Parameters.AddWithValue("@acc", account);
         int total = Convert.ToInt32(await cnt.ExecuteScalarAsync());
         if (total == 0) return (0, 0);
-        // 修正：把 buff1/buff2 改成 "道具#data"（以 data 欄位值作為道具名稱）
+        // 修正：把 buff1/buff2 改成道具名稱，buff3 保留（遊戲伺服器需要）
         string upd = string.IsNullOrWhiteSpace(account)
-            ? "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')"
+            ? "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送' OR buff1='道具#22006' OR buff1='道具#22006')"
             : "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND cdkey=@acc2 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')";
         await using var fix = new MySqlCommand(upd, db);
         if (!string.IsNullOrWhiteSpace(account)) fix.Parameters.AddWithValue("@acc2", account);
@@ -1836,12 +1839,14 @@ public class DbService
             string b1Name  = $"@b1_{pIdx}";
             string b2Name  = $"@b2_{pIdx}";
             string datName = $"@d{pIdx}";
+            string b3Name  = $"@b3_{pIdx}";
             cmd.Parameters.AddWithValue(tpName,  mailType);
             cmd.Parameters.AddWithValue(b1Name,  buff1);
             cmd.Parameters.AddWithValue(b2Name,  buff2);
             cmd.Parameters.AddWithValue(datName, item.ItemId);
+            cmd.Parameters.AddWithValue(b3Name,  item.Buff3 ?? "");
             for (int q = 0; q < Math.Max(1, item.Qty); q++)
-                valueParts.Add($"({tpName},@cdkey,{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,'')");
+                valueParts.Add($"({tpName},@cdkey,{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,{b3Name})");
             pIdx++;
         }
         if (valueParts.Count == 0) return (0, 0);
