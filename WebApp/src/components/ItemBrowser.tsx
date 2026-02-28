@@ -96,6 +96,8 @@ export default function ItemBrowser({ onAddToCart }: Props) {
     return subscribeItems(() => { setItems([..._apiItems]); setPets([..._apiPets]) })
   }, [])
 
+  const [gitSyncing, setGitSyncing] = useState(false)
+
   const handleUpload = async (file: File | undefined, isPet: boolean) => {
     if (!file) return
     setMsg('解析中…')
@@ -103,17 +105,25 @@ export default function ItemBrowser({ onAddToCart }: Props) {
       const parsed = await parseXlsx(file)
       const data = parsed.map(i => ({ ...i, isPet }))
 
-      // 上傳到伺服器
       const payload = isPet ? { pets: data } : { items: data }
       await api.post('/items/save', payload)
 
       if (isPet) { _apiPets = data; setPets([...data]) }
       else       { _apiItems = data; setItems([...data]) }
 
-      setMsg(`✓ 已上傳並儲存至伺服器 ${data.length} 筆${isPet ? '寵物' : '道具'}`)
-      setTimeout(() => setMsg(''), 4000)
+      setMsg(`✓ 已儲存 ${data.length} 筆${isPet ? '寵物' : '道具'}（請按「同步到 Git」永久保存）`)
       setPage(0)
     } catch (e) { setMsg('✗ 失敗：' + (e as Error).message) }
+  }
+
+  const handleGitSync = async () => {
+    setGitSyncing(true); setMsg('同步中…')
+    try {
+      const r = await api.post('/items/git-sync')
+      setMsg(`✓ ${r.data.message}`)
+      setTimeout(() => setMsg(''), 5000)
+    } catch { setMsg('✗ 同步失敗') }
+    finally { setGitSyncing(false) }
   }
 
   const current = tab === 'items' ? items : pets
@@ -137,13 +147,17 @@ export default function ItemBrowser({ onAddToCart }: Props) {
         <input type="file" accept=".xlsx,.xls" ref={petFileRef} style={{ display: 'none' }} onChange={e => handleUpload(e.target.files?.[0], true)} />
         <button onClick={() => (tab === 'items' ? fileRef : petFileRef).current?.click()}
           style={{ fontSize: 12, padding: '4px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>
-          📂 上傳並儲存 {tab === 'items' ? 'items.xlsx' : 'pets.xlsx'}
+          📂 上傳 {tab === 'items' ? 'items.xlsx' : 'pets.xlsx'}
+        </button>
+        <button onClick={handleGitSync} disabled={gitSyncing}
+          style={{ fontSize: 12, padding: '4px 12px', background: gitSyncing ? 'var(--bg-input)' : 'var(--accent-green)', color: gitSyncing ? 'var(--text-muted)' : '#fff', border: '1px solid var(--border)', borderRadius: 4, cursor: gitSyncing ? 'default' : 'pointer' }}>
+          {gitSyncing ? '同步中…' : '☁️ 同步到 Git'}
         </button>
         {msg
-          ? <span style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--accent-green)' : 'var(--accent-red)' }}>{msg}</span>
+          ? <span style={{ fontSize: 12, color: msg.startsWith('✓') ? 'var(--accent-green)' : msg.startsWith('✗') ? 'var(--accent-red)' : 'var(--text-muted)' }}>{msg}</span>
           : current.length === 0
-            ? <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>上傳後自動儲存至伺服器（無需每次重新上傳）</span>
-            : <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ 已從伺服器載入</span>
+            ? <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>上傳後按「同步到 Git」永久保存</span>
+            : <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ 已從伺服器載入（{current.length} 筆）</span>
         }
       </div>
 
