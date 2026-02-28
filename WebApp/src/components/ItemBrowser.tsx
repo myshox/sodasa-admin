@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import api from '../api'
 
 export interface ItemInfo { id: number; name: string; desc: string; isPet: boolean }
-interface CartItem { itemId: number; qty: number; type: number; name?: string }
+interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 
 const LS_ITEMS = 'gm_items_cache'
 const LS_PETS  = 'gm_pets_cache'
@@ -179,7 +179,7 @@ export default function ItemBrowser({ onAddToCart }: Props) {
           : paged.length === 0
             ? <p style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>無符合結果</p>
             : paged.map(item => (
-              <div key={`${item.id}-${item.name}`} onClick={() => onAddToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name })}
+              <div key={`${item.id}-${item.name}`} onClick={() => onAddToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name, buff3: item.desc })}
                 style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', gap: 8 }}>
                 <span style={{ color: 'var(--accent-blue)', fontWeight: 600, fontSize: 12, width: 50, flexShrink: 0 }}>#{item.id}</span>
                 <span style={{ flex: 1, fontSize: 13 }}>{item.name}</span>
