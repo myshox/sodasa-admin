@@ -44,6 +44,8 @@ const navGroups: NavGroup[] = [
   },
 ]
 
+const RECHARGE_NAV = { to: '/recharge', icon: '💳', label: '充值管理' }
+
 export default function Layout() {
   const nav = useNavigate()
   const logout = () => { localStorage.clear(); nav('/login') }
@@ -63,6 +65,23 @@ export default function Layout() {
         </div>
 
         <nav style={{ flex: 1, padding: '8px 6px' }}>
+          {/* 充值管理 — 獨立置頂 */}
+          <div style={{ margin: '4px 0 10px' }}>
+            <NavLink to={RECHARGE_NAV.to} style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '9px 12px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              background: isActive
+                ? 'linear-gradient(90deg,rgba(74,222,128,.35),rgba(74,222,128,.15))'
+                : 'linear-gradient(90deg,rgba(74,222,128,.18),rgba(74,222,128,.06))',
+              color: isActive ? '#4ade80' : '#86efac',
+              border: `1px solid ${isActive ? 'rgba(74,222,128,.5)' : 'rgba(74,222,128,.25)'}`,
+              textDecoration: 'none', transition: 'all .15s',
+              boxShadow: isActive ? '0 0 10px rgba(74,222,128,.15)' : 'none',
+            })}>
+              <span style={{ fontSize: 17 }}>{RECHARGE_NAV.icon}</span>
+              <span>{RECHARGE_NAV.label}</span>
+            </NavLink>
+          </div>
           {navGroups.map(g => (
             <div key={g.label} style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 8px 2px', letterSpacing: 1, textTransform: 'uppercase' }}>
