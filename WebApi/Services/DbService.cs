@@ -926,8 +926,8 @@ public class DbService
         if (accounts.Count == 0) return (0, 0, new List<string>(), "找不到符合條件的玩家帳號");
         long now  = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         long end  = now + 30 * 24 * 3600;
-        string buff1 = string.IsNullOrWhiteSpace(title)   ? "[GM] 批量發送" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 批量發放"   : content.Trim();
+        string titleFixed   = title.Trim();
+        string contentFixed = content.Trim();
         int totalSent = 0;
         int totalFail = 0;
         string lastError = "";
@@ -939,6 +939,10 @@ public class DbService
             {
                 if (item.ItemId <= 0) { totalFail++; continue; } // 跳過無效 ItemId
                 int mailType = item.Type > 0 ? item.Type : 1;
+                // 與 EXE 一致：無標題時使用道具名稱
+                string itemName = string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name;
+                string buff1 = string.IsNullOrWhiteSpace(titleFixed)   ? itemName : titleFixed;
+                string buff2 = string.IsNullOrWhiteSpace(contentFixed) ? itemName : contentFixed;
                 for (int i = 0; i < Math.Max(1, item.Qty); i++)
                 {
                     await using var cmd = new MySqlCommand(
@@ -1713,12 +1717,16 @@ public class DbService
         if (cart == null || cart.Count == 0) return (0, 0);
         long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         long end = now + 30 * 24 * 3600;
-        string buff1 = string.IsNullOrWhiteSpace(title)   ? "[GM] 道具發送" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具"   : content.Trim();
+        string titleFixed   = title.Trim();
+        string contentFixed = content.Trim();
         int success = 0, fail = 0;
         await using var db = Open(); await db.OpenAsync();
         foreach (var item in cart)
         {
+            // 與 EXE 一致：無標題時使用道具名稱
+            string itemName = string.IsNullOrWhiteSpace(item.Name) ? $"道具#{item.ItemId}" : item.Name;
+            string buff1 = string.IsNullOrWhiteSpace(titleFixed)   ? itemName : titleFixed;
+            string buff2 = string.IsNullOrWhiteSpace(contentFixed) ? itemName : contentFixed;
             for (int i = 0; i < Math.Max(1, item.Qty); i++)
             {
                 try

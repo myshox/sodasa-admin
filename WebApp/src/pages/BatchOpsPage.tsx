@@ -53,7 +53,7 @@ function SingleSendTab() {
     if (cart.length === 0) { setResult('購物車為空，請加入道具'); return }
     setLoading(true); setResult('')
     try {
-      const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })), title: title.trim(), content: content.trim() })
+      const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })), title: title.trim(), content: content.trim() })
       setResult(r.data.message || `已發送 ${r.data.success} 筆`); setCart([])
     } catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setResult(err.response?.data?.message || '發送失敗') }
     finally { setLoading(false) }
@@ -186,7 +186,7 @@ function BatchSendTab() {
     try {
       const r = await api.post('/players/batch-send-cart', {
         target: targetStr, customList: customListStr,
-        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })),
+        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })),
         title, content,
       })
       const ok = (r.data.accounts?.length ?? 0) > 0

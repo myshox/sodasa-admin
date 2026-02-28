@@ -83,7 +83,7 @@ export default function BatchPage() {
 
     setLoading(true); setResult('')
     try {
-      const body = { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })), title, content }
+      const body = { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })), title, content }
       const r = await api.post('/players/batch-send-cart', body)
       setResult(r.data.message || `已發送至 ${r.data.count || '?'} 人`)
       setCart([])

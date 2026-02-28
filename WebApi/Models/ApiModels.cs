@@ -149,7 +149,7 @@ public class SendItemRequest
     public string Content  { get; set; } = "";
 }
 
-public class CartItem     { public int ItemId { get; set; } public int Qty { get; set; } public int Type { get; set; } public string Buff3 { get; set; } = ""; }
+public class CartItem     { public int ItemId { get; set; } public int Qty { get; set; } public int Type { get; set; } public string Buff3 { get; set; } = ""; public string Name { get; set; } = ""; }
 public class SendCartRequest
 {
     public string     Account  { get; set; } = "";
