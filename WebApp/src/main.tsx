@@ -17,6 +17,7 @@ import PetCmdPage   from './pages/PetCmdPage'
 import GmLogPage    from './pages/GmLogPage'
 import TradeLogPage      from './pages/TradeLogPage'
 import PlayerHistoryPage from './pages/PlayerHistoryPage'
+import StreetShopPage    from './pages/StreetShopPage'
 import VipPage      from './pages/VipPage'
 import RecyclePage  from './pages/RecyclePage'
 import BatchGoldPage from './pages/BatchGoldPage'
@@ -46,8 +47,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="recharge"  element={<RechargePage />} />
         <Route path="goldlog"   element={<GoldLogPage />} />
         <Route path="mail"      element={<MailPage />} />
-        <Route path="tradelog"  element={<TradeLogPage />} />
-        <Route path="history"   element={<PlayerHistoryPage />} />
+        <Route path="tradelog"   element={<TradeLogPage />} />
+        <Route path="history"    element={<PlayerHistoryPage />} />
+        <Route path="streetshop" element={<StreetShopPage />} />
         <Route path="vip"       element={<VipPage />} />
         <Route path="batch"     element={<BatchPage />} />
         <Route path="recycle"   element={<RecyclePage />} />

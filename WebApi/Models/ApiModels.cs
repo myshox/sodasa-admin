@@ -287,6 +287,42 @@ public class PlayerHistoryResult
     public int TradeReceived { get; set; }
 }
 
+// ── 攤位 & 商城查詢 DTO ──────────────────────────────────────
+public class StreetItemDto
+{
+    public string CdKey    { get; set; } = "";
+    public string ItemName { get; set; } = "";
+    public int    Price    { get; set; }
+    public int    Num      { get; set; }
+    public int    ItemId   { get; set; }
+}
+public class StreetSaleDto
+{
+    public string Time       { get; set; } = "";
+    public string SellCdkey  { get; set; } = "";
+    public string ItemName   { get; set; } = "";
+    public int    Num        { get; set; }
+    public int    Point      { get; set; }
+    public string BuyCdkey   { get; set; } = "";
+    public string BuyName    { get; set; } = "";
+}
+public class ShopBuyerDto
+{
+    public string Time     { get; set; } = "";
+    public string CdKey    { get; set; } = "";
+    public string CharName { get; set; } = "";
+    public string ItemName { get; set; } = "";
+    public int    ItemNum  { get; set; }
+    public int    OldPoint { get; set; }
+    public int    NewPoint { get; set; }
+    public string ShopType { get; set; } = "";
+}
+public class StreetVendorResult
+{
+    public List<StreetItemDto> CurrentItems { get; set; } = new();
+    public List<StreetSaleDto> SaleHistory  { get; set; } = new();
+}
+
 // ── 外部 API 追加請求（供官網後台 GM 操作呼叫）─────────────
 public class ExternalSetGoldRequest  { public long Gold    { get; set; } }
 public class ExternalBanRequest      { public bool Ban     { get; set; } public int Days { get; set; } = 0; }

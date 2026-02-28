@@ -15,8 +15,9 @@ const navGroups: NavGroup[] = [
     label: S.grpRecord,
     items: [
       { to: '/recharge', icon: '💰', label: S.navRecharge },
-      { to: '/tradelog', icon: '📊', label: S.navTradeLog },
-      { to: '/history',  icon: '🔍', label: '玩家活動歷程' },
+      { to: '/tradelog',   icon: '📊', label: S.navTradeLog },
+      { to: '/history',    icon: '🔍', label: '玩家活動歷程' },
+      { to: '/streetshop', icon: '🏪', label: '攤位 & 商城查詢' },
       { to: '/goldlog',  icon: '💎', label: S.navGoldLog },
       { to: '/mail',     icon: '📧', label: S.navMail },
     ]

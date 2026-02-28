@@ -1895,4 +1895,91 @@ public class DbService
         return result;
     }
 
+    // ── 攤位查詢（依攤主 cdkey）────────────────────────────────
+    public async Task<StreetVendorResult> GetStreetVendorAsync(string cdkey, int limit = 100)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var result = new StreetVendorResult();
+
+        // 目前上架商品
+        await using var cmd1 = new MySqlCommand(
+            @"SELECT cdkey, ITEM_ID, ITEM_NAME, ITEM_USEPILENUMS, price
+              FROM streetitem WHERE cdkey=@a ORDER BY price", db);
+        cmd1.Parameters.AddWithValue("@a", cdkey);
+        await using var r1 = await cmd1.ExecuteReaderAsync();
+        while (await r1.ReadAsync())
+        {
+            result.CurrentItems.Add(new StreetItemDto
+            {
+                CdKey    = r1.GetString("cdkey"),
+                ItemId   = r1.GetInt32("ITEM_ID"),
+                ItemName = r1.IsDBNull(r1.GetOrdinal("ITEM_NAME")) ? "" : r1.GetString("ITEM_NAME"),
+                Num      = r1.GetInt32("ITEM_USEPILENUMS"),
+                Price    = r1.GetInt32("price"),
+            });
+        }
+        await r1.CloseAsync();
+
+        // 歷史成交紀錄
+        await using var cmd2 = new MySqlCommand(
+            @"SELECT sellcdkey, name, num, point, buycdkey, buyname,
+                     FROM_UNIXTIME(time,'%Y-%m-%d %H:%i:%S') time
+              FROM streetlog WHERE sellcdkey=@a
+              ORDER BY time DESC LIMIT @lim", db);
+        cmd2.Parameters.AddWithValue("@a", cdkey);
+        cmd2.Parameters.AddWithValue("@lim", limit);
+        await using var r2 = await cmd2.ExecuteReaderAsync();
+        while (await r2.ReadAsync())
+        {
+            result.SaleHistory.Add(new StreetSaleDto
+            {
+                Time      = r2.GetString("time"),
+                SellCdkey = r2.GetString("sellcdkey"),
+                ItemName  = r2.GetString("name"),
+                Num       = r2.GetInt32("num"),
+                Point     = r2.GetInt32("point"),
+                BuyCdkey  = r2.IsDBNull(r2.GetOrdinal("buycdkey")) ? "" : r2.GetString("buycdkey"),
+                BuyName   = r2.IsDBNull(r2.GetOrdinal("buyname"))  ? "" : r2.GetString("buyname"),
+            });
+        }
+        return result;
+    }
+
+    // ── 商城反查（依物品名稱查誰買過）────────────────────────────
+    public async Task<List<ShopBuyerDto>> GetShopBuyersAsync(string itemName, int limit = 200)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<ShopBuyerDto>();
+        var kw = $"%{itemName}%";
+
+        foreach (var (tbl, shopType) in new[] { ("fameshop", "fame"), ("vipshop", "vip") })
+        {
+            await using var cmd = new MySqlCommand(
+                $@"SELECT cdkey, name, itemid, itemname, itemnum, oldpoint, newpoint,
+                          DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
+                   FROM `{tbl}` WHERE itemname LIKE @kw
+                   ORDER BY time DESC LIMIT @lim", db);
+            cmd.Parameters.AddWithValue("@kw", kw);
+            cmd.Parameters.AddWithValue("@lim", limit);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new ShopBuyerDto
+                {
+                    Time     = r.GetString("time"),
+                    CdKey    = r.GetString("cdkey"),
+                    CharName = r.IsDBNull(r.GetOrdinal("name")) ? "" : r.GetString("name"),
+                    ItemName = r.IsDBNull(r.GetOrdinal("itemname")) ? "" : r.GetString("itemname"),
+                    ItemNum  = r.GetInt32("itemnum"),
+                    OldPoint = r.GetInt32("oldpoint"),
+                    NewPoint = r.GetInt32("newpoint"),
+                    ShopType = shopType,
+                });
+            }
+            await r.CloseAsync();
+        }
+        list.Sort((a, b) => string.Compare(b.Time, a.Time, StringComparison.Ordinal));
+        return list;
+    }
+
 }
