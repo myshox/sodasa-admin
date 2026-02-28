@@ -818,10 +818,12 @@ public class DbService
     public async Task<(int success, int fail)> SendItemMailAsync(string account, int itemId, int quantity, string title = "", string content = "", string buff3 = "")
     {
         if (quantity < 1) quantity = 1;
-        string buff1 = string.IsNullOrWhiteSpace(title)   ? $"[GM] 道具 #{itemId}" : title.Trim();
-        string buff2 = string.IsNullOrWhiteSpace(content) ? "GM 發放道具"           : content.Trim();
-        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        long end = now + 30 * 24 * 3600;
+        // 與 EXE 一致：無標題時使用道具ID作為名稱
+        string itemLabel = $"道具#{itemId}";
+        string buff1 = string.IsNullOrWhiteSpace(title)   ? itemLabel : title.Trim();
+        string buff2 = string.IsNullOrWhiteSpace(content) ? itemLabel : content.Trim();
+        int nowInt = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        int endInt = nowInt + 30 * 24 * 3600;
         int success = 0, fail = 0;
         await using var db = Open(); await db.OpenAsync();
         for (int i = 0; i < quantity; i++)
@@ -830,14 +832,13 @@ public class DbService
             {
                 await using var cmd = new MySqlCommand(
                     @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                      VALUES(1,@cdkey,@buff1,@buff2,@data,@now,@end,0,0,@buff3)", db);
-                cmd.Parameters.AddWithValue("@cdkey", account);
-                cmd.Parameters.AddWithValue("@buff1", buff1);
-                cmd.Parameters.AddWithValue("@buff2", buff2);
-                cmd.Parameters.AddWithValue("@data",  itemId);   // 整數型別，與 EXE 一致
-                cmd.Parameters.AddWithValue("@now",   now);
-                cmd.Parameters.AddWithValue("@end",   end);
-                cmd.Parameters.AddWithValue("@buff3", buff3 ?? "");
+                      VALUES(1,@cdkey,@buff1,@buff2,@data,@sendtime,@endtime,0,0,'')", db);
+                cmd.Parameters.AddWithValue("@cdkey",    account);
+                cmd.Parameters.AddWithValue("@buff1",    buff1);
+                cmd.Parameters.AddWithValue("@buff2",    buff2);
+                cmd.Parameters.AddWithValue("@data",     itemId);
+                cmd.Parameters.AddWithValue("@sendtime", nowInt);
+                cmd.Parameters.AddWithValue("@endtime",  endInt);
                 if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
             }
             catch { fail++; }
@@ -1633,6 +1634,28 @@ public class DbService
         }
         catch { }
         return (sb.ToString(), totalRows);
+    }
+
+    // ── 修正舊版網頁發送的郵件（buff1/buff2 使用固定 GM 文字）──
+    public async Task<(int fixed_, int total)> FixOldWebMailsAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        // 先統計
+        string where = string.IsNullOrWhiteSpace(account)
+            ? "WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')"
+            : "WHERE `check`=0 AND deleamill=0 AND cdkey=@acc AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')";
+        await using var cnt = new MySqlCommand($"SELECT COUNT(*) FROM maildata {where}", db);
+        if (!string.IsNullOrWhiteSpace(account)) cnt.Parameters.AddWithValue("@acc", account);
+        int total = Convert.ToInt32(await cnt.ExecuteScalarAsync());
+        if (total == 0) return (0, 0);
+        // 修正：把 buff1/buff2 改成 "道具#data"（以 data 欄位值作為道具名稱）
+        string upd = string.IsNullOrWhiteSpace(account)
+            ? "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')"
+            : "UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data) WHERE `check`=0 AND deleamill=0 AND cdkey=@acc2 AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%' OR buff1='[GM] 批量發送')";
+        await using var fix = new MySqlCommand(upd, db);
+        if (!string.IsNullOrWhiteSpace(account)) fix.Parameters.AddWithValue("@acc2", account);
+        int fixed_ = await fix.ExecuteNonQueryAsync();
+        return (fixed_, total);
     }
 
     private static long TryGetInt64(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt64(o); } catch { return 0; } }

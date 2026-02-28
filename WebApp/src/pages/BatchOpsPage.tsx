@@ -75,6 +75,7 @@ function SingleSendTab() {
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>{historyLoading ? '載入中…' : '📜 郵件歷史'}</button>
               <button onClick={loadRaw} disabled={rawLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(255,159,10,.15)', border: '1px solid var(--accent-orange)', borderRadius: 4, color: 'var(--accent-orange)' }}>{rawLoading ? '載入中…' : '🔬 診斷格式'}</button>
+              <button onClick={async () => { if (!window.confirm(`修正 ${selectedName} 的舊版網頁郵件（使其可領取）？`)) return; try { const r = await api.post('/players/fix-old-mails', { account: selectedAccount }); setResult(r.data.message) } catch { setResult('修正失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 4, color: 'var(--accent-green)' }}>🔧 修正舊郵件</button>
             </div>
           </div>}
         </Card>

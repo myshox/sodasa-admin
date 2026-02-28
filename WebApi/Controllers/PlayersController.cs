@@ -236,7 +236,17 @@ public class PlayersController : ControllerBase
     [HttpGet("{account}/mail-raw")]
     public async Task<IActionResult> MailRaw(string account, [FromQuery] int limit = 50)
         => Ok(await _db.GetMailRawAsync(account, limit));
+
+    /// <summary>修正舊版網頁發送的郵件（buff1/buff2 使用 GM 固定文字的記錄），使其可正常領取</summary>
+    [HttpPost("fix-old-mails")]
+    public async Task<IActionResult> FixOldMails([FromBody] FixOldMailsRequest req)
+    {
+        var (fixed_, total) = await _db.FixOldWebMailsAsync(req.Account);
+        return Ok(new { fixed = fixed_, total, message = $"已修正 {fixed_} 筆（共掃描 {total} 筆）" });
+    }
 }
+
+public class FixOldMailsRequest { public string Account { get; set; } = ""; }
 
 [ApiController, Route("api/stats"), Authorize]
 public class StatsController : ControllerBase
