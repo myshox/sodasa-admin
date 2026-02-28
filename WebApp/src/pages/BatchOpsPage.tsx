@@ -20,6 +20,7 @@ function SingleSendTab() {
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(sp.get('account') || '')
   const [selectedName, setSelectedName] = useState(decodeURIComponent(sp.get('name') || sp.get('account') || ''))
+  const [recipients, setRecipients] = useState<{account: string; name: string}[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
   const [manualId, setManualId] = useState('')
@@ -38,12 +39,22 @@ function SingleSendTab() {
   const [showFull, setShowFull] = useState(false)
   const [schema, setSchema] = useState<Record<string, string>[]>([])
   const [showSchema, setShowSchema] = useState(false)
-  const [sentSummary, setSentSummary] = useState<{ account: string; name: string; items: CartItem[] } | null>(null)
+  const [sentSummary, setSentSummary] = useState<{ accounts: {account:string;name:string}[]; items: CartItem[] } | null>(null)
 
   useEffect(() => {
     const acc = sp.get('account')
-    if (acc) { setSelectedAccount(acc); setPlayerQ(acc); setSelectedName(sp.get('name') ? decodeURIComponent(sp.get('name')!) : acc) }
+    if (acc) {
+      const name = sp.get('name') ? decodeURIComponent(sp.get('name')!) : acc
+      setSelectedAccount(acc); setPlayerQ(acc); setSelectedName(name)
+      setRecipients([{ account: acc, name }])
+    }
   }, [sp])
+
+  const addRecipient = (account: string, name: string) => {
+    if (!account) return
+    setRecipients(prev => prev.find(r => r.account === account) ? prev : [...prev, { account, name }])
+  }
+  const removeRecipient = (account: string) => setRecipients(prev => prev.filter(r => r.account !== account))
 
   const addToCart = (item: CartItem) =>
     setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
@@ -54,14 +65,20 @@ function SingleSendTab() {
   const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${selectedAccount}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } finally { setRawLoading(false) } }
 
   const send = async () => {
-    if (!selectedAccount) { setResult('請先選定玩家'); return }
+    if (recipients.length === 0) { setResult('請先加入至少一位玩家'); return }
     if (cart.length === 0) { setResult('購物車為空，請加入道具'); return }
     setLoading(true); setResult('')
     try {
       const sentItems = [...cart]
-      const r = await api.post('/players/send-cart', { account: selectedAccount, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })), title: title.trim(), content: content.trim() })
-      setResult(r.data.message || `已發送 ${r.data.success} 筆`)
-      setSentSummary({ account: selectedAccount, name: selectedName, items: sentItems })
+      const cartPayload = cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' }))
+      if (recipients.length === 1) {
+        const r = await api.post('/players/send-cart', { account: recipients[0].account, cart: cartPayload, title: title.trim(), content: content.trim() })
+        setResult(r.data.message || `已發送 ${r.data.success} 筆`)
+      } else {
+        const r = await api.post('/players/batch-send-cart', { target: 'custom', customList: recipients.map(r => r.account).join('\n'), cart: cartPayload, title: title.trim(), content: content.trim() })
+        setResult(r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`)
+      }
+      setSentSummary({ accounts: [...recipients], items: sentItems })
       setCart([])
     } catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setResult(err.response?.data?.message || '發送失敗') }
     finally { setLoading(false) }
@@ -72,18 +89,47 @@ function SingleSendTab() {
       <div style={{ width: 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
-        <Card title="STEP 1 — 指定玩家">
-          <PlayerAutocomplete value={playerQ} onChange={setPlayerQ} onSelect={p => { setSelectedAccount(p.account); setSelectedName(p.onlineName || p.account); setPlayerQ(p.onlineName || p.account) }} placeholder="輸入帳號或角色名稱" />
-          {selectedAccount && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-            <p style={{ fontSize: 13, color: 'var(--accent-green)' }}>✓ 已選：{selectedName}（{selectedAccount}）</p>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>{historyLoading ? '載入中…' : '📜 郵件歷史'}</button>
-              <button onClick={loadRaw} disabled={rawLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(255,159,10,.15)', border: '1px solid var(--accent-orange)', borderRadius: 4, color: 'var(--accent-orange)' }}>{rawLoading ? '載入中…' : '🔬 診斷格式'}</button>
-              <button onClick={async () => { try { const r = await api.get(`/players/${selectedAccount}/mail-full`); setMailFull(r.data); setShowFull(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>🧬 完整欄位</button>
-              <button onClick={async () => { try { const r = await api.get('/players/maildata-schema'); setSchema(r.data); setShowSchema(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>📋 表結構</button>
-              <button onClick={async () => { if (!window.confirm(`修正 ${selectedName} 的舊版網頁郵件（使其可領取）？`)) return; try { const r = await api.post('/players/fix-old-mails', { account: selectedAccount }); setResult(r.data.message) } catch { setResult('修正失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 4, color: 'var(--accent-green)' }}>🔧 修正舊郵件</button>
+        <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <PlayerAutocomplete value={playerQ} onChange={setPlayerQ}
+                onSelect={p => { setSelectedAccount(p.account); setSelectedName(p.onlineName || p.account); setPlayerQ(p.onlineName || p.account) }}
+                placeholder="搜尋帳號或角色名稱" />
             </div>
-          </div>}
+            <button onClick={() => { if (selectedAccount) { addRecipient(selectedAccount, selectedName); setPlayerQ(''); setSelectedAccount(''); setSelectedName('') } }}
+              disabled={!selectedAccount}
+              style={{ padding: '6px 14px', background: 'var(--accent-blue)', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, opacity: selectedAccount ? 1 : 0.4 }}>
+              ＋ 加入名單
+            </button>
+          </div>
+          {recipients.length > 0 && (
+            <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-input)', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>已選 {recipients.length} 位玩家</span>
+                <button onClick={() => setRecipients([])} style={{ fontSize: 11, color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer' }}>清空</button>
+              </div>
+              <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+                {recipients.map(r => (
+                  <div key={r.account} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                    <span style={{ flex: 1, color: 'var(--text-primary)', fontWeight: 500 }}>{r.name}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{r.account}</span>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button disabled={historyLoading} onClick={() => { setSelectedAccount(r.account); setSelectedName(r.name); loadHistory(); }} style={{ fontSize: 10, padding: '1px 6px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)' }}>📜</button>
+                      <button disabled={rawLoading} onClick={() => { setSelectedAccount(r.account); loadRaw(); }} style={{ fontSize: 10, padding: '1px 6px', background: 'rgba(255,159,10,.1)', border: '1px solid var(--accent-orange)', borderRadius: 3, cursor: 'pointer', color: 'var(--accent-orange)' }}>🔬</button>
+                      <button onClick={() => removeRecipient(r.account)} style={{ fontSize: 11, color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {recipients.length === 1 && (
+            <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+              <button onClick={async () => { try { const r = await api.get(`/players/${recipients[0].account}/mail-full`); setMailFull(r.data); setShowFull(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>🧬 完整欄位</button>
+              <button onClick={async () => { try { const r = await api.get('/players/maildata-schema'); setSchema(r.data); setShowSchema(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>📋 表結構</button>
+              <button onClick={async () => { if (!window.confirm(`修正 ${recipients[0].name} 的舊版網頁郵件？`)) return; try { const r = await api.post('/players/fix-old-mails', { account: recipients[0].account }); setResult(r.data.message) } catch { setResult('修正失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 4, color: 'var(--accent-green)' }}>🔧 修正舊郵件</button>
+            </div>
+          )}
         </Card>
         <Card title="STEP 2 — 加入道具 / 寵物">
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>名稱搜尋</div><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
@@ -111,19 +157,22 @@ function SingleSendTab() {
                 <tbody>{cart.map((c, i) => <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '4px 4px' }}><span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>#{c.itemId}</span>{c.name && <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 4 }}>{c.name}</span>}</td><td style={{ padding: '4px 4px', color: 'var(--text-muted)' }}>{c.type}</td><td style={{ padding: '2px 4px' }}><input type="number" value={c.qty} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} min={1} max={999} style={{ width: 50, fontSize: 12 }} /></td><td><button onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button></td></tr>)}</tbody>
               </table>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8, padding: 0 }}>清空購物車</button></>}
-          <button onClick={send} disabled={loading || !selectedAccount || cart.length === 0} style={{ width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '10px 0', fontSize: 14, borderRadius: 8, opacity: (!selectedAccount || cart.length === 0) ? 0.5 : 1 }}>
-            {loading ? '發送中…' : `📬 發送至 ${selectedName || '玩家'}`}
+          <button onClick={send} disabled={loading || recipients.length === 0 || cart.length === 0} style={{ width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '10px 0', fontSize: 14, borderRadius: 8, opacity: (recipients.length === 0 || cart.length === 0) ? 0.5 : 1 }}>
+            {loading ? '發送中…' : recipients.length > 1 ? `📬 發送至 ${recipients.length} 位玩家` : `📬 發送至 ${recipients[0]?.name || '玩家'}`}
           </button>
         </Card>
         {sentSummary && (
-          <Card title="✅ 發送完成">
-            <div style={{ marginBottom: 10, padding: '8px 12px', background: 'rgba(86,196,118,.12)', border: '1px solid var(--accent-green)', borderRadius: 6 }}>
-              <div style={{ fontSize: 13, color: 'var(--accent-green)', fontWeight: 700, marginBottom: 6 }}>
-                已發送至：{sentSummary.name}（{sentSummary.account}）
+          <Card title={`✅ 發送完成（${sentSummary.accounts.length} 位玩家）`}>
+            <div style={{ marginBottom: 8, padding: '8px 12px', background: 'rgba(86,196,118,.12)', border: '1px solid var(--accent-green)', borderRadius: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--accent-green)', fontWeight: 700, marginBottom: 4 }}>收件人：</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                {sentSummary.accounts.map(a => (
+                  <span key={a.account} style={{ padding: '2px 8px', background: 'rgba(86,196,118,.2)', border: '1px solid rgba(86,196,118,.4)', borderRadius: 12, fontSize: 11, color: 'var(--accent-green)' }}>{a.name}</span>
+                ))}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', borderTop: '1px solid rgba(255,255,255,.05)', paddingTop: 6 }}>
                 {sentSummary.items.map((c, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
                     <span>#{c.itemId}{c.name ? ` ${c.name}` : ''}</span>
                     <span style={{ color: 'var(--text-muted)' }}>× {c.qty}</span>
                   </div>
