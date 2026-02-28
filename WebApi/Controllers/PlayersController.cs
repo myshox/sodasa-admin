@@ -237,6 +237,16 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> MailRaw(string account, [FromQuery] int limit = 50)
         => Ok(await _db.GetMailRawAsync(account, limit));
 
+    /// <summary>取得 maildata 完整欄位（SELECT *）用於深度診斷</summary>
+    [HttpGet("{account}/mail-full")]
+    public async Task<IActionResult> MailFull(string account, [FromQuery] int limit = 20)
+        => Ok(await _db.GetMailFullAsync(account, limit));
+
+    /// <summary>取得 maildata 表的欄位定義</summary>
+    [HttpGet("maildata-schema")]
+    public async Task<IActionResult> MaildataSchema()
+        => Ok(await _db.GetMaildataSchemaAsync());
+
     /// <summary>修正舊版網頁發送的郵件（buff1/buff2 使用 GM 固定文字的記錄），使其可正常領取</summary>
     [HttpPost("fix-old-mails")]
     public async Task<IActionResult> FixOldMails([FromBody] FixOldMailsRequest req)

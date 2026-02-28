@@ -1658,6 +1658,51 @@ public class DbService
         return (fixed_, total);
     }
 
+    // ── maildata 完整欄位診斷（SELECT *）──────────────────────
+    public async Task<List<Dictionary<string, string>>> GetMailFullAsync(string account, int limit = 20)
+    {
+        var result = new List<Dictionary<string, string>>();
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "SELECT * FROM maildata WHERE cdkey=@acc ORDER BY id DESC LIMIT @lim", db);
+        cmd.Parameters.AddWithValue("@acc", account);
+        cmd.Parameters.AddWithValue("@lim", Math.Min(limit, 50));
+        try
+        {
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var row = new Dictionary<string, string>();
+                for (int i = 0; i < r.FieldCount; i++)
+                    row[r.GetName(i)] = r.IsDBNull(i) ? "(null)" : r.GetValue(i)?.ToString() ?? "";
+                result.Add(row);
+            }
+        }
+        catch (Exception ex) { result.Add(new Dictionary<string, string> { ["error"] = ex.Message }); }
+        return result;
+    }
+
+    // ── maildata 表欄位定義 ────────────────────────────────────
+    public async Task<List<Dictionary<string, string>>> GetMaildataSchemaAsync()
+    {
+        var result = new List<Dictionary<string, string>>();
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand("DESCRIBE maildata", db);
+        try
+        {
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var row = new Dictionary<string, string>();
+                for (int i = 0; i < r.FieldCount; i++)
+                    row[r.GetName(i)] = r.IsDBNull(i) ? "" : r.GetValue(i)?.ToString() ?? "";
+                result.Add(row);
+            }
+        }
+        catch (Exception ex) { result.Add(new Dictionary<string, string> { ["error"] = ex.Message }); }
+        return result;
+    }
+
     private static long TryGetInt64(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt64(o); } catch { return 0; } }
     private static string TryGetString(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? "" : r.GetString(o); } catch { return ""; } }
     private static int TryGetInt32(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt32(o); } catch { return 0; } }

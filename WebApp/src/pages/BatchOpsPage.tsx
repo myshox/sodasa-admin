@@ -34,6 +34,10 @@ function SingleSendTab() {
   const [mailRaw, setMailRaw] = useState<MailRawEntry[]>([])
   const [showRaw, setShowRaw] = useState(false)
   const [rawLoading, setRawLoading] = useState(false)
+  const [mailFull, setMailFull] = useState<Record<string, string>[]>([])
+  const [showFull, setShowFull] = useState(false)
+  const [schema, setSchema] = useState<Record<string, string>[]>([])
+  const [showSchema, setShowSchema] = useState(false)
   const [sentSummary, setSentSummary] = useState<{ account: string; name: string; items: CartItem[] } | null>(null)
 
   useEffect(() => {
@@ -75,6 +79,8 @@ function SingleSendTab() {
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={loadHistory} disabled={historyLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>{historyLoading ? '載入中…' : '📜 郵件歷史'}</button>
               <button onClick={loadRaw} disabled={rawLoading} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(255,159,10,.15)', border: '1px solid var(--accent-orange)', borderRadius: 4, color: 'var(--accent-orange)' }}>{rawLoading ? '載入中…' : '🔬 診斷格式'}</button>
+              <button onClick={async () => { try { const r = await api.get(`/players/${selectedAccount}/mail-full`); setMailFull(r.data); setShowFull(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>🧬 完整欄位</button>
+              <button onClick={async () => { try { const r = await api.get('/players/maildata-schema'); setSchema(r.data); setShowSchema(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>📋 表結構</button>
               <button onClick={async () => { if (!window.confirm(`修正 ${selectedName} 的舊版網頁郵件（使其可領取）？`)) return; try { const r = await api.post('/players/fix-old-mails', { account: selectedAccount }); setResult(r.data.message) } catch { setResult('修正失敗') } }} style={{ fontSize: 12, padding: '3px 10px', background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 4, color: 'var(--accent-green)' }}>🔧 修正舊郵件</button>
             </div>
           </div>}
@@ -125,6 +131,37 @@ function SingleSendTab() {
               </div>
             </div>
             <button onClick={() => setSentSummary(null)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>關閉</button>
+          </Card>
+        )}
+        {showSchema && (
+          <Card title="📋 maildata 表結構（所有欄位）">
+            <button onClick={() => setShowSchema(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 6, padding: 0 }}>收起</button>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+                <thead><tr style={{ background: 'var(--bg-dark)' }}>{['欄位名稱','型別','Null','Key','預設值','Extra'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--text-muted)' }}>{h}</th>)}</tr></thead>
+                <tbody>{schema.map((row, i) => <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>{Object.values(row).map((v, j) => <td key={j} style={{ padding: '3px 8px', color: j === 0 ? '#8b5cf6' : 'var(--text-secondary)' }}>{v}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+        {showFull && mailFull.length > 0 && (
+          <Card title="🧬 maildata 完整欄位（最新20筆）">
+            <button onClick={() => setShowFull(false)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 6, padding: 0 }}>收起</button>
+            <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
+              {mailFull.map((row, i) => (
+                <div key={i} style={{ marginBottom: 12, padding: 10, background: 'var(--bg-input)', borderRadius: 6, fontSize: 11, fontFamily: 'monospace' }}>
+                  <div style={{ fontWeight: 700, color: '#8b5cf6', marginBottom: 6 }}>記錄 #{row['id']} — check={row['check']} deleamill={row['deleamill']}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px' }}>
+                    {Object.entries(row).map(([k, v]) => (
+                      <div key={k} style={{ display: 'flex', gap: 6 }}>
+                        <span style={{ color: 'var(--text-muted)', minWidth: 80 }}>{k}:</span>
+                        <span style={{ color: v === '(null)' || v === '' ? 'var(--text-muted)' : 'var(--text-primary)', fontWeight: ['type','data','buff3','check'].includes(k) ? 700 : 400 }}>{v || '(空)'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         )}
         {showHistory && <Card title="📜 郵件歷史">
