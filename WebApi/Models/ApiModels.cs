@@ -288,6 +288,17 @@ public class PlayerHistoryResult
 }
 
 // ── 攤位 & 商城查詢 DTO ──────────────────────────────────────
+public class StreetBuyerDto
+{
+    public string Time       { get; set; } = "";
+    public string SellCdkey  { get; set; } = "";
+    public string SellerName { get; set; } = "";
+    public string BuyCdkey   { get; set; } = "";
+    public string BuyName    { get; set; } = "";
+    public string ItemName   { get; set; } = "";
+    public int    Num        { get; set; }
+    public int    Point      { get; set; }
+}
 public class StreetItemDto
 {
     public string CdKey    { get; set; } = "";

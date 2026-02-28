@@ -28,6 +28,15 @@ public class StreetShopController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>攤位反查：輸入物品名稱，查攤位成交紀錄（賣家+買家）</summary>
+    [HttpGet("api/street/buyers")]
+    public async Task<IActionResult> GetStreetBuyers([FromQuery] string item, [FromQuery] int limit = 300)
+    {
+        if (string.IsNullOrWhiteSpace(item)) return BadRequest();
+        var result = await _db.GetStreetBuyersAsync(item.Trim(), Math.Clamp(limit, 10, 500));
+        return Ok(result);
+    }
+
     /// <summary>商城反查：輸入物品名稱，查誰買過</summary>
     [HttpGet("api/shop/buyers")]
     public async Task<IActionResult> GetShopBuyers([FromQuery] string item, [FromQuery] int limit = 200)

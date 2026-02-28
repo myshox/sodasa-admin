@@ -1,21 +1,23 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 
-type PageTab = 'vendor' | 'shopbuyer'
+type PageTab = 'vendor' | 'streetbuyer' | 'shopbuyer'
 
 interface VendorSummary { cdKey: string; charName: string; itemCount: number }
-interface StreetItem { cdKey: string; itemId: number; itemName: string; num: number; price: number }
-interface StreetSale { time: string; sellCdkey: string; itemName: string; num: number; point: number; buyCdkey: string; buyName: string }
+interface StreetItem   { cdKey: string; itemId: number; itemName: string; num: number; price: number }
+interface StreetSale   { time: string; sellCdkey: string; itemName: string; num: number; point: number; buyCdkey: string; buyName: string }
 interface VendorResult { cdKey: string; charName: string; currentItems: StreetItem[]; saleHistory: StreetSale[] }
-interface ShopBuyer { time: string; cdKey: string; charName: string; itemName: string; itemNum: number; oldPoint: number; newPoint: number; shopType: 'fame' | 'vip' }
+interface StreetBuyer  { time: string; sellCdkey: string; sellerName: string; buyCdkey: string; buyName: string; itemName: string; num: number; point: number }
+interface ShopBuyer    { time: string; cdKey: string; charName: string; itemName: string; itemNum: number; oldPoint: number; newPoint: number; shopType: 'fame' | 'vip' }
 
 export default function StreetShopPage() {
   const [pageTab, setPageTab] = useState<PageTab>('vendor')
 
   // ── 攤主清單 ──
-  const [vendors, setVendors]         = useState<VendorSummary[]>([])
+  const [vendors, setVendors]               = useState<VendorSummary[]>([])
   const [vendorListLoad, setVendorListLoad] = useState(true)
-  const [listFilter, setListFilter]   = useState('')
+  const [listFilter, setListFilter]         = useState('')
+  const [selectedCdkey, setSelectedCdkey]   = useState<string | null>(null)
 
   // ── 攤位查詢 ──
   const [vendorQ, setVendorQ]         = useState('')
@@ -23,23 +25,27 @@ export default function StreetShopPage() {
   const [vendorLoad, setVendorLoad]   = useState(false)
   const [vendorMsg, setVendorMsg]     = useState('')
   const [vendorLimit, setVendorLimit] = useState(100)
-  const [selectedCdkey, setSelectedCdkey] = useState<string | null>(null)
+
+  // ── 攤位反查 ──
+  const [sbQ, setSbQ]         = useState('')
+  const [sbData, setSbData]   = useState<StreetBuyer[] | null>(null)
+  const [sbLoad, setSbLoad]   = useState(false)
+  const [sbMsg, setSbMsg]     = useState('')
+  const [sbLimit, setSbLimit] = useState(300)
 
   // ── 商城反查 ──
-  const [shopQ, setShopQ]       = useState('')
-  const [shopData, setShopData] = useState<ShopBuyer[] | null>(null)
-  const [shopLoad, setShopLoad] = useState(false)
-  const [shopMsg, setShopMsg]   = useState('')
+  const [shopQ, setShopQ]         = useState('')
+  const [shopData, setShopData]   = useState<ShopBuyer[] | null>(null)
+  const [shopLoad, setShopLoad]   = useState(false)
+  const [shopMsg, setShopMsg]     = useState('')
   const [shopLimit, setShopLimit] = useState(200)
 
   // 自動載入攤主清單
   useEffect(() => {
     ;(async () => {
       setVendorListLoad(true)
-      try {
-        const r = await api.get('/street/vendors')
-        setVendors(r.data)
-      } catch { /* ignore */ }
+      try { const r = await api.get('/street/vendors'); setVendors(r.data) }
+      catch { /* ignore */ }
       finally { setVendorListLoad(false) }
     })()
   }, [])
@@ -52,7 +58,7 @@ export default function StreetShopPage() {
   const searchVendor = async (query: string) => {
     if (!query.trim()) return
     setVendorLoad(true); setVendorMsg(''); setVendorData(null)
-    setSelectedCdkey(query.trim())
+    setSelectedCdkey(query.trim()); setPageTab('vendor')
     try {
       const r = await api.get(`/street/vendor/${encodeURIComponent(query.trim())}`, { params: { limit: vendorLimit } })
       setVendorData(r.data)
@@ -64,8 +70,18 @@ export default function StreetShopPage() {
   const clickVendor = (v: VendorSummary) => {
     setVendorQ(v.charName || v.cdKey)
     setSelectedCdkey(v.cdKey)
-    setPageTab('vendor')
     searchVendor(v.cdKey)
+  }
+
+  const searchStreetBuyers = async () => {
+    if (!sbQ.trim()) return
+    setSbLoad(true); setSbMsg(''); setSbData(null)
+    try {
+      const r = await api.get('/street/buyers', { params: { item: sbQ.trim(), limit: sbLimit } })
+      setSbData(r.data)
+      if (!r.data.length) setSbMsg('查無紀錄')
+    } catch { setSbMsg('查詢失敗') }
+    finally { setSbLoad(false) }
   }
 
   const searchShop = async () => {
@@ -78,6 +94,12 @@ export default function StreetShopPage() {
     } catch { setShopMsg('查詢失敗') }
     finally { setShopLoad(false) }
   }
+
+  const tabs: { key: PageTab; label: string }[] = [
+    { key: 'vendor',      label: '🛖 攤位查詢' },
+    { key: 'streetbuyer', label: '🔍 攤位反查（物品→買賣紀錄）' },
+    { key: 'shopbuyer',   label: '🏬 商城反查（物品→誰購買）' },
+  ]
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
@@ -97,26 +119,26 @@ export default function StreetShopPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {vendorListLoad
             ? <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>載入中…</div>
-            : filteredVendors.map(v => {
-                const isSelected = selectedCdkey === v.cdKey
-                return (
-                  <div key={v.cdKey} onClick={() => clickVendor(v)}
-                    style={{
+            : filteredVendors.length === 0
+              ? <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>無攤位</div>
+              : filteredVendors.map(v => {
+                  const isSel = selectedCdkey === v.cdKey
+                  return (
+                    <div key={v.cdKey} onClick={() => clickVendor(v)} style={{
                       padding: '8px 12px', cursor: 'pointer', fontSize: 12,
                       borderBottom: '1px solid var(--border)',
-                      background: isSelected ? 'rgba(99,179,237,.15)' : 'transparent',
-                      borderLeft: isSelected ? '3px solid var(--accent-blue)' : '3px solid transparent',
+                      background: isSel ? 'rgba(99,179,237,.15)' : 'transparent',
+                      borderLeft: isSel ? '3px solid var(--accent-blue)' : '3px solid transparent',
                     }}
-                    onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.04)' }}
-                    onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  >
-                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{v.charName || '未知角色'}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                      {v.itemCount} 件商品
+                    onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.04)' }}
+                    onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{v.charName || '未知角色'}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                        {v.itemCount} 件 · {v.cdKey.slice(0, 8)}…
+                      </div>
                     </div>
-                  </div>
-                )
-              })
+                  )
+                })
           }
         </div>
       </div>
@@ -126,21 +148,18 @@ export default function StreetShopPage() {
         <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>🏪 攤位 &amp; 商城查詢</h1>
 
         {/* 主 Tab */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)' }}>
-          {([
-            ['vendor',    '🛖 攤位查詢'],
-            ['shopbuyer', '🔍 商城反查（誰買了某物品）'],
-          ] as [PageTab, string][]).map(([t, label]) => (
-            <button key={t} onClick={() => setPageTab(t as PageTab)} style={{
-              padding: '9px 20px', fontSize: 13, fontWeight: pageTab === t ? 700 : 400,
-              background: pageTab === t ? 'var(--accent-blue)' : 'transparent',
-              color: pageTab === t ? '#fff' : 'var(--text-muted)',
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', flexWrap: 'wrap' }}>
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setPageTab(t.key)} style={{
+              padding: '9px 18px', fontSize: 13, fontWeight: pageTab === t.key ? 700 : 400,
+              background: pageTab === t.key ? 'var(--accent-blue)' : 'transparent',
+              color: pageTab === t.key ? '#fff' : 'var(--text-muted)',
               border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer',
-            }}>{label}</button>
+            }}>{t.label}</button>
           ))}
         </div>
 
-        {/* ── 攤位查詢 ── */}
+        {/* ══ Tab 1：攤位查詢 ══ */}
         {pageTab === 'vendor' && (
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -163,17 +182,31 @@ export default function StreetShopPage() {
                 ← 從左側點選攤主，或輸入角色名查詢
               </div>
             )}
-
             {vendorLoad && <div style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', marginTop: 40 }}>查詢中…</div>}
 
             {vendorData && (
               <>
-                {vendorData.charName && (
-                  <div style={{ marginBottom: 16, padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
-                    攤主：<strong>{vendorData.charName}</strong>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>{vendorData.cdKey}</span>
+                {/* 攤主資訊卡 */}
+                <div style={{ marginBottom: 16, padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>攤名（角色名）</span>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-blue)', marginTop: 2 }}>
+                      {vendorData.charName || '—'}
+                    </div>
                   </div>
-                )}
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>帳號（cdkey）</span>
+                    <div style={{ fontFamily: 'monospace', marginTop: 2, color: 'var(--text-secondary)' }}>{vendorData.cdKey}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>目前上架</span>
+                    <div style={{ fontWeight: 700, marginTop: 2 }}>{vendorData.currentItems.length} 件</div>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>歷史成交</span>
+                    <div style={{ fontWeight: 700, color: 'var(--accent-green)', marginTop: 2 }}>{vendorData.saleHistory.length} 筆</div>
+                  </div>
+                </div>
 
                 <Section title={`📦 目前上架商品（${vendorData.currentItems.length} 件）`}>
                   {vendorData.currentItems.length === 0
@@ -204,7 +237,8 @@ export default function StreetShopPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                           <thead>
                             <tr style={{ background: 'var(--bg-sidebar)', textAlign: 'left' }}>
-                              <TH>時間</TH><TH>物品</TH><TH style={{ textAlign: 'right' }}>數量</TH><TH style={{ textAlign: 'right' }}>金額</TH><TH>買家</TH>
+                              <TH>時間</TH><TH>物品</TH><TH style={{ textAlign: 'right' }}>數量</TH>
+                              <TH style={{ textAlign: 'right' }}>成交金幣</TH><TH>買家角色名</TH><TH>買家帳號</TH>
                             </tr>
                           </thead>
                           <tbody>
@@ -214,7 +248,8 @@ export default function StreetShopPage() {
                                 <td style={{ ...TD, fontWeight: 600 }}>{s.itemName}</td>
                                 <td style={{ ...TD, textAlign: 'right' }}>×{s.num}</td>
                                 <td style={{ ...TD, textAlign: 'right', color: 'var(--accent-green)', fontWeight: 700 }}>{s.point.toLocaleString()}</td>
-                                <td style={TD}>{s.buyName || s.buyCdkey || '—'}</td>
+                                <td style={TD}><span style={{ color: 'var(--accent-blue)' }}>{s.buyName || '—'}</span></td>
+                                <td style={{ ...TD, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.buyCdkey || '—'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -227,10 +262,72 @@ export default function StreetShopPage() {
           </div>
         )}
 
-        {/* ── 商城反查 ── */}
+        {/* ══ Tab 2：攤位反查 ══ */}
+        {pageTab === 'streetbuyer' && (
+          <div>
+            <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>
+              輸入物品名稱關鍵字，查詢攤位市場中所有交易紀錄（賣家 &amp; 買家）。
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input value={sbQ} onChange={e => setSbQ(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && searchStreetBuyers()}
+                placeholder="物品名稱關鍵字（例：寶石、藥水）" style={{ width: 300, fontSize: 14 }} />
+              <select value={sbLimit} onChange={e => setSbLimit(+e.target.value)}
+                style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
+                {[100, 200, 300, 500].map(n => <option key={n} value={n}>最多 {n} 筆</option>)}
+              </select>
+              <button onClick={searchStreetBuyers} disabled={sbLoad}
+                style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 20px', fontWeight: 700, fontSize: 14 }}>
+                {sbLoad ? '查詢中…' : '🔍 查詢'}
+              </button>
+              {sbMsg && <span style={{ color: 'var(--accent-red)', fontSize: 13 }}>{sbMsg}</span>}
+            </div>
+
+            {sbData && sbData.length > 0 && (
+              <>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <StatCard label="交易筆數" value={sbData.length} color="var(--accent-blue)" />
+                  <StatCard label="總成交數量" value={sbData.reduce((a, b) => a + b.num, 0)} color="var(--accent-orange)" />
+                  <StatCard label="總成交金幣" value={sbData.reduce((a, b) => a + b.point, 0)} color="var(--accent-green)" large />
+                </div>
+                <Section title={`🛖 攤位交易紀錄（${sbData.length} 筆）`}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--bg-sidebar)', textAlign: 'left' }}>
+                          <TH>時間</TH><TH>物品</TH>
+                          <TH>賣家（攤名）</TH><TH>賣家帳號</TH>
+                          <TH>買家角色名</TH><TH>買家帳號</TH>
+                          <TH style={{ textAlign: 'right' }}>數量</TH>
+                          <TH style={{ textAlign: 'right' }}>金幣</TH>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sbData.map((s, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={TD}>{s.time}</td>
+                            <td style={{ ...TD, fontWeight: 600 }}>{s.itemName}</td>
+                            <td style={TD}><span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>{s.sellerName || '—'}</span></td>
+                            <td style={{ ...TD, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.sellCdkey}</td>
+                            <td style={TD}><span style={{ color: 'var(--accent-blue)' }}>{s.buyName || '—'}</span></td>
+                            <td style={{ ...TD, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.buyCdkey || '—'}</td>
+                            <td style={{ ...TD, textAlign: 'right' }}>×{s.num}</td>
+                            <td style={{ ...TD, textAlign: 'right', color: 'var(--accent-green)', fontWeight: 700 }}>{s.point.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Section>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ══ Tab 3：商城反查 ══ */}
         {pageTab === 'shopbuyer' && (
           <div>
-            <div style={{ marginBottom: 16, color: 'var(--text-muted)', fontSize: 13 }}>
+            <div style={{ marginBottom: 12, color: 'var(--text-muted)', fontSize: 13 }}>
               輸入物品名稱關鍵字，查詢 VIP 商城 &amp; 聲望商城中有誰購買過。
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -256,12 +353,13 @@ export default function StreetShopPage() {
                   <StatCard label="⭐ 聲望商城" value={shopData.filter(s => s.shopType === 'fame').length} color="#b97cf3" />
                   <StatCard label="購買總數量" value={shopData.reduce((a, b) => a + b.itemNum, 0)} color="var(--accent-orange)" />
                 </div>
-                <Section title={`🛒 購買紀錄（${shopData.length} 筆）`}>
+                <Section title={`🛒 商城購買紀錄（${shopData.length} 筆）`}>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
                         <tr style={{ background: 'var(--bg-sidebar)', textAlign: 'left' }}>
-                          <TH>時間</TH><TH>商城</TH><TH>角色名</TH><TH>物品</TH><TH style={{ textAlign: 'right' }}>數量</TH><TH style={{ textAlign: 'right' }}>花費點數</TH>
+                          <TH>時間</TH><TH>商城</TH><TH>角色名</TH><TH>帳號</TH>
+                          <TH>物品</TH><TH style={{ textAlign: 'right' }}>數量</TH><TH style={{ textAlign: 'right' }}>花費點數</TH>
                         </tr>
                       </thead>
                       <tbody>
@@ -275,7 +373,8 @@ export default function StreetShopPage() {
                                 {s.shopType === 'vip' ? '💎 VIP' : '⭐ 聲望'}
                               </span>
                             </td>
-                            <td style={{ ...TD, fontWeight: 600 }}>{s.charName || '—'}</td>
+                            <td style={{ ...TD, fontWeight: 600, color: 'var(--accent-blue)' }}>{s.charName || '—'}</td>
+                            <td style={{ ...TD, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.cdKey}</td>
                             <td style={TD}>{s.itemName}</td>
                             <td style={{ ...TD, textAlign: 'right' }}>×{s.itemNum}</td>
                             <td style={{ ...TD, textAlign: 'right', color: 'var(--accent-red)', fontWeight: 700 }}>
@@ -296,13 +395,14 @@ export default function StreetShopPage() {
   )
 }
 
+// ── 共用元件 ─────────────────────────────────────────────────
 const TH = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
   <th style={{ padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', ...style }}>{children}</th>
 )
 const TD: React.CSSProperties = { padding: '7px 12px', whiteSpace: 'nowrap', verticalAlign: 'middle' }
-const StatCard = ({ label, value, color }: { label: string; value: number; color: string }) => (
+const StatCard = ({ label, value, color, large }: { label: string; value: number; color: string; large?: boolean }) => (
   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 18px', textAlign: 'center', minWidth: 100 }}>
-    <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+    <div style={{ fontSize: large ? 16 : 22, fontWeight: 700, color }}>{large ? value.toLocaleString() : value}</div>
     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{label}</div>
   </div>
 )

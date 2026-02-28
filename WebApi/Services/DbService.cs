@@ -1985,6 +1985,41 @@ public class DbService
         return result;
     }
 
+    // ── 攤位商品反查（依物品名稱查 streetlog）────────────────────
+    public async Task<List<StreetBuyerDto>> GetStreetBuyersAsync(string itemName, int limit = 300)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<StreetBuyerDto>();
+        var kw = $"%{itemName}%";
+        await using var cmd = new MySqlCommand(
+            @"SELECT sl.sellcdkey, cs.OnlineName AS sellerName,
+                     sl.buycdkey, sl.buyname,
+                     sl.name AS itemName, sl.num, sl.point,
+                     FROM_UNIXTIME(sl.time,'%Y-%m-%d %H:%i:%S') AS tradeTime
+              FROM streetlog sl
+              LEFT JOIN csalogin cs ON cs.Name = sl.sellcdkey
+              WHERE sl.name LIKE @kw
+              ORDER BY sl.time DESC LIMIT @lim", db);
+        cmd.Parameters.AddWithValue("@kw", kw);
+        cmd.Parameters.AddWithValue("@lim", limit);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new StreetBuyerDto
+            {
+                Time       = r.GetString("tradeTime"),
+                SellCdkey  = r.GetString("sellcdkey"),
+                SellerName = r.IsDBNull(r.GetOrdinal("sellerName")) ? "" : r.GetString("sellerName"),
+                BuyCdkey   = r.IsDBNull(r.GetOrdinal("buycdkey"))   ? "" : r.GetString("buycdkey"),
+                BuyName    = r.IsDBNull(r.GetOrdinal("buyname"))     ? "" : r.GetString("buyname"),
+                ItemName   = r.GetString("itemName"),
+                Num        = r.GetInt32("num"),
+                Point      = r.GetInt32("point"),
+            });
+        }
+        return list;
+    }
+
     // ── 商城反查（依物品名稱查誰買過）────────────────────────────
     public async Task<List<ShopBuyerDto>> GetShopBuyersAsync(string itemName, int limit = 200)
     {
