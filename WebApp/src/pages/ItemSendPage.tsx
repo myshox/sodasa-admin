@@ -7,10 +7,12 @@ import ItemBrowser from '../components/ItemBrowser'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import ItemAutocomplete from '../components/ItemAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
+import useIsMobile from '../hooks/useIsMobile'
 
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 
 export default function ItemSendPage() {
+  const isMobile = useIsMobile()
   const [sp] = useSearchParams()
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(sp.get('account') || '')
@@ -110,7 +112,7 @@ export default function ItemSendPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div style={{ padding: isMobile ? 12 : 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>📬 {S.navItemQueue}</h1>
 
       {result && (
@@ -122,14 +124,14 @@ export default function ItemSendPage() {
         }}>{result}</div>
       )}
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 左側：道具清單瀏覽器 */}
-        <div style={{ width: 340, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}>
           <ItemBrowser cart={cart} onAddToCart={addToCart} />
         </div>
 
         {/* 中間：玩家 + 手動輸入 + 郵件設定 */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
           {/* 指定玩家 */}
           <Card title="STEP 1 — 指定玩家">
             <PlayerAutocomplete

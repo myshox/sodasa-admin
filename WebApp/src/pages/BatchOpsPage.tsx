@@ -8,6 +8,7 @@ import ItemAutocomplete from '../components/ItemAutocomplete'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 import { getApiItems, getApiPets } from '../components/ItemBrowser'
+import useIsMobile from '../hooks/useIsMobile'
 
 type MainTab = 'single' | 'batch' | 'gold'
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
@@ -17,6 +18,7 @@ interface MailRawEntry { id: number; type: number; buff1: string; buff2: string;
 // Tab 1 — 道具給予（單人）
 // ────────────────────────────────────────────────────────────
 function SingleSendTab() {
+  const isMobile = useIsMobile()
   const [sp] = useSearchParams()
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(sp.get('account') || '')
@@ -86,9 +88,9 @@ function SingleSendTab() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <div style={{ width: 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+      <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
+      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
         {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
         <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -259,6 +261,7 @@ function SingleSendTab() {
 // Tab 2 — 批量發送（多人）
 // ────────────────────────────────────────────────────────────
 function BatchSendTab() {
+  const isMobile = useIsMobile()
   const [target, setTarget] = useState<'all' | 'online' | 'custom' | 'search'>('online')
   const [custom, setCustom] = useState('')
   const [title, setTitle] = useState('')
@@ -326,9 +329,9 @@ function BatchSendTab() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-      <div style={{ width: 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
-      <div style={{ flex: 1 }}>
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+      <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
+      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
         <Card title="STEP 1 — 目標玩家">
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
             <button style={btnStyle('all')} onClick={() => { setTarget('all'); setSearchList([]); setSelected(new Set()) }}>🌐 全部玩家</button>
@@ -442,7 +445,7 @@ function BatchSendTab() {
           </div>
         )}
       </div>
-      <div style={{ width: 260, flexShrink: 0 }}>
+      <div style={{ width: isMobile ? '100%' : 260, flexShrink: 0 }}>
         <Card title={`🛒 購物車（${cart.length} 種）`}>
           {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 16 }}>購物車為空</p>
             : <>{cart.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -539,6 +542,7 @@ function BatchGoldTab() {
 // 主頁面
 // ────────────────────────────────────────────────────────────
 export default function BatchOpsPage() {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<MainTab>('single')
 
   const tabs: { key: MainTab; label: string }[] = [
@@ -548,17 +552,17 @@ export default function BatchOpsPage() {
   ]
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: isMobile ? 12 : 24 }}>
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>⚙️ 批量操作</h1>
 
       {/* Tab 列 */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '9px 20px', fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
+            padding: isMobile ? '9px 14px' : '9px 20px', fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
             background: tab === t.key ? 'var(--accent-blue)' : 'transparent',
             color: tab === t.key ? '#fff' : 'var(--text-muted)',
-            border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer',
+            border: 'none', borderRadius: '6px 6px 0 0', cursor: 'pointer', whiteSpace: 'nowrap',
           }}>{t.label}</button>
         ))}
       </div>

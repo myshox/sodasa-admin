@@ -6,10 +6,12 @@ import ItemAutocomplete from '../components/ItemAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { PlayerRow } from '../api'
+import useIsMobile from '../hooks/useIsMobile'
 
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 
 export default function BatchPage() {
+  const isMobile = useIsMobile()
   const [target,  setTarget]  = useState<'all'|'online'|'custom'|'search'>('online')
   const [custom,  setCustom]  = useState('')
   const [title,   setTitle]   = useState('')
@@ -100,17 +102,17 @@ export default function BatchPage() {
   })
 
   return (
-    <div style={{ padding: 28 }}>
+    <div style={{ padding: isMobile ? 12 : 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>📢 {S.pageBatch}</h1>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 道具清單 */}
-        <div style={{ width: 340, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}>
           <ItemBrowser cart={cart} onAddToCart={addToCart} />
         </div>
 
         {/* 中間 */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
           {/* 目標選擇 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 16 }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 12 }}>{S.batchTarget}</h3>
@@ -235,7 +237,7 @@ export default function BatchPage() {
         </div>
 
         {/* 右側 - 購物車 */}
-        <div style={{ width: 300, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 300, flexShrink: 0 }}>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 18 }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 12 }}>🛒 購物車（{cart.length} 種道具）</h3>
             {cart.length === 0

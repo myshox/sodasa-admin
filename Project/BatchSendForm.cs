@@ -36,6 +36,12 @@ namespace SQ_Email_Tools
         private Label         _progressLbl, _statusLbl;
         private RichTextBox   _logBox;
 
+        // ── 排除名單 ──
+        private readonly HashSet<string> _excludeSet = new(StringComparer.OrdinalIgnoreCase);
+        private ListBox  _excludeListBox;
+        private TextBox  _excludeSearchBox;
+        private Label    _excludeCountLbl;
+
         // ── 狀態 ──
         private List<ItemInfo> _filteredItems = new();
         private int            _currentPage = 0;
@@ -491,6 +497,114 @@ namespace SQ_Email_Tools
             scroll.Controls.Add(settingPanel);
             y += settingPanel.Height + 10;
 
+            // ── 排除名單區塊 ──
+            var excludePanel = new Panel
+            {
+                Location    = new Point(x, y),
+                Size        = new Size(460, 180),
+                BackColor   = Theme.BgCard,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            var excludeHdr = new Panel { Dock = DockStyle.Top, Height = 28, BackColor = Color.FromArgb(60, 30, 30) };
+            _excludeCountLbl = new Label
+            {
+                Text      = "🚫  排除名單（0 人）",
+                ForeColor = Theme.AccentRed,
+                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(6, 0, 0, 0)
+            };
+            var btnClearExclude = Theme.MakeButton("全部移除", Theme.AccentRed, Color.White, 72, 22);
+            btnClearExclude.Font   = Theme.FontSmall;
+            btnClearExclude.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnClearExclude.Click += (s, e) => { _excludeSet.Clear(); RefreshExcludeList(); };
+            excludeHdr.Controls.Add(_excludeCountLbl);
+            excludeHdr.Controls.Add(btnClearExclude);
+            excludeHdr.Resize += (s, e) => btnClearExclude.Left = excludeHdr.ClientSize.Width - 4 - btnClearExclude.Width;
+            excludePanel.Controls.Add(excludeHdr);
+
+            // 搜尋帳號加入排除
+            var exSearchRow = new Panel { Top = 30, Left = 0, Height = 30, Dock = DockStyle.None };
+            _excludeSearchBox = new TextBox
+            {
+                PlaceholderText = "輸入帳號加入排除…",
+                BackColor       = Theme.BgLight,
+                ForeColor       = Theme.TextPrimary,
+                BorderStyle     = BorderStyle.FixedSingle,
+                Font            = Theme.FontBody,
+                Location        = new Point(6, 4),
+                Height          = 24
+            };
+            var btnAddExclude = Theme.MakeButton("＋ 加入", Theme.AccentOrange, Color.White, 70, 24);
+            btnAddExclude.Font     = Theme.FontSmall;
+            btnAddExclude.Location = new Point(0, 4);
+            btnAddExclude.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
+
+            void AddExcludeAccount()
+            {
+                var acc = _excludeSearchBox.Text.Trim();
+                if (string.IsNullOrEmpty(acc)) return;
+                _excludeSet.Add(acc);
+                _excludeSearchBox.Clear();
+                RefreshExcludeList();
+            }
+            btnAddExclude.Click       += (s, e) => AddExcludeAccount();
+            _excludeSearchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { AddExcludeAccount(); e.Handled = true; } };
+
+            var exRow = new Panel
+            {
+                Top    = 30,
+                Left   = 0,
+                Height = 30,
+                Dock   = DockStyle.None
+            };
+            excludePanel.Controls.Add(exRow);
+            // 用 Resize 動態排版
+            excludePanel.Controls.Add(_excludeSearchBox);
+            excludePanel.Controls.Add(btnAddExclude);
+            _excludeSearchBox.Top  = 32;
+            _excludeSearchBox.Left = 6;
+            btnAddExclude.Top      = 32;
+
+            _excludeListBox = new ListBox
+            {
+                Top             = 62,
+                Left            = 6,
+                Height          = 100,
+                BackColor       = Color.FromArgb(28, 18, 18),
+                ForeColor       = Theme.TextPrimary,
+                Font            = Theme.FontSmall,
+                BorderStyle     = BorderStyle.None,
+                SelectionMode   = SelectionMode.MultiExtended
+            };
+            var btnRemoveSelected = Theme.MakeButton("移除選中", Theme.AccentRed, Color.White, 80, 24);
+            btnRemoveSelected.Font     = Theme.FontSmall;
+            btnRemoveSelected.Top      = 62;
+            btnRemoveSelected.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
+            btnRemoveSelected.Click   += (s, e) =>
+            {
+                foreach (var item in _excludeListBox.SelectedItems.Cast<string>().ToList())
+                    _excludeSet.Remove(item);
+                RefreshExcludeList();
+            };
+
+            excludePanel.Controls.Add(_excludeListBox);
+            excludePanel.Controls.Add(btnRemoveSelected);
+
+            excludePanel.Resize += (s, e) =>
+            {
+                int pw = excludePanel.ClientSize.Width;
+                btnAddExclude.Left       = pw - 6 - btnAddExclude.Width;
+                _excludeSearchBox.Width  = Math.Max(60, btnAddExclude.Left - 12);
+                _excludeListBox.Width    = Math.Max(60, pw - 12 - btnRemoveSelected.Width - 6);
+                btnRemoveSelected.Left   = pw - 6 - btnRemoveSelected.Width;
+            };
+
+            scroll.Controls.Add(excludePanel);
+            y += 190;
+
             // ── 發送按鈕 ──
             _sendBtn = new Button
             {
@@ -562,6 +676,7 @@ namespace SQ_Email_Tools
                 cartHdrPanel.Width  = w;
                 _cartDgv.Width      = w;
                 settingPanel.Width  = w;
+                excludePanel.Width  = w;
                 _sendBtn.Width      = w;
                 _progressBar.Width  = w;
                 _logBox.Width       = w;
@@ -699,10 +814,15 @@ namespace SQ_Email_Tools
             string itemsSummary = string.Join("\n", _cart.Select(c =>
                 $"  • {c.Item.Name}（#{c.Item.Id}）× {c.Qty} 份"));
 
+            string excludeNote = _excludeSet.Count > 0
+                ? $"  ⛔ 排除 {_excludeSet.Count} 人：{string.Join("、", _excludeSet.Take(5))}{(_excludeSet.Count > 5 ? "…" : "")}\n"
+                : "";
+
             if (MessageBox.Show(
                 $"確定要批量發送給所有角色？\n\n" +
                 $"【道具清單】（共 {_cart.Count} 種）\n{itemsSummary}\n\n" +
                 scheduleNote +
+                excludeNote +
                 $"  到期日期：{_dtEnd.Value:yyyy/MM/dd}\n\n" +
                 "⚠ 此操作無法撤銷，每種道具皆會各自發一封郵件！",
                 "確認批量發送", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
@@ -758,7 +878,7 @@ namespace SQ_Email_Tools
                                   rep.ok ? Theme.AccentGreen : Theme.AccentRed);
                     });
 
-                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(req, progress, _cts.Token, batchSize);
+                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(req, progress, _cts.Token, batchSize, _excludeSet.Count > 0 ? _excludeSet : null);
                     totalSuccess += success;
                     totalFail    += fail;
 
@@ -793,6 +913,15 @@ namespace SQ_Email_Tools
                 _cancelBtn.Enabled = false;
                 _cts?.Dispose();
             }
+        }
+
+        private void RefreshExcludeList()
+        {
+            if (InvokeRequired) { Invoke(new Action(RefreshExcludeList)); return; }
+            _excludeListBox.Items.Clear();
+            foreach (var acc in _excludeSet.OrderBy(a => a))
+                _excludeListBox.Items.Add(acc);
+            _excludeCountLbl.Text = $"🚫  排除名單（{_excludeSet.Count} 人）";
         }
 
         private void AppendLog(string text, Color color)

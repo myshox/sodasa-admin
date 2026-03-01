@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import api from '../api'
 import { S } from '../strings'
+import useIsMobile from '../hooks/useIsMobile'
 
 interface MailRow { id: number; sender: string; title: string; content: string; isRead: boolean; time: string }
 
 export default function MailPage() {
+  const isMobile = useIsMobile()
   const [q,    setQ]    = useState('')
   const [rows, setRows] = useState<MailRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -23,7 +25,7 @@ export default function MailPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div style={{ padding: isMobile ? 12 : 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
         {'\u{1F4E7}'} {S.navMail}
       </h1>
@@ -40,8 +42,8 @@ export default function MailPage() {
           {loading ? S.searching : `${'\u{1F50D}'} ${S.searchBtn}`}
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, flex: 1, minWidth: 0, overflow: 'hidden', width: isMobile ? '100%' : undefined }}>
           <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px 140px', padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
             <span>發件人</span><span>標題</span><span>狀態</span><span>時間</span>
           </div>
@@ -62,7 +64,7 @@ export default function MailPage() {
             ))}
         </div>
         {sel && (
-          <div style={{ width: 300, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, flexShrink: 0 }}>
+          <div style={{ width: isMobile ? '100%' : 300, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, flexShrink: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{sel.title}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
               發件：{sel.sender} | {sel.time}

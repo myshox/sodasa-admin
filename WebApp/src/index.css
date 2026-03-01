@@ -53,7 +53,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
   /* 頁面 padding 縮小 */
   .page-content {
-    padding: 16px !important;
+    padding: 12px !important;
   }
 
   /* 卡片 */
@@ -69,7 +69,24 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
   /* 表格在手機橫向捲動 */
   .table-wrap {
-    overflow-x: auto;
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* 通用：所有 overflow:hidden 的表格容器改為可橫向捲動 */
+  .tbl-card {
+    overflow-x: auto !important;
+  }
+
+  /* 標題列 flex 換行 */
+  .page-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* 全幅欄（三欄版面在手機變單欄） */
+  .col-full {
+    width: 100% !important;
+    flex-shrink: 0 !important;
   }
 }

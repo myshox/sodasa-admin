@@ -22,6 +22,8 @@ namespace SQ_Email_Tools
             AddTab("🛡 GM 權限管理", new GmPermForm());
             AddTab("💾 備份還原",    new BackupForm());
             AddTab("🔑 工具帳號",    new GmAdminForm());
+            AddTab("🗑 角色回收桶",  new RecycleBinForm());
+            AddTab("💻 SQL 查詢",    new SqlQueryForm());
 
             Controls.Add(_tabs);
         }

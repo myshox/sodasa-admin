@@ -27,6 +27,7 @@ namespace SQ_Email_Tools
 
         // ── 導覽按鈕 ─────────────────────────────────────────────
         private Button _activeNav;
+        private Button _btnRecharge; // 充值管理（特殊綠色高亮）
 
         public static string ExeDir =>
             Path.GetDirectoryName(Environment.ProcessPath)
@@ -118,48 +119,56 @@ namespace SQ_Email_Tools
             var btnMaster = MakeNavBtn("👑", "主帳號查詢", ref y);
             btnMaster.Click += (s, e) =>
             {
+                SetActiveNav(btnMaster);
                 if (!CheckConnected()) return;
-                new MasterAccountForm().ShowDialog(this);
+                SwitchToHub(new MasterAccountForm());
             };
 
-            var btnRechargeForm = MakeNavBtn("💳", "充值管理", ref y);
-            btnRechargeForm.Click += (s, e) =>
+            // 充值管理：綠色高亮（最重要功能）
+            _btnRecharge = MakeNavBtn("💳", "充值管理", ref y);
+            _btnRecharge.BackColor = Color.FromArgb(0, 80, 40);
+            _btnRecharge.ForeColor = Color.FromArgb(100, 230, 140);
+            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
+            _btnRecharge.Click += (s, e) =>
             {
+                SetActiveNav(_btnRecharge);
                 if (!CheckConnected()) return;
-                new RechargeForm().ShowDialog(this);
+                SwitchToHub(new RechargeForm());
             };
 
             var btnVip = MakeNavBtn("💎", "VIP 管理", ref y);
             btnVip.Click += (s, e) =>
             {
+                SetActiveNav(btnVip);
                 if (!CheckConnected()) return;
-                new VipForm().ShowDialog(this);
+                SwitchToHub(new VipForm());
             };
+
+            AddSideGap(ref y);
+
+            // ══ 監控管理 ══
+            AddSectionLabel("監控管理", ref y);
 
             var btnOnline = MakeNavBtn("🟢", "線上玩家", ref y);
             btnOnline.Click += (s, e) =>
             {
+                SetActiveNav(btnOnline);
                 if (!CheckConnected()) return;
-                new OnlineMonitorForm().ShowDialog(this);
+                SwitchToHub(new OnlineMonitorForm());
             };
 
             var btnBan = MakeNavBtn("🔒", "封號管理", ref y);
             btnBan.Click += (s, e) =>
             {
+                SetActiveNav(btnBan);
                 if (!CheckConnected()) return;
-                new BanForm().ShowDialog(this);
+                SwitchToHub(new BanForm());
             };
 
             AddSideGap(ref y);
 
-            // ══ 4 大 Hub（嵌入主視窗）══
-            var btnRecords = MakeNavBtn("📂", "紀錄查詢", ref y);
-            btnRecords.Click += (s, e) =>
-            {
-                SetActiveNav(btnRecords);
-                if (!CheckConnected()) return;
-                SwitchToHub(new RecordsHubForm());
-            };
+            // ══ GM 操作 ══
+            AddSectionLabel("GM 操作", ref y);
 
             var btnBatchOps = MakeNavBtn("📢", "批量操作", ref y);
             btnBatchOps.Click += (s, e) =>
@@ -167,6 +176,19 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnBatchOps);
                 if (!CheckConnected()) return;
                 SwitchToHub(new BatchOpsHubForm());
+            };
+
+            AddSideGap(ref y);
+
+            // ══ 紀錄 & 分析 ══
+            AddSectionLabel("紀錄 & 分析", ref y);
+
+            var btnRecords = MakeNavBtn("📂", "紀錄查詢", ref y);
+            btnRecords.Click += (s, e) =>
+            {
+                SetActiveNav(btnRecords);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RecordsHubForm());
             };
 
             var btnAnalytics = MakeNavBtn("📈", "數據分析", ref y);
@@ -177,37 +199,16 @@ namespace SQ_Email_Tools
                 SwitchToHub(new AnalyticsHubForm());
             };
 
+            AddSideGap(ref y);
+
+            // ══ 系統管理 ══
+            AddSectionLabel("系統管理", ref y);
+
             var btnSystem = MakeNavBtn("⚙", "系統管理", ref y);
             btnSystem.Click += (s, e) =>
             {
                 SetActiveNav(btnSystem);
                 SwitchToHub(new SystemHubForm());
-            };
-
-            AddSideGap(ref y);
-
-            // ══ GM 工具（快速入口）══
-            AddSectionLabel("GM 工具", ref y);
-
-            var btnGmPet = MakeNavBtn("🐾", "GM 寵物指令", ref y);
-            btnGmPet.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                new GmPetForm().ShowDialog(this);
-            };
-
-            var btnRecycle = MakeNavBtn("🗑", "角色回收桶", ref y);
-            btnRecycle.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                new RecycleBinForm().ShowDialog(this);
-            };
-
-            var btnSql = MakeNavBtn("💻", "SQL 查詢", ref y);
-            btnSql.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                new SqlQueryForm().ShowDialog(this);
             };
 
             // ── 底部：連線狀態（固定底部，96px）────────────────────
@@ -371,9 +372,18 @@ namespace SQ_Email_Tools
 
             if (_activeNav != null && _activeNav != btn)
             {
-                _activeNav.BackColor = Theme.BgSidebar;
-                _activeNav.ForeColor = Theme.TextSecondary;
-                _activeNav.Font      = new Font(Theme.FontFamily, 10f);
+                // 充值管理還原成綠色，其餘還原成預設灰
+                if (_activeNav == _btnRecharge)
+                {
+                    _activeNav.BackColor = Color.FromArgb(0, 80, 40);
+                    _activeNav.ForeColor = Color.FromArgb(100, 230, 140);
+                }
+                else
+                {
+                    _activeNav.BackColor = Theme.BgSidebar;
+                    _activeNav.ForeColor = Theme.TextSecondary;
+                }
+                _activeNav.Font = new Font(Theme.FontFamily, 10f);
                 if (_activeNav.Tag is Panel oldInd) oldInd.BackColor = Color.Transparent;
             }
 
@@ -463,17 +473,6 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(20, 14)
             });
-
-            var btnBatch = Theme.MakePrimaryButton("📢 批量操作", 110, 32);
-            btnBatch.Location = new Point(hdr.Width - 128, 12);
-            btnBatch.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
-            btnBatch.Click   += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav); // 先更新高亮（等待 Hub 按鈕後續切換）
-                SwitchToHub(new BatchOpsHubForm());
-            };
-            hdr.Controls.Add(btnBatch);
 
             hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 

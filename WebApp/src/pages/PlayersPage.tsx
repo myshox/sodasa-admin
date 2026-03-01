@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import type { PlayerRow, PlayerDetail } from '../api'
 import { S } from '../strings'
+import useIsMobile from '../hooks/useIsMobile'
 
 const CYCLE = 25_000
 
@@ -22,6 +23,7 @@ const RECHARGE_TIERS = [
 const BONUS_OPTIONS = [0, 5, 10, 15, 20]
 
 export default function PlayersPage() {
+  const isMobile = useIsMobile()
   const navigate = useNavigate()
   const [sp] = useSearchParams()
   const [q, setQ] = useState(sp.get('q') || '')
@@ -224,7 +226,7 @@ export default function PlayersPage() {
   const cycleProgress = detail ? Math.min(100, ((detail.paydataPoint ?? 0) / CYCLE) * 100) : 0
 
   return (
-    <div style={{ padding: 28 }}>
+    <div style={{ padding: isMobile ? 12 : 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>👥 {S.pagePlayerMgr}</h1>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -247,9 +249,9 @@ export default function PlayersPage() {
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 玩家列表 - 表格格式 */}
-        <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'auto', width: isMobile ? '100%' : undefined }}>
           {players.length === 0
             ? <p style={{ padding: 24, color: 'var(--text-muted)', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 10 }}>
                 {loading ? '載入中…' : q.trim() ? `找不到「${q}」的玩家` : '尚無玩家資料，請確認資料庫連線'}
@@ -319,8 +321,8 @@ export default function PlayersPage() {
         {/* 詳情面板 */}
         {detail && (
           <div style={{
-            width: 360, background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 10, padding: 18, flexShrink: 0, maxHeight: '85vh', overflowY: 'auto'
+            width: isMobile ? '100%' : 360, background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 10, padding: 18, flexShrink: 0, maxHeight: isMobile ? 'none' : '85vh', overflowY: 'auto'
           }}>
             {msg && <p style={{ color: 'var(--accent-green)', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{msg}</p>}
 

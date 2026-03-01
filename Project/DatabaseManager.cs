@@ -335,7 +335,8 @@ namespace SQ_Email_Tools
             SendMailRequest template,
             IProgress<(int done, int total, string account, bool ok)> progress,
             CancellationToken ct,
-            int batchSize = 100)
+            int batchSize = 100,
+            HashSet<string>? excludeSet = null)
         {
             // 取全部帳號（不用 SearchPlayersAsync，避免 LIMIT 300 限制）
             var allAccounts = new List<string>();
@@ -346,6 +347,10 @@ namespace SQ_Email_Tools
                 using var rA   = await cmdA.ExecuteReaderAsync();
                 while (await rA.ReadAsync()) allAccounts.Add(rA.GetString(0));
             }
+
+            // 套用排除名單
+            if (excludeSet != null && excludeSet.Count > 0)
+                allAccounts = allAccounts.Where(a => !excludeSet.Contains(a)).ToList();
 
             int qty   = Math.Max(1, template.Quantity);
             int total = allAccounts.Count, success = 0, fail = 0;
@@ -403,8 +408,11 @@ namespace SQ_Email_Tools
                 progress?.Report((done, total, batch[^1], batchOk));
             }
 
+            string targetDesc = (excludeSet != null && excludeSet.Count > 0)
+                ? $"全服（排除 {excludeSet.Count} 人）共 {total} 人"
+                : $"全服 {total} 人";
             await GmLogger.Instance.LogAsync("批量發送",
-                $"全服 {total} 人",
+                targetDesc,
                 $"道具:{template.Data} 數量:{qty}份 標題:{template.Buff1} 成功:{success} 失敗:{fail} 批次:{batchSize}",
                 success > 0);
             return (success, fail);
