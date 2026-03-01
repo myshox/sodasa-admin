@@ -171,33 +171,150 @@ namespace SQ_Email_Tools
             // ══ GM 操作 ══
             AddSectionLabel("GM 操作", ref y);
 
-            var btnBatchOps = MakeNavBtn("📢", "批量操作", ref y);
-            btnBatchOps.Click += (s, e) =>
+            var btnBatchSend = MakeNavBtn("📢", "批量發送", ref y);
+            btnBatchSend.Click += (s, e) =>
             {
-                SetActiveNav(btnBatchOps);
+                SetActiveNav(btnBatchSend);
                 if (!CheckConnected()) return;
-                SwitchToHub(new BatchOpsHubForm());
+                SwitchToHub(new BatchSendForm());
+            };
+
+            var btnItemQueue = MakeNavBtn("📬", "道具給予", ref y);
+            btnItemQueue.Click += (s, e) =>
+            {
+                SetActiveNav(btnItemQueue);
+                if (!CheckConnected()) return;
+                SwitchToHub(new ItemQueueForm());
+            };
+
+            var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
+            btnBatchGold.Click += (s, e) =>
+            {
+                SetActiveNav(btnBatchGold);
+                if (!CheckConnected()) return;
+                SwitchToHub(new BatchGoldForm());
+            };
+
+            var btnGmPet = MakeNavBtn("🐾", "GM 寵物指令", ref y);
+            btnGmPet.Click += (s, e) =>
+            {
+                SetActiveNav(btnGmPet);
+                if (!CheckConnected()) return;
+                SwitchToHub(new GmPetForm());
+            };
+
+            var btnMailClear = MakeNavBtn("🗑", "清除郵件", ref y);
+            btnMailClear.Click += (s, e) =>
+            {
+                SetActiveNav(btnMailClear);
+                if (!CheckConnected()) return;
+                SwitchToHub(new MailClearForm());
+            };
+
+            var btnSpeedHack = MakeNavBtn("⚡", "加速外掛封禁", ref y);
+            btnSpeedHack.Click += (s, e) =>
+            {
+                SetActiveNav(btnSpeedHack);
+                if (!CheckConnected()) return;
+                SwitchToHub(new SpeedHackForm());
             };
 
             AddSideGap(ref y);
 
-            // ══ 紀錄 & 分析 ══
-            AddSectionLabel("紀錄 & 分析", ref y);
+            // ══ 紀錄查詢 ══
+            AddSectionLabel("紀錄查詢", ref y);
 
-            var btnRecords = MakeNavBtn("📂", "紀錄查詢", ref y);
-            btnRecords.Click += (s, e) =>
+            var btnRechargeHist = MakeNavBtn("💳", "充值記錄", ref y);
+            btnRechargeHist.Click += (s, e) =>
             {
-                SetActiveNav(btnRecords);
+                SetActiveNav(btnRechargeHist);
                 if (!CheckConnected()) return;
-                SwitchToHub(new RecordsHubForm());
+                SwitchToHub(new RechargeHistoryForm());
             };
 
-            var btnAnalytics = MakeNavBtn("📈", "數據分析", ref y);
-            btnAnalytics.Click += (s, e) =>
+            var btnTradeLog = MakeNavBtn("📊", "交易記錄", ref y);
+            btnTradeLog.Click += (s, e) =>
             {
-                SetActiveNav(btnAnalytics);
+                SetActiveNav(btnTradeLog);
                 if (!CheckConnected()) return;
-                SwitchToHub(new AnalyticsHubForm());
+                SwitchToHub(new TradeLogForm());
+            };
+
+            var btnGoldLog = MakeNavBtn("💎", "金幣日誌", ref y);
+            btnGoldLog.Click += (s, e) =>
+            {
+                SetActiveNav(btnGoldLog);
+                if (!CheckConnected()) return;
+                SwitchToHub(new GoldLogForm());
+            };
+
+            var btnMailHist = MakeNavBtn("📧", "郵件記錄", ref y);
+            btnMailHist.Click += (s, e) =>
+            {
+                SetActiveNav(btnMailHist);
+                if (!CheckConnected()) return;
+                SwitchToHub(new MailHistoryForm());
+            };
+
+            var btnPlayerHist = MakeNavBtn("🔍", "玩家活動歷程", ref y);
+            btnPlayerHist.Click += (s, e) =>
+            {
+                SetActiveNav(btnPlayerHist);
+                if (!CheckConnected()) return;
+                SwitchToHub(new PlayerHistoryForm());
+            };
+
+            var btnStreetShop = MakeNavBtn("🏪", "攤位 & 市場", ref y);
+            btnStreetShop.Click += (s, e) =>
+            {
+                SetActiveNav(btnStreetShop);
+                if (!CheckConnected()) return;
+                SwitchToHub(new StreetShopForm());
+            };
+
+            AddSideGap(ref y);
+
+            // ══ 數據分析 ══
+            AddSectionLabel("數據分析", ref y);
+
+            var btnDashboard = MakeNavBtn("📊", "統計面板", ref y);
+            btnDashboard.Click += (s, e) =>
+            {
+                SetActiveNav(btnDashboard);
+                if (!CheckConnected()) return;
+                SwitchToHub(new DashboardForm());
+            };
+
+            var btnPlayerAnal = MakeNavBtn("👥", "玩家活躍分析", ref y);
+            btnPlayerAnal.Click += (s, e) =>
+            {
+                SetActiveNav(btnPlayerAnal);
+                if (!CheckConnected()) return;
+                SwitchToHub(new PlayerAnalyticsForm());
+            };
+
+            var btnRechargeAnal = MakeNavBtn("💳", "儲值趨勢", ref y);
+            btnRechargeAnal.Click += (s, e) =>
+            {
+                SetActiveNav(btnRechargeAnal);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RechargeAnalyticsForm());
+            };
+
+            var btnTradeAudit = MakeNavBtn("🔍", "交易稽核", ref y);
+            btnTradeAudit.Click += (s, e) =>
+            {
+                SetActiveNav(btnTradeAudit);
+                if (!CheckConnected()) return;
+                SwitchToHub(new TradeAuditForm());
+            };
+
+            var btnShopStats = MakeNavBtn("🏪", "商城分析", ref y);
+            btnShopStats.Click += (s, e) =>
+            {
+                SetActiveNav(btnShopStats);
+                if (!CheckConnected()) return;
+                SwitchToHub(new ShopStatsForm());
             };
 
             AddSideGap(ref y);
@@ -205,11 +322,46 @@ namespace SQ_Email_Tools
             // ══ 系統管理 ══
             AddSectionLabel("系統管理", ref y);
 
-            var btnSystem = MakeNavBtn("⚙", "系統管理", ref y);
-            btnSystem.Click += (s, e) =>
+            var btnGmLog = MakeNavBtn("📋", "GM 操作日誌", ref y);
+            btnGmLog.Click += (s, e) =>
             {
-                SetActiveNav(btnSystem);
-                SwitchToHub(new SystemHubForm());
+                SetActiveNav(btnGmLog);
+                SwitchToHub(new GmLogForm());
+            };
+
+            var btnGmPerm = MakeNavBtn("🛡", "GM 權限管理", ref y);
+            btnGmPerm.Click += (s, e) =>
+            {
+                SetActiveNav(btnGmPerm);
+                SwitchToHub(new GmPermForm());
+            };
+
+            var btnSql = MakeNavBtn("💻", "SQL 查詢", ref y);
+            btnSql.Click += (s, e) =>
+            {
+                SetActiveNav(btnSql);
+                SwitchToHub(new SqlQueryForm());
+            };
+
+            var btnGmAdmin = MakeNavBtn("🔑", "工具帳號", ref y);
+            btnGmAdmin.Click += (s, e) =>
+            {
+                SetActiveNav(btnGmAdmin);
+                SwitchToHub(new GmAdminForm());
+            };
+
+            var btnRecycle = MakeNavBtn("🗑", "角色回收桶", ref y);
+            btnRecycle.Click += (s, e) =>
+            {
+                SetActiveNav(btnRecycle);
+                SwitchToHub(new RecycleBinForm());
+            };
+
+            var btnBackup = MakeNavBtn("💾", "備份還原", ref y);
+            btnBackup.Click += (s, e) =>
+            {
+                SetActiveNav(btnBackup);
+                SwitchToHub(new BackupForm());
             };
 
             // ── 底部：連線狀態（固定底部，96px）────────────────────
