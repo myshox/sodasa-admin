@@ -1067,6 +1067,48 @@ namespace SQ_Email_Tools
                       "郵件總數：", $"{_detail.TotalMails} 封");
             Row("未領取郵件：", $"{_detail.UnreadMails} 封",
                 _detail.UnreadMails > 0 ? Theme.AccentOrange : Theme.TextPrimary);
+            // ── 清除郵件按鈕 ──
+            {
+                var btnClearUnclaimed = Theme.MakeButton("🗑 清除未領取", Color.FromArgb(120, 70, 0), Color.FromArgb(255, 190, 80), 120, 24);
+                var btnClearAll      = Theme.MakeButton("🗑 清除全部郵件", Color.FromArgb(100, 20, 20), Color.FromArgb(255, 120, 120), 120, 24);
+                btnClearUnclaimed.Location = new Point(x + 140, y);
+                btnClearAll.Location       = new Point(x + 268, y);
+                btnClearUnclaimed.Font     = Theme.FontSmall;
+                btnClearAll.Font           = Theme.FontSmall;
+
+                btnClearUnclaimed.Click += async (s, e) =>
+                {
+                    if (MessageBox.Show(
+                        $"確定清除「{_detail.OnlineName}」的未領取郵件？\n此操作不可逆！",
+                        "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                    btnClearUnclaimed.Enabled = false;
+                    try
+                    {
+                        int n = await DatabaseManager.Instance.ClearPlayerMailAsync(_detail.Account, true);
+                        MessageBox.Show($"✓ 已清除 {n} 封未領取郵件", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex2) { MessageBox.Show("清除失敗：" + ex2.Message); }
+                    finally { if (!IsDisposed) btnClearUnclaimed.Enabled = true; }
+                };
+
+                btnClearAll.Click += async (s, e) =>
+                {
+                    if (MessageBox.Show(
+                        $"確定清除「{_detail.OnlineName}」的全部郵件（含已領取）？\n此操作不可逆！",
+                        "確認清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                    btnClearAll.Enabled = false;
+                    try
+                    {
+                        int n = await DatabaseManager.Instance.ClearPlayerMailAsync(_detail.Account, false);
+                        MessageBox.Show($"✓ 已清除 {n} 封郵件", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex2) { MessageBox.Show("清除失敗：" + ex2.Message); }
+                    finally { if (!IsDisposed) btnClearAll.Enabled = true; }
+                };
+
+                _bodyPanel.Controls.AddRange(new Control[] { btnClearUnclaimed, btnClearAll });
+                y += 30;
+            }
             if (tp.HasPet)
             {
                 y += 2;

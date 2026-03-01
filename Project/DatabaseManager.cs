@@ -429,6 +429,35 @@ namespace SQ_Email_Tools
             return ok;
         }
 
+        // ── 清除玩家郵件（軟刪除 deleamill=1）────────────────────────
+        // account 空字串 = 全部玩家，onlineOnly=true 只清在線玩家
+        public async Task<int> ClearPlayerMailAsync(string account, bool unclaimedOnly, bool onlineOnly = false)
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            string accountFilter;
+            if (!string.IsNullOrWhiteSpace(account))
+                accountFilter = "cdkey=@acc AND ";
+            else if (onlineOnly)
+                accountFilter = "cdkey IN (SELECT `Name` FROM csalogin WHERE Online=1) AND ";
+            else
+                accountFilter = "";
+
+            string checkFilter = unclaimedOnly ? " AND `check`=0" : "";
+            string sql = $"UPDATE maildata SET deleamill=1 WHERE {accountFilter}deleamill=0{checkFilter}";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            if (!string.IsNullOrWhiteSpace(account))
+                cmd.Parameters.AddWithValue("@acc", account.Trim());
+
+            int count = await cmd.ExecuteNonQueryAsync();
+            string scope = !string.IsNullOrWhiteSpace(account) ? account : (onlineOnly ? "在線玩家" : "全部玩家");
+            string type  = unclaimedOnly ? "未領取郵件" : "全部郵件";
+            await GmLogger.Instance.LogAsync("清除郵件", scope, $"清除{type} {count} 封", true);
+            return count;
+        }
+
         // ══════════════════════════════════════════════════════════
         // 道具直接給予（itempetgetdata 表）
         // 對應 [gm additem 道具ID 數量 帳號] 指令

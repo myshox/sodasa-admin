@@ -22,6 +22,7 @@ namespace SQ_Email_Tools
             AddTab("📬 道具給予", new ItemQueueForm());
             AddTab("💰 批量金幣", new BatchGoldForm());
             AddTab("🐾 GM 寵物", new GmPetForm());
+            AddTab("🗑 清除郵件", new MailClearForm());
 
             Controls.Add(_tabs);
         }
