@@ -160,6 +160,9 @@ namespace SQ_Email_Tools
 
         /// <summary>取得全部道具（不限筆數，供翻頁功能使用）</summary>
         public List<ItemInfo> GetAllItems() => new List<ItemInfo>(_items);
+
+        /// <summary>取得全部寵物（不限筆數）</summary>
+        public List<ItemInfo> GetAllPets() => new List<ItemInfo>(_pets);
         public ItemInfo FindItemById(int id) => _items.FirstOrDefault(i => i.Id == id)
                                              ?? _pets.FirstOrDefault(i => i.Id == id);
 

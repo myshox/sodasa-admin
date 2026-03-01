@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -1106,7 +1107,7 @@ namespace SQ_Email_Tools
     {
         public SettingsDialog()
         {
-            Text = "道具 / 寵物資料設定"; Size = new Size(580, 380);
+            Text = "道具 / 寵物資料設定"; Size = new Size(580, 460);
             BackColor = Theme.BgCard; ForeColor = Theme.TextPrimary;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false;
@@ -1116,6 +1117,20 @@ namespace SQ_Email_Tools
             int y = 20;
             AddFileRow("📦 道具列表 (items.xlsx)", gm.ItemsLoaded, gm.ItemCount, gm.PreviewItems(), false, ref y);
             AddFileRow("🐾 寵物列表 (pets.xlsx)",  gm.PetsLoaded,  gm.PetCount,  gm.PreviewPets(),  true,  ref y);
+
+            // ── 同步道具資料到 WebApp ──────────────────────────────
+            var syncLbl = new Label
+            {
+                Text      = "將本機 xlsx 資料同步到 WebApi/Data/*.json，再執行 update-server.ps1 即可更新網頁工具的道具清單。",
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                Location  = new Point(20, y), Size = new Size(540, 32), AutoSize = false
+            };
+            Controls.Add(syncLbl); y += 34;
+
+            var syncBtn = Theme.MakeButton("📤 同步道具資料到 WebApp", Theme.AccentGreen, Color.White, 210, 30);
+            syncBtn.Location = new Point(20, y);
+            syncBtn.Click += (s, e) => SyncItemsToWebApp();
+            Controls.Add(syncBtn); y += 44;
 
             var sep = new Panel { Location = new Point(0, y), Size = new Size(580, 1), BackColor = Theme.Border }; Controls.Add(sep); y += 14;
             Controls.Add(new Label { Text = "GM 操作員名稱：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(20, y + 4) });
@@ -1161,6 +1176,64 @@ namespace SQ_Email_Tools
             };
             Controls.Add(btn);
             y += 92;
+        }
+
+        private void SyncItemsToWebApp()
+        {
+            var gm = GameDataManager.Instance;
+            if (!gm.ItemsLoaded && !gm.PetsLoaded)
+            {
+                MessageBox.Show("尚未載入任何道具資料，請先選擇 items.xlsx / pets.xlsx。", "提示");
+                return;
+            }
+
+            // 往上兩層找 WebApi/Data（EXE 在 GMTool/ 或 Project/bin/...）
+            string exeDir = Path.GetDirectoryName(Application.ExecutablePath) ?? "";
+            // 向上最多找 4 層，尋找包含 WebApi 資料夾的目錄
+            string? repoRoot = null;
+            string cur = exeDir;
+            for (int i = 0; i < 5; i++)
+            {
+                if (Directory.Exists(Path.Combine(cur, "WebApi"))) { repoRoot = cur; break; }
+                var parent = Directory.GetParent(cur)?.FullName;
+                if (parent == null) break;
+                cur = parent;
+            }
+
+            if (repoRoot == null)
+            {
+                MessageBox.Show("找不到 WebApi 資料夾，請確認目錄結構正確。", "錯誤");
+                return;
+            }
+
+            string dataDir = Path.Combine(repoRoot, "WebApi", "Data");
+            Directory.CreateDirectory(dataDir);
+
+            var opts = new JsonSerializerOptions
+            {
+                WriteIndented          = false,
+                PropertyNamingPolicy   = JsonNamingPolicy.CamelCase,
+            };
+
+            int itemCnt = 0, petCnt = 0;
+            if (gm.ItemsLoaded)
+            {
+                var list = gm.GetAllItems().Select(i => new { id = i.Id, name = i.Name, desc = i.Description, isPet = false });
+                File.WriteAllText(Path.Combine(dataDir, "items.json"), JsonSerializer.Serialize(list, opts));
+                itemCnt = gm.ItemCount;
+            }
+            if (gm.PetsLoaded)
+            {
+                var list = gm.GetAllPets().Select(p => new { id = p.Id, name = p.Name, desc = p.Description, isPet = true });
+                File.WriteAllText(Path.Combine(dataDir, "pets.json"), JsonSerializer.Serialize(list, opts));
+                petCnt = gm.PetCount;
+            }
+
+            MessageBox.Show(
+                $"✓ 已寫入 {dataDir}\n\n" +
+                $"  道具：{itemCnt} 筆\n  寵物：{petCnt} 筆\n\n" +
+                "請執行 .\\update-server.ps1 推送到伺服器，\n網頁工具即可自動使用最新道具清單。",
+                "同步完成");
         }
     }
 
