@@ -26,6 +26,7 @@ const navGroups: NavGroup[] = [
     label: 'GM 工具',
     items: [
       { to: '/batchops', icon: '⚙️', label: '批量操作' },
+      { to: '/speedban', icon: '⚡', label: '加速外掛封禁' },
       { to: '/petcmd',   icon: '🐾', label: S.navPetCmd },
       { to: '/recycle',  icon: '🗑', label: S.navRecycle },
       { to: '/sql',      icon: '💻', label: S.navSql },

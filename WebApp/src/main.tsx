@@ -36,6 +36,7 @@ import GmLogPage     from './pages/GmLogPage'
 import GmPermPage    from './pages/GmPermPage'
 import BackupPage    from './pages/BackupPage'
 import ItemSendPage  from './pages/ItemSendPage'
+import SpeedBanPage  from './pages/SpeedBanPage'
 
 const Guard = ({ children }: { children: React.ReactNode }) =>
   localStorage.getItem('gm_token') ? <>{children}</> : <Navigate to="/login" replace />
@@ -86,6 +87,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="batchgold"  element={<BatchOpsPage />} />
         <Route path="itemqueue"  element={<ItemSendPage />} />
         <Route path="send"       element={<ItemSendPage />} />
+        <Route path="speedban"   element={<SpeedBanPage />} />
       </Route>
     </Routes>
   </BrowserRouter>

@@ -1767,6 +1767,43 @@ public class DbService
         return result;
     }
 
+    // ── 加速外掛偵測 ──────────────────────────────────────────────
+    public async Task<List<SpeedHackDto>> GetSpeedHackPlayersAsync(int minCnt = 1, int limit = 200)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            @"SELECT s.cdkey,
+                     IFNULL(c.OnlineName,'') charName,
+                     IFNULL(c.Online,0) isOnline,
+                     SUM(s.speedcnt) totalCnt,
+                     COUNT(*) records,
+                     MAX(s.time) lastTime,
+                     (SELECT COUNT(*) FROM `lock` l WHERE l.`Name`=s.cdkey) isBanned
+              FROM speedlog s
+              LEFT JOIN csalogin c ON c.`Name`=s.cdkey
+              GROUP BY s.cdkey
+              HAVING totalCnt >= @min
+              ORDER BY totalCnt DESC
+              LIMIT @lim", db);
+        cmd.Parameters.AddWithValue("@min", minCnt);
+        cmd.Parameters.AddWithValue("@lim", limit);
+        var list = new List<SpeedHackDto>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new SpeedHackDto
+            {
+                Account  = r.GetString("cdkey"),
+                CharName = r.GetString("charName"),
+                IsOnline = r.GetInt32("isOnline") == 1,
+                TotalCnt = r.GetInt64("totalCnt"),
+                Records  = r.GetInt32("records"),
+                LastTime = r.IsDBNull(r.GetOrdinal("lastTime")) ? "" :
+                           ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
+                IsBanned = r.GetInt32("isBanned") > 0,
+            });
+        return list;
+    }
+
     // ── 清除玩家郵件（軟刪除，deleamill=1）────────────────────────
     public async Task<int> ClearPlayerMailAsync(string account, bool unclaimedOnly)
     {

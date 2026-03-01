@@ -3181,6 +3181,61 @@ namespace SQ_Email_Tools
             return list;
         }
 
+        // ── 加速外掛統計（按帳號彙整）────────────────────────────────
+        public async Task<List<SpeedHackEntry>> GetSpeedHackPlayersAsync(long minCnt = 1, int limit = 500)
+        {
+            var list = new List<SpeedHackEntry>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT s.cdkey,
+                             IFNULL(c.OnlineName,'') charName,
+                             IFNULL(c.Online,0) isOnline,
+                             SUM(s.speedcnt) totalCnt,
+                             COUNT(*) records,
+                             MAX(s.time) lastTime,
+                             (SELECT COUNT(*) FROM `lock` l WHERE l.`Name`=s.cdkey) isBanned
+                      FROM speedlog s
+                      LEFT JOIN csalogin c ON c.`Name`=s.cdkey
+                      GROUP BY s.cdkey
+                      HAVING totalCnt >= @min
+                      ORDER BY totalCnt DESC
+                      LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@min", minCnt);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add(new SpeedHackEntry
+                    {
+                        Account  = r["cdkey"]?.ToString() ?? "",
+                        CharName = r["charName"]?.ToString() ?? "",
+                        IsOnline = Convert.ToInt32(r["isOnline"]) == 1,
+                        TotalCnt = Convert.ToInt64(r["totalCnt"]),
+                        Records  = Convert.ToInt32(r["records"]),
+                        LastTime = r["lastTime"] == DBNull.Value ? "" : ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
+                        IsBanned = Convert.ToInt32(r["isBanned"]) > 0,
+                    });
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/SpeedHack] " + ex.Message); }
+            return list;
+        }
+
+        public async Task<List<(string account, bool ok)>> BatchBanAsync(
+            IEnumerable<string> accounts, int days = 0, double hours = 0)
+        {
+            var results = new List<(string, bool)>();
+            foreach (var acc in accounts)
+            {
+                int endUnix = 0; // 0 = 永久
+                if (hours > 0)   endUnix = (int)DateTimeOffset.Now.AddHours(hours).ToUnixTimeSeconds();
+                else if (days > 0) endUnix = (int)DateTimeOffset.Now.AddDays(days).ToUnixTimeSeconds();
+                bool ok = await BanPlayerAsync(acc, endUnix, "加速外掛批量封禁");
+                results.Add((acc, ok));
+            }
+            return results;
+        }
+
         public async Task<List<(string time, string name, long point)>>
             GetPlayerHistoryCostAsync(string account, int limit = 150)
         {

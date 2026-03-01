@@ -392,3 +392,22 @@ public class ExternalRechargeRequest
     /// <summary>備註（選填，記錄用）</summary>
     public string Remark       { get; set; } = "";
 }
+
+// ── 加速外掛偵測 ──────────────────────────────────────────────
+public class SpeedHackDto
+{
+    public string Account  { get; set; } = "";
+    public string CharName { get; set; } = "";
+    public bool   IsOnline { get; set; }
+    public long   TotalCnt { get; set; }
+    public int    Records  { get; set; }
+    public string LastTime { get; set; } = "";
+    public bool   IsBanned { get; set; }
+}
+
+public class BatchBanRequest
+{
+    public List<string> Accounts { get; set; } = new();
+    public int  Days    { get; set; } = 0;   // 0 = 永久
+    public double Hours { get; set; } = 0;
+}

@@ -279,6 +279,27 @@ public class PlayersController : ControllerBase
         string scope = req.UnclaimedOnly ? "未領取郵件" : "全部郵件";
         return Ok(new { count, message = $"✓ 已清除全服 {scope} {count} 封" });
     }
+
+    /// <summary>取得加速外掛玩家列表（依總次數排序）</summary>
+    [HttpGet("speed-hackers")]
+    public async Task<IActionResult> SpeedHackers([FromQuery] int min = 1, [FromQuery] int limit = 200)
+        => Ok(await _db.GetSpeedHackPlayersAsync(min, limit));
+
+    /// <summary>批量封禁玩家</summary>
+    [HttpPost("batch-ban")]
+    public async Task<IActionResult> BatchBan([FromBody] BatchBanRequest req)
+    {
+        if (req.Accounts == null || req.Accounts.Count == 0)
+            return BadRequest(new { message = "帳號清單不可空" });
+        int success = 0, fail = 0;
+        foreach (var acc in req.Accounts)
+        {
+            try { if (await _db.SetBanAsync(acc, true, req.Days, req.Hours)) success++; else fail++; }
+            catch { fail++; }
+        }
+        string dur = req.Days > 0 ? $"{req.Days} 天" : req.Hours > 0 ? $"{req.Hours} 小時" : "永久";
+        return Ok(new { success, fail, message = $"✓ 批量封禁完成（{dur}）：成功 {success}，失敗 {fail}" });
+    }
 }
 
 public class ClearMailRequest { public bool UnclaimedOnly { get; set; } = false; }

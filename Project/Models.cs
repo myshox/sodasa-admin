@@ -482,4 +482,16 @@ namespace SQ_Email_Tools
         public Color  PointColor  => Point >= 0 ? Color.FromArgb(80, 210, 100) : Color.FromArgb(230, 80, 80);
     }
 
+    // ── 加速外掛偵測 ──────────────────────────────────────────────
+    public class SpeedHackEntry
+    {
+        public string Account  { get; set; } = "";
+        public string CharName { get; set; } = "";
+        public bool   IsOnline { get; set; }
+        public long   TotalCnt { get; set; }
+        public int    Records  { get; set; }
+        public string LastTime { get; set; } = "";
+        public bool   IsBanned { get; set; }
+    }
+
 }
