@@ -207,14 +207,15 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true;
             dgv.RowTemplate.Height = 34;
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",   HeaderText = "排名",    Width = 48,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colId",     HeaderText = "道具 ID", Width = 76 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colName",   HeaderText = "道具名稱", Width = 160 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colQty",    HeaderText = "購買總量", Width = 90,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colOrders", HeaderText = "購買筆數", Width = 80,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCost",   HeaderText = $"消耗{unit}", Width = 100, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colLast",   HeaderText = "最後購買", Width = 140 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",   HeaderText = "排名",       MinimumWidth = 44,  FillWeight = 25,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colId",     HeaderText = "道具 ID",    MinimumWidth = 80,  FillWeight = 55  });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colName",   HeaderText = "道具名稱",   MinimumWidth = 120, FillWeight = 150 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colQty",    HeaderText = "購買總量",   MinimumWidth = 80,  FillWeight = 55,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colOrders", HeaderText = "購買筆數",   MinimumWidth = 72,  FillWeight = 50,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCost",   HeaderText = $"消耗{unit}", MinimumWidth = 90,  FillWeight = 65,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colLast",   HeaderText = "最後購買",   MinimumWidth = 120, FillWeight = 80  });
 
             dgv.CellFormatting += (s, e) =>
             {
@@ -266,12 +267,13 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true;
             dgv.RowTemplate.Height = 34;
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",  HeaderText = "排名",    Width = 48,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colName",  HeaderText = "角色",    Width = 120 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCdkey", HeaderText = "帳號",    Width = 120 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colQty",   HeaderText = "購買數量", Width = 90,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCost",  HeaderText = $"消耗{unit}", Width = 100, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",  HeaderText = "排名",       MinimumWidth = 44,  FillWeight = 30,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colName",  HeaderText = "角色名稱",   MinimumWidth = 100, FillWeight = 100 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCdkey", HeaderText = "帳號",       MinimumWidth = 140, FillWeight = 140 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colQty",   HeaderText = "購買數量",   MinimumWidth = 80,  FillWeight = 65,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCost",  HeaderText = $"消耗{unit}", MinimumWidth = 90,  FillWeight = 75,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
 
             dgv.CellFormatting += (s, e) =>
             {
