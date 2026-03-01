@@ -80,6 +80,21 @@ export default function PlayersPage() {
   const [goldVal, setGoldVal] = useState('')
   const [crysVal, setCrysVal] = useState('')
 
+  // 清除郵件
+  const [clearingMail, setClearingMail] = useState(false)
+  const doClearMail = async (unclaimedOnly: boolean) => {
+    if (!detail) return
+    const label = unclaimedOnly ? '未領取郵件' : '全部郵件'
+    if (!window.confirm(`確定清除「${detail.onlineName}」的${label}？\n（此操作不可逆）`)) return
+    setClearingMail(true)
+    try {
+      const r = await api.post(`/players/${detail.account}/clear-mail`, { unclaimedOnly })
+      flash(r.data.message || '清除完成')
+      loadDetail(detail.account)
+    } catch { flash('清除失敗') }
+    finally { setClearingMail(false) }
+  }
+
   // 封號
   const [showBan, setShowBan] = useState(false)
   const [banDays, setBanDays] = useState(0)
@@ -534,6 +549,16 @@ export default function PlayersPage() {
               <Row label="NeiCe" value={String(detail.neiCe ?? 0)} />
               <Row label="寵物數" value={`${detail.petCount} 隻`} />
               <Row label="郵件" value={`${detail.unreadMails} 未讀 / ${detail.totalMails} 封`} />
+              <div style={{ display: 'flex', gap: 6, padding: '4px 0', flexWrap: 'wrap' }}>
+                <button onClick={() => doClearMail(true)} disabled={clearingMail}
+                  style={{ fontSize: 11, padding: '3px 9px', background: 'rgba(245,159,10,.12)', border: '1px solid var(--accent-orange)', borderRadius: 4, color: 'var(--accent-orange)', cursor: 'pointer', opacity: clearingMail ? 0.5 : 1 }}>
+                  🗑 清除未領取郵件
+                </button>
+                <button onClick={() => doClearMail(false)} disabled={clearingMail}
+                  style={{ fontSize: 11, padding: '3px 9px', background: 'rgba(245,101,101,.1)', border: '1px solid var(--accent-red)', borderRadius: 4, color: 'var(--accent-red)', cursor: 'pointer', opacity: clearingMail ? 0.5 : 1 }}>
+                  🗑 清除全部郵件
+                </button>
+              </div>
               <Row label={S.regTime} value={detail.regTime} />
               <Row label={S.loginTime} value={detail.loginTime} />
               <Row label={S.regIP} value={detail.regIP} />

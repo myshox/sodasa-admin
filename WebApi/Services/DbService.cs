@@ -1767,6 +1767,22 @@ public class DbService
         return result;
     }
 
+    // ── 清除玩家郵件（軟刪除，deleamill=1）────────────────────────
+    public async Task<int> ClearPlayerMailAsync(string account, bool unclaimedOnly)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        string where = string.IsNullOrWhiteSpace(account)
+            ? (unclaimedOnly ? "WHERE deleamill=0 AND `check`=0" : "WHERE deleamill=0")
+            : (unclaimedOnly
+                ? "WHERE cdkey=@acc AND deleamill=0 AND `check`=0"
+                : "WHERE cdkey=@acc AND deleamill=0");
+        await using var cmd = new MySqlCommand(
+            $"UPDATE maildata SET deleamill=1 {where}", db);
+        if (!string.IsNullOrWhiteSpace(account))
+            cmd.Parameters.AddWithValue("@acc", account.Trim());
+        return await cmd.ExecuteNonQueryAsync();
+    }
+
     private static long TryGetInt64(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt64(o); } catch { return 0; } }
     private static string TryGetString(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? "" : r.GetString(o); } catch { return ""; } }
     private static int TryGetInt32(MySqlDataReader r, string col) { try { int o = r.GetOrdinal(col); return r.IsDBNull(o) ? 0 : r.GetInt32(o); } catch { return 0; } }

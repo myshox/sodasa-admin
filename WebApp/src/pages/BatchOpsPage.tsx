@@ -596,6 +596,19 @@ const Divider = () => (
 function GlobalFixBar() {
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  const [clearMailLoading, setClearMailLoading] = useState(false)
+  const [clearMailMsg, setClearMailMsg] = useState('')
+
+  const doClearAllMail = async (unclaimedOnly: boolean) => {
+    const label = unclaimedOnly ? '未領取郵件' : '全部郵件'
+    if (!window.confirm(`確定清除全服所有玩家的${label}？\n此操作不可逆，請謹慎操作！`)) return
+    setClearMailLoading(true); setClearMailMsg('')
+    try {
+      const r = await api.post('/players/clear-all-mail', { unclaimedOnly })
+      setClearMailMsg(r.data.message || '清除完成')
+    } catch { setClearMailMsg('清除失敗') }
+    finally { setClearMailLoading(false) }
+  }
 
   const buildItemDescs = () => {
     // 合併道具 + 寵物的 {itemId, desc} 清單（只傳 desc 非空的）
@@ -620,8 +633,10 @@ function GlobalFixBar() {
 
   return (
     <div style={{ marginTop: 24, padding: '14px 18px', background: 'rgba(245,101,101,.06)', border: '1px solid rgba(245,101,101,.25)', borderRadius: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: 'var(--accent-red)', fontWeight: 700 }}>🔧 維護工具</span>
+      <div style={{ fontSize: 12, color: 'var(--accent-red)', fontWeight: 700, marginBottom: 10 }}>🔧 維護工具</div>
+
+      {/* 舊郵件修正 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
         <button onClick={() => doFix('')} disabled={loading}
           style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.4)', borderRadius: 6, color: 'var(--accent-red)', cursor: 'pointer' }}>
           {loading ? '處理中…' : `修正全服舊郵件 buff3（讓舊道具可領取）`}
@@ -629,7 +644,29 @@ function GlobalFixBar() {
         {descCount > 0
           ? <span style={{ fontSize: 11, color: 'var(--accent-green)' }}>✓ 已載入 {descCount} 種道具描述，可完整修復</span>
           : <span style={{ fontSize: 11, color: 'var(--accent-orange)' }}>⚠ 請先在左側載入 items.xlsx 以確保所有道具都能修復</span>}
-        {msg && <div style={{ width: '100%', marginTop: 6, fontSize: 12, color: msg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)', whiteSpace: 'pre-line' }}>{msg}</div>}
+        {msg && <div style={{ width: '100%', fontSize: 12, color: msg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)', whiteSpace: 'pre-line' }}>{msg}</div>}
+      </div>
+
+      {/* 清除全服郵件 */}
+      <div style={{ borderTop: '1px solid rgba(245,101,101,.2)', paddingTop: 10 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+          🗑 一鍵清除全服遊戲內郵件（軟刪除，玩家信箱會清空）
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => doClearAllMail(true)} disabled={clearMailLoading}
+            style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(245,159,10,.12)', border: '1px solid var(--accent-orange)', borderRadius: 6, color: 'var(--accent-orange)', cursor: 'pointer', opacity: clearMailLoading ? 0.5 : 1 }}>
+            {clearMailLoading ? '處理中…' : '清除全服未領取郵件'}
+          </button>
+          <button onClick={() => doClearAllMail(false)} disabled={clearMailLoading}
+            style={{ fontSize: 12, padding: '6px 14px', background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.5)', borderRadius: 6, color: 'var(--accent-red)', cursor: 'pointer', opacity: clearMailLoading ? 0.5 : 1 }}>
+            {clearMailLoading ? '處理中…' : '清除全服所有郵件'}
+          </button>
+        </div>
+        {clearMailMsg && (
+          <div style={{ marginTop: 6, fontSize: 12, color: clearMailMsg.includes('失敗') ? 'var(--accent-red)' : 'var(--accent-green)' }}>
+            {clearMailMsg}
+          </div>
+        )}
       </div>
     </div>
   )

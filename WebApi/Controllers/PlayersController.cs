@@ -261,8 +261,27 @@ public class PlayersController : ControllerBase
         string msg = $"✓ 修正完成（{scope}）{descNote}\n• 標題修正：{fixedCount} 筆\n• buff3 回填：{buff3Fixed} 筆\n• 掃描 buff3 空筆數：{total} 筆";
         return Ok(new { fixedCount, buff3Fixed, total, message = msg });
     }
+
+    /// <summary>清除指定玩家的遊戲內郵件（軟刪除 deleamill=1）</summary>
+    [HttpPost("{account}/clear-mail")]
+    public async Task<IActionResult> ClearPlayerMail(string account, [FromBody] ClearMailRequest req)
+    {
+        var count = await _db.ClearPlayerMailAsync(account, req.UnclaimedOnly);
+        string scope = req.UnclaimedOnly ? "未領取郵件" : "全部郵件";
+        return Ok(new { count, message = $"✓ 已清除「{account}」{scope} {count} 封" });
+    }
+
+    /// <summary>清除全服所有玩家的遊戲內郵件（軟刪除 deleamill=1）</summary>
+    [HttpPost("clear-all-mail")]
+    public async Task<IActionResult> ClearAllMail([FromBody] ClearMailRequest req)
+    {
+        var count = await _db.ClearPlayerMailAsync("", req.UnclaimedOnly);
+        string scope = req.UnclaimedOnly ? "未領取郵件" : "全部郵件";
+        return Ok(new { count, message = $"✓ 已清除全服 {scope} {count} 封" });
+    }
 }
 
+public class ClearMailRequest { public bool UnclaimedOnly { get; set; } = false; }
 public class ItemDescEntry { public int ItemId { get; set; } public string? Desc { get; set; } }
 public class FixOldMailsRequest { public string Account { get; set; } = ""; public List<ItemDescEntry>? ItemDescriptions { get; set; } }
 
