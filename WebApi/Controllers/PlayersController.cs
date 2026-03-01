@@ -78,7 +78,7 @@ public class PlayersController : ControllerBase
         if (req.Cart == null || req.Cart.Count == 0)
             return BadRequest(new { message = "購物車為空" });
         var (count, fail, sentAccounts, lastError) = await _db.BatchSendCartAsync(
-            req.Target, req.CustomList, req.Cart, req.Title, req.Content);
+            req.Target, req.CustomList, req.Cart, req.Title, req.Content, req.ExcludeList);
         if (sentAccounts.Count == 0)
         {
             string errHint = string.IsNullOrEmpty(lastError) ? "" : $"\n錯誤：{lastError}";

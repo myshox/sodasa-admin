@@ -276,11 +276,18 @@ function BatchSendTab() {
   const [manualId, setManualId] = useState('')
   const [manualQty, setManualQty] = useState(1)
   const [manualType, setManualType] = useState(1)
+  // 排除名單
+  const [excludeQ, setExcludeQ] = useState('')
+  const [excluded, setExcluded] = useState<{account: string; name: string}[]>([])
+  const [showExclude, setShowExclude] = useState(false)
 
   const addToCart = (item: CartItem) => setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
   const toggleSelect = (acc: string) => { const s = new Set(selected); s.has(acc) ? s.delete(acc) : s.add(acc); setSelected(s) }
+  const invertSelect = () => setSelected(new Set(searchList.map(p => p.account).filter(a => !selected.has(a))))
+  const addExclude = (p: PlayerRow) => { if (!excluded.find(e => e.account === p.account)) setExcluded(prev => [...prev, { account: p.account, name: p.onlineName || p.account }]); setExcludeQ('') }
+  const removeExclude = (acc: string) => setExcluded(prev => prev.filter(e => e.account !== acc))
   const btnStyle = (v: string) => ({ padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, background: target === v ? 'var(--accent-blue)' : 'var(--bg-input)', color: target === v ? '#fff' : 'var(--text-secondary)', border: `1px solid ${target === v ? 'var(--accent-blue)' : 'var(--border)'}`, cursor: 'pointer' })
 
   const send = async () => {
@@ -288,16 +295,22 @@ function BatchSendTab() {
     let targetStr = target, customListStr = custom
     if (target === 'search') {
       if (selected.size === 0) { setResult('請勾選至少一位玩家'); setResultOk(false); return }
-      targetStr = 'custom'; customListStr = Array.from(selected).join('\n')
+      // 搜尋勾選：勾選的人 再扣掉排除名單
+      const finalSelected = Array.from(selected).filter(a => !excluded.find(e => e.account === a))
+      if (finalSelected.length === 0) { setResult('所有勾選玩家都被排除了'); setResultOk(false); return }
+      targetStr = 'custom'; customListStr = finalSelected.join('\n')
     }
+    const excludeList = excluded.map(e => e.account)
     const label = target === 'all' ? '全部玩家' : target === 'online' ? '在線玩家' : target === 'search' ? `${selected.size} 位玩家` : '自訂名單'
-    if (!window.confirm(`確認批量發送？\n目標：${label}\n道具：${cart.length} 種`)) return
+    const excludeNote = excludeList.length > 0 ? `\n排除：${excludeList.length} 人` : ''
+    if (!window.confirm(`確認批量發送？\n目標：${label}${excludeNote}\n道具：${cart.length} 種`)) return
     setLoading(true); setResult(''); setSentAccounts([]); setShowSent(false)
     try {
       const r = await api.post('/players/batch-send-cart', {
         target: targetStr, customList: customListStr,
         cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })),
         title, content,
+        excludeList: target !== 'search' ? excludeList : [], // search 模式已在前端過濾
       })
       const ok = (r.data.accounts?.length ?? 0) > 0
       setResult(r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`)
@@ -323,28 +336,69 @@ function BatchSendTab() {
             <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>📝 自訂帳號</button>
             <button style={btnStyle('search')} onClick={() => setTarget('search')}>🔍 搜尋勾選</button>
           </div>
+
           {target === 'custom' && <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder={'一行一個帳號\naccount1\naccount2'} style={{ width: '100%', height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />}
+
           {target === 'search' && <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <PlayerAutocomplete value={searchQ} onChange={setSearchQ} onSelect={(p: PlayerRow) => { setSearchList(prev => prev.find(x => x.account === p.account) ? prev : [...prev, p]); setSelected(prev => { const s = new Set(prev); s.add(p.account); return s }); setSearchQ('') }} placeholder="搜尋玩家加入清單…" style={{ flex: 1 }} />
-              <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online'); setSearchList(r.data); setSelected(new Set()) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online'), padding: '6px 10px', fontSize: 12 }}>{listLoading ? '載入…' : '在線'}</button>
-              <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/list', { params: { limit: 500 } }); setSearchList(r.data); setSelected(new Set()) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('all'), padding: '6px 10px', fontSize: 12 }}>全部</button>
+              <PlayerAutocomplete value={searchQ} onChange={setSearchQ}
+                onSelect={(p: PlayerRow) => { setSearchList(prev => prev.find(x => x.account === p.account) ? prev : [...prev, p]); setSelected(prev => { const s = new Set(prev); s.add(p.account); return s }); setSearchQ('') }}
+                placeholder="搜尋玩家加入清單…" style={{ flex: 1 }} />
+              <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online'); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online'), padding: '6px 10px', fontSize: 12 }}>{listLoading ? '載入…' : '載入在線'}</button>
+              <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/list', { params: { limit: 500 } }); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('all'), padding: '6px 10px', fontSize: 12 }}>載入全部</button>
             </div>
             {searchList.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-input)', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-input)', borderBottom: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap' }}>
                 <span style={{ color: 'var(--text-muted)', flex: 1 }}>共 {searchList.length} 人，已勾選 {selected.size} 人</span>
-                <button onClick={() => setSelected(new Set(searchList.map(p => p.account)))} style={{ fontSize: 11, padding: '2px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>全選</button>
+                <button onClick={() => setSelected(new Set(searchList.map(p => p.account)))} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(74,158,255,.15)', border: '1px solid var(--accent-blue)', borderRadius: 4, cursor: 'pointer', color: 'var(--accent-blue)' }}>全選</button>
+                <button onClick={invertSelect} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(246,173,85,.15)', border: '1px solid var(--accent-orange)', borderRadius: 4, cursor: 'pointer', color: 'var(--accent-orange)' }}>反選</button>
                 <button onClick={() => setSelected(new Set())} style={{ fontSize: 11, padding: '2px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer' }}>清除</button>
               </div>
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                {searchList.map(p => <div key={p.account} onClick={() => toggleSelect(p.account)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent', fontSize: 12 }}>
-                  <input type="checkbox" checked={selected.has(p.account)} onChange={() => { }} style={{ pointerEvents: 'none' }} />
-                  <span style={{ fontSize: 11 }}>{p.isOnline ? '🟢' : '⚫'}</span>
-                  <span style={{ fontWeight: 600, flex: 1 }}>{p.onlineName || p.account}</span>
-                </div>)}
+                {searchList.map(p => {
+                  const isExcluded = excluded.some(e => e.account === p.account)
+                  return (
+                    <div key={p.account} onClick={() => !isExcluded && toggleSelect(p.account)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: isExcluded ? 'not-allowed' : 'pointer', background: isExcluded ? 'rgba(245,101,101,.05)' : selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent', fontSize: 12, opacity: isExcluded ? 0.5 : 1 }}>
+                      <input type="checkbox" checked={selected.has(p.account) && !isExcluded} onChange={() => {}} style={{ pointerEvents: 'none' }} />
+                      <span style={{ fontSize: 11 }}>{p.isOnline ? '🟢' : '⚫'}</span>
+                      <span style={{ fontWeight: 600, flex: 1 }}>{p.onlineName || p.account}</span>
+                      {isExcluded && <span style={{ fontSize: 10, color: 'var(--accent-red)', background: 'rgba(245,101,101,.15)', padding: '1px 6px', borderRadius: 10 }}>已排除</span>}
+                    </div>
+                  )
+                })}
               </div>
             </div>}
           </div>}
+
+          {/* ── 排除名單（全部/在線/搜尋勾選皆可用）── */}
+          {target !== 'custom' && (
+            <div style={{ marginTop: 10 }}>
+              <button onClick={() => setShowExclude(v => !v)}
+                style={{ fontSize: 11, padding: '3px 10px', background: excluded.length > 0 ? 'rgba(245,101,101,.15)' : 'var(--bg-input)', border: `1px solid ${excluded.length > 0 ? 'var(--accent-red)' : 'var(--border)'}`, borderRadius: 5, cursor: 'pointer', color: excluded.length > 0 ? 'var(--accent-red)' : 'var(--text-muted)' }}>
+                🚫 排除名單{excluded.length > 0 ? `（${excluded.length} 人）` : ''}
+              </button>
+              {showExclude && (
+                <div style={{ marginTop: 8, padding: '10px 12px', background: 'rgba(245,101,101,.05)', border: '1px solid rgba(245,101,101,.25)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--accent-red)', marginBottom: 8 }}>排除名單中的玩家不會收到道具（即使在全部/在線名單中）</div>
+                  <PlayerAutocomplete value={excludeQ} onChange={setExcludeQ}
+                    onSelect={(p: PlayerRow) => addExclude(p)}
+                    placeholder="搜尋要排除的玩家…" style={{ marginBottom: 8 }} />
+                  {excluded.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {excluded.map(e => (
+                        <span key={e.account} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.4)', borderRadius: 12, fontSize: 11 }}>
+                          <span style={{ color: 'var(--text-primary)' }}>{e.name}</span>
+                          <button onClick={() => removeExclude(e.account)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)', padding: 0, fontSize: 13, minHeight: 0 }}>×</button>
+                        </span>
+                      ))}
+                      <button onClick={() => setExcluded([])} style={{ fontSize: 11, padding: '2px 8px', background: 'none', border: '1px solid var(--border)', borderRadius: 10, cursor: 'pointer', color: 'var(--text-muted)' }}>清空</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
         <Card title="STEP 2 — 加入道具">
           <div style={{ marginBottom: 10 }}><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>

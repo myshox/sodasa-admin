@@ -906,7 +906,8 @@ public class DbService
 
     // ── 批量購物車發送 ──────────────────────────────────────────
     public async Task<(int count, int fail, List<string> sentAccounts, string lastError)> BatchSendCartAsync(
-        string target, string customList, List<CartItem> cart, string title, string content)
+        string target, string customList, List<CartItem> cart, string title, string content,
+        List<string>? excludeList = null)
     {
         if (cart == null || cart.Count == 0) return (0, 0, new List<string>(), "購物車為空");
         await using var db = Open(); await db.OpenAsync();
@@ -923,7 +924,13 @@ public class DbService
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
-        if (accounts.Count == 0) return (0, 0, new List<string>(), "找不到符合條件的玩家帳號");
+        // 套用排除名單
+        if (excludeList != null && excludeList.Count > 0)
+        {
+            var excludeSet = new HashSet<string>(excludeList.Select(s => s.Trim()), StringComparer.OrdinalIgnoreCase);
+            accounts = accounts.Where(a => !excludeSet.Contains(a)).ToList();
+        }
+        if (accounts.Count == 0) return (0, 0, new List<string>(), "找不到符合條件的玩家帳號（排除後為空）");
 
         int  nowInt = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         int  endInt = nowInt + 30 * 24 * 3600;

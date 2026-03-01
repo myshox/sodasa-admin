@@ -166,6 +166,7 @@ public class BatchSendCartRequest
     public string     Title       { get; set; } = "";
     public string     Content     { get; set; } = "";
     public string     ExpireDate  { get; set; } = "";
+    public List<string> ExcludeList { get; set; } = new(); // 排除帳號
 }
 
 public class MailHistoryDto
