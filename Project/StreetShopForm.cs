@@ -70,13 +70,11 @@ namespace SQ_Email_Tools
 
             var split = new SplitContainer
             {
-                Dock        = DockStyle.Fill,
-                Orientation = Orientation.Vertical,
-                SplitterDistance = 240,
-                Panel1MinSize = 180,
-                Panel2MinSize = 400,
-                BackColor   = Theme.BgMid,
+                Dock          = DockStyle.Fill,
+                Orientation   = Orientation.Vertical,
+                BackColor     = Theme.BgMid,
                 SplitterWidth = 4
+                // Panel1MinSize / Panel2MinSize / SplitterDistance 必須等加入 parent 後再設定
             };
 
             // ── 左側：攤主清單 ──────────────────────────────────────
@@ -154,6 +152,20 @@ namespace SQ_Email_Tools
             split.Panel2.Controls.Add(_vendorInnerTabs);
 
             page.Controls.Add(split);
+
+            // 延遲設定 MinSize 與 SplitterDistance（等控件有實際寬度後才設定）
+            split.HandleCreated += (s, e) =>
+            {
+                try
+                {
+                    split.Panel1MinSize = 180;
+                    split.Panel2MinSize = 400;
+                    if (split.Width > 180 + 400 + split.SplitterWidth)
+                        split.SplitterDistance = 240;
+                }
+                catch { }
+            };
+
             return page;
         }
 
