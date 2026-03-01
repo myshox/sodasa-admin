@@ -396,13 +396,15 @@ public class ExternalRechargeRequest
 // ── 加速外掛偵測 ──────────────────────────────────────────────
 public class SpeedHackDto
 {
-    public string Account  { get; set; } = "";
-    public string CharName { get; set; } = "";
-    public bool   IsOnline { get; set; }
-    public long   TotalCnt { get; set; }
-    public int    Records  { get; set; }
-    public string LastTime { get; set; } = "";
-    public bool   IsBanned { get; set; }
+    public string Account      { get; set; } = "";
+    public string CharName     { get; set; } = "";
+    public bool   IsOnline     { get; set; }
+    public long   TotalCnt     { get; set; }
+    public int    Records      { get; set; }
+    public string LastTime     { get; set; } = "";
+    public double AvgSpeedTime { get; set; }   // 平均每筆 speedtime（異常持續量）
+    public int    MaxSpeedTime { get; set; }   // 最大單筆 speedtime
+    public bool   IsBanned     { get; set; }
 }
 
 public class BatchBanRequest

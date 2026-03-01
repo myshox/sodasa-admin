@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using OfficeOpenXml;
 
 namespace SQ_Email_Tools
 {
@@ -11,7 +13,7 @@ namespace SQ_Email_Tools
     public class SpeedHackForm : Form
     {
         private NumericUpDown   _nudMin;
-        private Button          _btnLoad;
+        private Button          _btnLoad, _btnExport;
         private Label           _summaryLbl;
         private DataGridView    _dgv;
         private ComboBox        _cmbDuration;
@@ -34,7 +36,7 @@ namespace SQ_Email_Tools
             var toolbar = new Panel
             {
                 Dock      = DockStyle.Top,
-                Height    = 48,
+                Height    = 60,
                 BackColor = Theme.BgCard,
                 Padding   = new Padding(10, 8, 10, 0),
             };
@@ -47,6 +49,18 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(10, 12)
             };
+
+            // 說明標籤：檢測依據
+            var lDesc = new Label
+            {
+                Text      = "根據遊戲引擎寫入的 speedlog 表彙整。speedcnt = 異常加速次數；speedtime = 異常持續量（Tick）。本工具僅統計，非自行偵測。",
+                ForeColor = Theme.TextMuted,
+                Font      = new Font(Theme.FontFamily, 8f),
+                Location  = new Point(10, 34),
+                Size      = new Size(580, 16),
+                AutoSize  = false,
+            };
+            toolbar.Controls.Add(lDesc);
 
             var lMin = new Label
             {
@@ -75,16 +89,22 @@ namespace SQ_Email_Tools
             _btnLoad.Font     = Theme.FontBody;
             _btnLoad.Click   += async (s, e) => await LoadDataAsync();
 
+            _btnExport = Theme.MakeButton("📊 匯出 Excel", Theme.AccentGreen, Color.White, 110, 28);
+            _btnExport.Location = new Point(470, 10);
+            _btnExport.Font     = Theme.FontBody;
+            _btnExport.Enabled  = false;
+            _btnExport.Click   += ExportToExcel;
+
             _summaryLbl = new Label
             {
                 Text      = "",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(480, 16)
+                Location  = new Point(596, 16)
             };
 
-            toolbar.Controls.AddRange(new Control[] { lTitle, lMin, _nudMin, _btnLoad, _summaryLbl });
+            toolbar.Controls.AddRange(new Control[] { lTitle, lMin, _nudMin, _btnLoad, _btnExport, _summaryLbl });
 
             // ── 批量操作列 ────────────────────────────────────────────
             var actionBar = new Panel
@@ -194,22 +214,26 @@ namespace SQ_Email_Tools
                     ReadOnly = false,
                     TrueValue = true, FalseValue = false,
                 });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "status",   HeaderText = "狀態",         ReadOnly = true, Width = 80  });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "charName",  HeaderText = "角色名稱",     ReadOnly = true, FillWeight = 120 });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "account",   HeaderText = "帳號",         ReadOnly = true, FillWeight = 120 });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "totalCnt",  HeaderText = "異常總次數",   ReadOnly = true, Width = 100, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "records",   HeaderText = "紀錄筆數",     ReadOnly = true, Width = 80,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "lastTime",  HeaderText = "最後偵測時間", ReadOnly = true, Width = 140 });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "status",       HeaderText = "狀態",           ReadOnly = true, Width = 80  });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "charName",    HeaderText = "角色名稱",       ReadOnly = true, FillWeight = 110 });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "account",     HeaderText = "帳號",           ReadOnly = true, FillWeight = 110 });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "totalCnt",    HeaderText = "異常總次數",     ReadOnly = true, Width = 100, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "records",     HeaderText = "紀錄筆數",       ReadOnly = true, Width = 80,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "avgSpeed",    HeaderText = "平均 speedtime", ReadOnly = true, Width = 110, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "maxSpeed",    HeaderText = "最大 speedtime", ReadOnly = true, Width = 110, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+                _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "lastTime",    HeaderText = "最後偵測時間",   ReadOnly = true, Width = 140 });
 
                 foreach (var p in _allData)
                 {
                     int idx = _dgv.Rows.Add(
-                        false,                                       // 選取
+                        false,
                         p.IsBanned ? "🔒 已封" : p.IsOnline ? "🟢 在線" : "⚫ 離線",
                         p.CharName,
                         p.Account,
                         p.TotalCnt.ToString("N0"),
                         p.Records,
+                        p.AvgSpeedTime.ToString("F1"),
+                        p.MaxSpeedTime.ToString("N0"),
                         p.LastTime
                     );
                     var row = _dgv.Rows[idx];
@@ -232,6 +256,7 @@ namespace SQ_Email_Tools
                 int pending = _allData.Count - banned;
                 _summaryLbl.Text      = $"共 {_allData.Count} 人 | 已封 {banned} | 待處理 {pending}";
                 _summaryLbl.ForeColor = Theme.TextPrimary;
+                _btnExport.Enabled    = _allData.Count > 0;
             }
             catch (Exception ex)
             {
@@ -321,6 +346,77 @@ namespace SQ_Email_Tools
                 _statusLbl.ForeColor = Theme.AccentRed;
                 _statusLbl.Text      = "封禁失敗：" + ex.Message;
                 _btnBanSelected.Enabled = true;
+            }
+        }
+
+        private void ExportToExcel(object sender, EventArgs e)
+        {
+            if (_allData.Count == 0) return;
+
+            using var sfd = new SaveFileDialog
+            {
+                Filter   = "Excel 檔案|*.xlsx",
+                FileName = $"加速外掛報表_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
+                Title    = "匯出加速外掛報表"
+            };
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                using var pkg = new ExcelPackage();
+                var ws = pkg.Workbook.Worksheets.Add("加速外掛偵測報表");
+
+                // ── 標題列 ──────────────────────────────
+                string[] headers = { "狀態", "角色名稱", "帳號", "異常總次數(speedcnt)", "紀錄筆數", "平均speedtime", "最大speedtime", "最後偵測時間", "備註" };
+                for (int c = 0; c < headers.Length; c++)
+                {
+                    ws.Cells[1, c + 1].Value = headers[c];
+                    ws.Cells[1, c + 1].Style.Font.Bold = true;
+                    ws.Cells[1, c + 1].Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
+                    ws.Cells[1, c + 1].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(30, 30, 40));
+                    ws.Cells[1, c + 1].Style.Font.Color.SetColor(Color.FromArgb(180, 180, 200));
+                }
+
+                // ── 說明列 ──────────────────────────────
+                ws.Cells[2, 1].Value = "【偵測說明】speedcnt = 遊戲引擎偵測到的異常加速次數累計；speedtime = 每次異常持續的 Tick 量（越大代表持續越久）。資料來源：speedlog 表。";
+                ws.Cells[2, 1, 2, headers.Length].Merge = true;
+                ws.Cells[2, 1].Style.Font.Italic = true;
+                ws.Cells[2, 1].Style.Font.Color.SetColor(Color.FromArgb(140, 140, 160));
+
+                // ── 資料列 ──────────────────────────────
+                int row = 3;
+                foreach (var p in _allData)
+                {
+                    ws.Cells[row, 1].Value = p.IsBanned ? "已封禁" : p.IsOnline ? "在線" : "離線";
+                    ws.Cells[row, 2].Value = p.CharName;
+                    ws.Cells[row, 3].Value = p.Account;
+                    ws.Cells[row, 4].Value = p.TotalCnt;
+                    ws.Cells[row, 5].Value = p.Records;
+                    ws.Cells[row, 6].Value = p.AvgSpeedTime;
+                    ws.Cells[row, 7].Value = p.MaxSpeedTime;
+                    ws.Cells[row, 8].Value = p.LastTime;
+                    ws.Cells[row, 9].Value = p.IsBanned ? "已處理" : p.TotalCnt > 1000 ? "⚠ 高風險" : p.TotalCnt > 100 ? "⚠ 中風險" : "低風險";
+
+                    // 高風險紅色標示
+                    if (!p.IsBanned && p.TotalCnt > 1000)
+                        ws.Cells[row, 4].Style.Font.Color.SetColor(Color.FromArgb(220, 60, 60));
+                    else if (!p.IsBanned && p.TotalCnt > 100)
+                        ws.Cells[row, 4].Style.Font.Color.SetColor(Color.FromArgb(230, 140, 40));
+
+                    row++;
+                }
+
+                ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                pkg.SaveAs(new FileInfo(sfd.FileName));
+
+                if (MessageBox.Show($"✓ 已匯出 {_allData.Count} 筆到\n{sfd.FileName}\n\n是否立即開啟？",
+                    "匯出成功", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

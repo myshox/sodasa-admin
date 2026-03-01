@@ -8,6 +8,8 @@ interface SpeedPlayer {
   isOnline: boolean
   totalCnt: number
   records: number
+  avgSpeedTime: number
+  maxSpeedTime: number
   lastTime: string
   isBanned: boolean
 }
@@ -22,6 +24,22 @@ export default function SpeedBanPage() {
   const [banning, setBanning]   = useState(false)
   const [msg, setMsg]         = useState('')
   const [msgOk, setMsgOk]     = useState(true)
+
+  const exportCsv = () => {
+    if (list.length === 0) return
+    const BOM = '\uFEFF'
+    const header = '狀態,角色名稱,帳號,異常總次數(speedcnt),紀錄筆數,平均speedtime,最大speedtime,最後偵測時間,風險等級'
+    const rows = list.map(p => {
+      const status = p.isBanned ? '已封禁' : p.isOnline ? '在線' : '離線'
+      const risk   = p.isBanned ? '已處理' : p.totalCnt > 1000 ? '高風險' : p.totalCnt > 100 ? '中風險' : '低風險'
+      return [status, p.charName, p.account, p.totalCnt, p.records, p.avgSpeedTime?.toFixed(1) ?? '0', p.maxSpeedTime ?? 0, p.lastTime, risk].join(',')
+    })
+    const csv = BOM + [header, ...rows].join('\n')
+    const a   = document.createElement('a')
+    a.href    = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    a.download = `加速外掛報表_${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+  }
 
   const load = async () => {
     setLoading(true); setMsg(''); setSelected(new Set())
@@ -75,9 +93,14 @@ export default function SpeedBanPage() {
   return (
     <div style={{ padding: isMobile ? 12 : 28 }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>⚡ 加速外掛偵測</h1>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-        根據 speedlog 統計各玩家累計異常加速次數，可一鍵批量封禁。
-      </p>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.8 }}>
+        <p style={{ margin: 0 }}>根據遊戲引擎寫入的 <code style={{ background: 'var(--bg-input)', padding: '1px 5px', borderRadius: 3 }}>speedlog</code> 表統計各玩家資料，可一鍵批量封禁。</p>
+        <p style={{ margin: '4px 0 0', fontSize: 12 }}>
+          📌 <b>speedcnt</b>（異常總次數）= 引擎偵測到玩家移動速度超標的累計次數。
+          ｜ <b>speedtime</b>（異常持續量）= 每次異常持續的 Tick 數，越大代表加速外掛使用越久。
+          ｜ 紀錄筆數 = speedlog 中該玩家的資料列數（每次登入/移動可能產生多筆）。
+        </p>
+      </div>
 
       {/* 搜尋列 */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
@@ -91,6 +114,12 @@ export default function SpeedBanPage() {
           style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 20px', fontSize: 13 }}>
           {loading ? '載入中…' : '🔍 查詢'}
         </button>
+        {list.length > 0 && (
+          <button onClick={exportCsv}
+            style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 16px', fontSize: 13, borderRadius: 6 }}>
+            📊 匯出 CSV
+          </button>
+        )}
         {list.length > 0 && (
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             共 {list.length} 人，
@@ -173,6 +202,8 @@ export default function SpeedBanPage() {
                   <Th>帳號</Th>
                   <Th align="right">異常總次數</Th>
                   <Th align="right">紀錄筆數</Th>
+                  <Th align="right">平均 speedtime</Th>
+                  <Th align="right">最大 speedtime</Th>
                   <Th>最後偵測時間</Th>
                 </tr>
               </thead>
@@ -214,6 +245,12 @@ export default function SpeedBanPage() {
                     </td>
                     <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>
                       {p.records}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                      {p.avgSpeedTime?.toFixed(1) ?? '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>
+                      {p.maxSpeedTime?.toLocaleString() ?? '—'}
                     </td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>{p.lastTime}</td>
                   </tr>

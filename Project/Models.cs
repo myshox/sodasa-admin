@@ -485,13 +485,15 @@ namespace SQ_Email_Tools
     // ── 加速外掛偵測 ──────────────────────────────────────────────
     public class SpeedHackEntry
     {
-        public string Account  { get; set; } = "";
-        public string CharName { get; set; } = "";
-        public bool   IsOnline { get; set; }
-        public long   TotalCnt { get; set; }
-        public int    Records  { get; set; }
-        public string LastTime { get; set; } = "";
-        public bool   IsBanned { get; set; }
+        public string Account      { get; set; } = "";
+        public string CharName     { get; set; } = "";
+        public bool   IsOnline     { get; set; }
+        public long   TotalCnt     { get; set; }
+        public int    Records      { get; set; }
+        public string LastTime     { get; set; } = "";
+        public double AvgSpeedTime { get; set; }
+        public int    MaxSpeedTime { get; set; }
+        public bool   IsBanned     { get; set; }
     }
 
 }

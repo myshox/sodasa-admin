@@ -3192,9 +3192,11 @@ namespace SQ_Email_Tools
                     @"SELECT s.cdkey,
                              IFNULL(c.OnlineName,'') charName,
                              IFNULL(c.Online,0) isOnline,
-                             SUM(s.speedcnt) totalCnt,
-                             COUNT(*) records,
-                             MAX(s.time) lastTime,
+                             SUM(s.speedcnt)           totalCnt,
+                             COUNT(*)                  records,
+                             MAX(s.time)               lastTime,
+                             ROUND(AVG(s.speedtime),1) avgSpeedTime,
+                             MAX(s.speedtime)          maxSpeedTime,
                              (SELECT COUNT(*) FROM `lock` l WHERE l.`Name`=s.cdkey) isBanned
                       FROM speedlog s
                       LEFT JOIN csalogin c ON c.`Name`=s.cdkey
@@ -3208,13 +3210,15 @@ namespace SQ_Email_Tools
                 while (await r.ReadAsync())
                     list.Add(new SpeedHackEntry
                     {
-                        Account  = r["cdkey"]?.ToString() ?? "",
-                        CharName = r["charName"]?.ToString() ?? "",
-                        IsOnline = Convert.ToInt32(r["isOnline"]) == 1,
-                        TotalCnt = Convert.ToInt64(r["totalCnt"]),
-                        Records  = Convert.ToInt32(r["records"]),
-                        LastTime = r["lastTime"] == DBNull.Value ? "" : ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
-                        IsBanned = Convert.ToInt32(r["isBanned"]) > 0,
+                        Account      = r["cdkey"]?.ToString() ?? "",
+                        CharName     = r["charName"]?.ToString() ?? "",
+                        IsOnline     = Convert.ToInt32(r["isOnline"]) == 1,
+                        TotalCnt     = Convert.ToInt64(r["totalCnt"]),
+                        Records      = Convert.ToInt32(r["records"]),
+                        LastTime     = r["lastTime"] == DBNull.Value ? "" : ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
+                        AvgSpeedTime = r["avgSpeedTime"] == DBNull.Value ? 0 : Convert.ToDouble(r["avgSpeedTime"]),
+                        MaxSpeedTime = r["maxSpeedTime"] == DBNull.Value ? 0 : Convert.ToInt32(r["maxSpeedTime"]),
+                        IsBanned     = Convert.ToInt32(r["isBanned"]) > 0,
                     });
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/SpeedHack] " + ex.Message); }

@@ -1775,9 +1775,11 @@ public class DbService
             @"SELECT s.cdkey,
                      IFNULL(c.OnlineName,'') charName,
                      IFNULL(c.Online,0) isOnline,
-                     SUM(s.speedcnt) totalCnt,
-                     COUNT(*) records,
-                     MAX(s.time) lastTime,
+                     SUM(s.speedcnt)    totalCnt,
+                     COUNT(*)           records,
+                     MAX(s.time)        lastTime,
+                     ROUND(AVG(s.speedtime),1) avgSpeedTime,
+                     MAX(s.speedtime)          maxSpeedTime,
                      (SELECT COUNT(*) FROM `lock` l WHERE l.`Name`=s.cdkey) isBanned
               FROM speedlog s
               LEFT JOIN csalogin c ON c.`Name`=s.cdkey
@@ -1792,14 +1794,16 @@ public class DbService
         while (await r.ReadAsync())
             list.Add(new SpeedHackDto
             {
-                Account  = r.GetString("cdkey"),
-                CharName = r.GetString("charName"),
-                IsOnline = r.GetInt32("isOnline") == 1,
-                TotalCnt = r.GetInt64("totalCnt"),
-                Records  = r.GetInt32("records"),
-                LastTime = r.IsDBNull(r.GetOrdinal("lastTime")) ? "" :
-                           ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
-                IsBanned = r.GetInt32("isBanned") > 0,
+                Account      = r.GetString("cdkey"),
+                CharName     = r.GetString("charName"),
+                IsOnline     = r.GetInt32("isOnline") == 1,
+                TotalCnt     = r.GetInt64("totalCnt"),
+                Records      = r.GetInt32("records"),
+                LastTime     = r.IsDBNull(r.GetOrdinal("lastTime")) ? "" :
+                               ((DateTime)r["lastTime"]).ToString("yyyy/MM/dd HH:mm"),
+                AvgSpeedTime = r.IsDBNull(r.GetOrdinal("avgSpeedTime")) ? 0 : r.GetDouble("avgSpeedTime"),
+                MaxSpeedTime = r.IsDBNull(r.GetOrdinal("maxSpeedTime")) ? 0 : r.GetInt32("maxSpeedTime"),
+                IsBanned     = r.GetInt32("isBanned") > 0,
             });
         return list;
     }
