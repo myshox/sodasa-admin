@@ -14,8 +14,10 @@ namespace SQ_Email_Tools
         // ── 側邊欄 & 內容區 ──────────────────────────────────────
         private Panel   _sidebar, _contentArea, _navPanel;
         private Panel   _playerPage;        // 玩家管理的所有控件放在此 Panel
+        private Panel   _playerContent;     // 玩家管理右側內容區（DataGridView 等）
         private Panel   _currentHubPanel;   // 目前嵌入的 Hub 面板
         private Button  _btnPlayerNav;      // 玩家管理導覽按鈕（用於 Hub 關閉後還原高亮）
+        private Button  _playerSubActive;   // 玩家管理左側子選單目前選中項
         private Label   _lblDbDot, _lblDbText, _lblGmName;
 
         // ── 玩家管理視圖 ──────────────────────────────────────────
@@ -584,8 +586,11 @@ namespace SQ_Email_Tools
         {
             _contentArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
 
-            // 所有玩家管理控件放入 _playerPage，方便切換 Hub 時整體顯示/隱藏
+            // 玩家管理容器（包含左側子選單 + 右側內容）
             _playerPage = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
+
+            // 右側內容區（DataGridView 等）
+            _playerContent = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
 
             BuildStatusBar();
             BuildPlayerGrid();
@@ -593,8 +598,153 @@ namespace SQ_Email_Tools
             BuildSearchBar();
             BuildContentHeader();
 
+            // 左側子選單（加在 _playerContent 之後，DockStyle.Left 優先佔左邊）
+            var subSidebar = BuildPlayerSubSidebar();
+            _playerPage.Controls.Add(_playerContent);
+            _playerPage.Controls.Add(subSidebar);
+
             _contentArea.Controls.Add(_playerPage);
             Controls.Add(_contentArea);
+        }
+
+        // ── 玩家管理左側子選單 ────────────────────────────────────
+        private Panel BuildPlayerSubSidebar()
+        {
+            const int SW = 168;
+            var panel = new Panel
+            {
+                Dock      = DockStyle.Left,
+                Width     = SW,
+                BackColor = Color.FromArgb(18, 28, 48),
+            };
+            // 右側分隔線
+            panel.Paint += (s, e) =>
+            {
+                using var pen = new System.Drawing.Pen(Theme.Border, 1);
+                e.Graphics.DrawLine(pen, SW - 1, 0, SW - 1, panel.Height);
+            };
+
+            int y = 12;
+
+            void AddSubLabel(string text)
+            {
+                panel.Controls.Add(new Label
+                {
+                    Text      = text,
+                    ForeColor = Theme.TextMuted,
+                    Font      = new Font(Theme.FontFamily, 7.5f, FontStyle.Bold),
+                    AutoSize  = false,
+                    Width     = SW - 24,
+                    Height    = 18,
+                    Location  = new Point(14, y),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                });
+                y += 20;
+            }
+
+            Button MakeSubBtn(string icon, string text, bool isActive = false)
+            {
+                var btn = new Button
+                {
+                    Text      = $"  {icon}  {text}",
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    FlatStyle = FlatStyle.Flat,
+                    Width     = SW - 12,
+                    Height    = 36,
+                    Location  = new Point(6, y),
+                    ForeColor = isActive ? Color.White : Color.FromArgb(180, 200, 230),
+                    BackColor = isActive ? Color.FromArgb(30, 80, 160) : Color.Transparent,
+                    Font      = new Font(Theme.FontFamily, 9.5f),
+                    Cursor    = Cursors.Hand,
+                };
+                btn.FlatAppearance.BorderSize          = 0;
+                btn.FlatAppearance.MouseOverBackColor  = Color.FromArgb(30, 60, 110);
+                btn.FlatAppearance.MouseDownBackColor  = Color.FromArgb(20, 50, 100);
+                y += 40;
+                panel.Controls.Add(btn);
+                return btn;
+            }
+
+            void AddSubGap() { y += 6; }
+
+            // ── 玩家帳號 ──
+            AddSubLabel("玩家帳號");
+
+            var btnList = MakeSubBtn("👥", "玩家列表", isActive: true);
+            _playerSubActive = btnList;
+            btnList.Click += (s, e) =>
+            {
+                // 已在玩家列表頁面，聚焦搜尋框
+                _searchBox?.Focus();
+            };
+
+            var btnMasterSub = MakeSubBtn("👑", "主帳號查詢");
+            btnMasterSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new MasterAccountForm());
+            };
+
+            AddSubGap();
+
+            // ── 充值 & 獎勵 ──
+            AddSubLabel("充值 & 獎勵");
+
+            var btnRechargeSub = MakeSubBtn("💳", "充值管理");
+            btnRechargeSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnRecharge);
+                SwitchToHub(new RechargeForm());
+            };
+
+            var btnVipSub = MakeSubBtn("💎", "VIP 管理");
+            btnVipSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new VipForm());
+            };
+
+            var btnCostSub = MakeSubBtn("💸", "消費達成獎勵");
+            btnCostSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new CostMilestoneForm());
+            };
+
+            AddSubGap();
+
+            // ── 管理操作 ──
+            AddSubLabel("管理操作");
+
+            var btnBanSub = MakeSubBtn("🔒", "封號管理");
+            btnBanSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new BanForm());
+            };
+
+            var btnHistSub = MakeSubBtn("🔍", "活動歷程");
+            btnHistSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new PlayerHistoryForm());
+            };
+
+            var btnSendSub = MakeSubBtn("✉", "發送道具");
+            btnSendSub.Click += (s, e) =>
+            {
+                if (!CheckConnected()) return;
+                SetActiveNav(_btnPlayerNav);
+                SwitchToHub(new ItemQueueForm());
+            };
+
+            return panel;
         }
 
         // ── Hub 切換 ───────────────────────────────────────────
@@ -651,7 +801,7 @@ namespace SQ_Email_Tools
 
             hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
-            _playerPage.Controls.Add(hdr);
+            _playerContent.Controls.Add(hdr);
         }
 
         private void BuildSearchBar()
@@ -727,7 +877,7 @@ namespace SQ_Email_Tools
 
             bar.Controls.Add(tbl);
             bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
-            _playerPage.Controls.Add(bar);
+            _playerContent.Controls.Add(bar);
         }
 
         private void BuildHintBar()
@@ -743,7 +893,7 @@ namespace SQ_Email_Tools
                 AutoEllipsis = true
             });
             bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(40, 70, 120) });
-            _playerPage.Controls.Add(bar);
+            _playerContent.Controls.Add(bar);
         }
 
         private void BuildStatusBar()
@@ -753,7 +903,7 @@ namespace SQ_Email_Tools
             _lblCount  = new Label { Text = "共 0 筆", ForeColor = Theme.TextMuted,      Font = Theme.FontSmall, AutoSize = true, Location = new Point(16, 8) };
             _lblStatus = new Label { Text = "",       ForeColor = Theme.TextSecondary,  Font = Theme.FontSmall, AutoSize = true, Location = new Point(88, 8) };
             bar.Controls.AddRange(new Control[] { _lblCount, _lblStatus });
-            _playerPage.Controls.Add(bar);
+            _playerContent.Controls.Add(bar);
         }
 
         private void BuildPlayerGrid()
@@ -910,7 +1060,7 @@ namespace SQ_Email_Tools
                     (_dgv.Width - sz.Width) / 2f, _dgv.Height / 2f - 12);
             };
 
-            _playerPage.Controls.Add(_dgv);
+            _playerContent.Controls.Add(_dgv);
         }
 
         private void AddTextCol(string name, string header, int w) =>
