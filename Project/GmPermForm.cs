@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -67,7 +68,7 @@ namespace SQ_Email_Tools
             {
                 BackColor = Theme.BgPage, ForeColor = Theme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle, Font = new Font(Theme.FontFamily, 11f),
-                PlaceholderText = "角色名稱或帳號（留空 = 列出所有 GM 玩家）",
+                PlaceholderText = "主帳號 / 角色名 / UID（主帳號可帶出全部子帳號，留空 = 列出所有 GM 玩家）",
                 Location = new Point(42, 22), Height = 28,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
@@ -125,10 +126,28 @@ namespace SQ_Email_Tools
             _dgv.Rows.Clear();
             try
             {
-                var list = await DatabaseManager.Instance.GetAllPlayersGmInfoAsync(query);
-                // 若無搜尋關鍵字，只顯示有 GM 標記的
+                List<GameGmInfo> list;
                 if (string.IsNullOrWhiteSpace(query))
+                {
+                    // 留空：直接列出所有 GM 標記玩家
+                    list = await DatabaseManager.Instance.GetAllPlayersGmInfoAsync("");
                     list = list.FindAll(p => p.NeiCe == 1 || p.GroupId != 0);
+                }
+                else
+                {
+                    // 有關鍵字：使用 PlayerPickerHelper，主帳號可帶出多角色（可複選）
+                    var picked = await PlayerPickerHelper.PickMultiAsync(this, query, multiMode: true);
+                    if (picked == null || picked.Count == 0) { _statusLbl.Text = ""; return; }
+                    // 取得這些角色的 GM 資訊
+                    list = new List<GameGmInfo>();
+                    foreach (var p in picked)
+                    {
+                        var gmList = await DatabaseManager.Instance.GetAllPlayersGmInfoAsync(p.Account);
+                        list.AddRange(gmList.FindAll(g => g.Account == p.Account));
+                        if (!gmList.Any(g => g.Account == p.Account))
+                            list.Add(new GameGmInfo { Account = p.Account, OnlineName = p.OnlineName, IsOnline = p.IsOnline });
+                    }
+                }
 
                 foreach (var p in list)
                 {

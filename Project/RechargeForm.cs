@@ -107,16 +107,16 @@ namespace SQ_Email_Tools
             });
             _txtSearch = new TextBox
             {
-                Width = 240, Height = 28, Left = 175, Top = 14,
+                Width = 320, Height = 28, Left = 175, Top = 14,
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, BorderStyle = BorderStyle.FixedSingle,
-                PlaceholderText = "帳號或角色名稱…"
+                PlaceholderText = "主帳號 / 角色名 / UID（主帳號可帶出全部子帳號）"
             };
             _txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _ = SearchPlayerAsync(); } };
             topBar.Controls.Add(_txtSearch);
             _btnSearch = new Button
             {
-                Text = "🔍 搜尋", Width = 90, Height = 28, Left = 422, Top = 14,
+                Text = "🔍 搜尋", Width = 90, Height = 28, Left = 502, Top = 14,
                 BackColor = Theme.AccentBlue, ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Font = Theme.FontBody
             };

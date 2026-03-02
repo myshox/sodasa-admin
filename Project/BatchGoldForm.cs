@@ -122,7 +122,7 @@ namespace SQ_Email_Tools
             };
             _txtSearch = new TextBox
             {
-                PlaceholderText = "角色名稱或帳號",
+                PlaceholderText = "主帳號 / 角色名 / UID",
                 Location = new Point(0, 0), Width = 200, Height = 28,
                 BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle, Enabled = false

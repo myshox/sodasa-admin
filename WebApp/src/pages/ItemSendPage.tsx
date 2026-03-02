@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
-import type { MailHistoryItem } from '../api'
+import type { MailHistoryItem, PlayerRow } from '../api'
 import { S } from '../strings'
 import ItemBrowser from '../components/ItemBrowser'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
@@ -15,8 +15,17 @@ export default function ItemSendPage() {
   const isMobile = useIsMobile()
   const [sp] = useSearchParams()
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
-  const [selectedAccount, setSelectedAccount] = useState(sp.get('account') || '')
-  const [selectedName, setSelectedName] = useState(decodeURIComponent(sp.get('name') || sp.get('account') || ''))
+  // 只需要 account + onlineName + isOnline，其餘欄位填預設
+  const makePlayer = (acc: string, name: string): PlayerRow => ({
+    account: acc, onlineName: name, isOnline: false,
+    serverId: 0, regTime: '', loginTime: '', ip: '',
+    isBanned: false, gold: 0, crystal: 0, petCount: 0,
+    payTotal: 0, masterName: '', vipLevel: 0
+  })
+
+  const [selectedAccounts, setSelectedAccounts] = useState<PlayerRow[]>(
+    sp.get('account') ? [makePlayer(sp.get('account')!, decodeURIComponent(sp.get('name') || sp.get('account') || ''))] : []
+  )
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
 
@@ -40,31 +49,29 @@ export default function ItemSendPage() {
   useEffect(() => {
     const acc = sp.get('account')
     if (acc) {
-      setSelectedAccount(acc)
-      setPlayerQ(acc)
-      const name = sp.get('name')
-      setSelectedName(name ? decodeURIComponent(name) : acc)
+      const name = decodeURIComponent(sp.get('name') || acc)
+      setSelectedAccounts([makePlayer(acc, name)])
+      setPlayerQ(name)
     }
   }, [sp])
 
-  const searchPlayer = async () => {
-    if (!playerQ.trim()) return
-    setLoading(true); setResult('')
-    try {
-      const r = await api.get(`/players/${encodeURIComponent(playerQ.trim())}`)
-      setSelectedAccount(r.data.account)
-      setSelectedName(r.data.onlineName || r.data.account)
-    } catch {
-      setResult('找不到該玩家')
-    } finally { setLoading(false) }
+  const addPlayers = (players: PlayerRow[]) => {
+    setSelectedAccounts(prev => {
+      const existing = new Set(prev.map(p => p.account))
+      return [...prev, ...players.filter(p => !existing.has(p.account))]
+    })
+    setPlayerQ('')
   }
-  void searchPlayer // suppress unused warning
+
+  const removePlayer = (account: string) =>
+    setSelectedAccounts(prev => prev.filter(p => p.account !== account))
 
   const loadHistory = async () => {
-    if (!selectedAccount) return
+    const acc = selectedAccounts[0]?.account
+    if (!acc) return
     setHistoryLoading(true)
     try {
-      const r = await api.get(`/players/${selectedAccount}/mail-history`)
+      const r = await api.get(`/players/${acc}/mail-history`)
       setMailHistory(r.data); setShowHistory(true)
     } finally { setHistoryLoading(false) }
   }
@@ -94,16 +101,21 @@ export default function ItemSendPage() {
     setCart(cart.map((c, i) => i === idx ? { ...c, qty: Math.max(1, qty) } : c))
 
   const send = async () => {
-    if (!selectedAccount) { setResult('請先選定玩家'); return }
+    if (selectedAccounts.length === 0) { setResult('請先選定玩家'); return }
     if (cart.length === 0) { setResult('購物車為空，請加入道具'); return }
     setLoading(true); setResult('')
     try {
-      const r = await api.post('/players/send-cart', {
-        account: selectedAccount,
-        cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' })),
-        title: title.trim(), content: content.trim(),
-      })
-      setResult(r.data.message || `已發送 ${r.data.success} 筆`)
+      const cartPayload = cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, buff3: c.buff3 ?? '' }))
+      let successCount = 0
+      for (const p of selectedAccounts) {
+        await api.post('/players/send-cart', {
+          account: p.account,
+          cart: cartPayload,
+          title: title.trim(), content: content.trim(),
+        })
+        successCount++
+      }
+      setResult(`✓ 已發送給 ${successCount} 位玩家`)
       setCart([])
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } }
@@ -133,20 +145,42 @@ export default function ItemSendPage() {
         {/* 中間：玩家 + 手動輸入 + 郵件設定 */}
         <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
           {/* 指定玩家 */}
-          <Card title="STEP 1 — 指定玩家">
+          <Card title="STEP 1 — 指定收件人">
             <PlayerAutocomplete
               value={playerQ}
               onChange={setPlayerQ}
-              onSelect={p => {
-                setSelectedAccount(p.account)
-                setSelectedName(p.onlineName || p.account)
-                setPlayerQ(p.onlineName || p.account)
-              }}
-              placeholder="輸入帳號或角色名稱（自動下拉建議）"
+              onSelect={p => { addPlayers([p]); setPlayerQ('') }}
+              onSelectMulti={addPlayers}
+              placeholder="主帳號 / 角色名 / UID（主帳號可複選全部子帳號）"
             />
-            {selectedAccount && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
-                <p style={{ fontSize: 13, color: 'var(--accent-green)' }}>✓ 已選：{selectedName}（{selectedAccount}）</p>
+            {selectedAccounts.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                  收件人 ({selectedAccounts.length})：
+                  <button onClick={() => setSelectedAccounts([])}
+                    style={{ fontSize: 11, color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 8 }}>
+                    全部清除
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {selectedAccounts.map(p => (
+                    <span key={p.account} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      background: 'rgba(74,158,255,.15)', border: '1px solid rgba(74,158,255,.35)',
+                      borderRadius: 20, padding: '3px 10px', fontSize: 12, color: 'var(--accent-blue)'
+                    }}>
+                      {p.isOnline ? '🟢' : '⚫'} {p.onlineName || p.account}
+                      <button onClick={() => removePlayer(p.account)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1, padding: 0 }}>
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedAccounts.length === 1 && (
+              <div style={{ marginTop: 6 }}>
                 <button onClick={loadHistory} disabled={historyLoading}
                   style={{ fontSize: 12, padding: '3px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 4 }}>
                   {historyLoading ? '載入中…' : '📜 郵件歷史'}
@@ -252,9 +286,11 @@ export default function ItemSendPage() {
                   <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8, padding: 0 }}>清空購物車</button>
                 </>
               )}
-            <button onClick={send} disabled={loading || !selectedAccount || cart.length === 0}
-              style={{ width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '10px 0', fontSize: 14, borderRadius: 8, opacity: (!selectedAccount || cart.length === 0) ? 0.5 : 1 }}>
-              {loading ? '發送中…' : `📬 發送至 ${selectedName || '玩家'}`}
+            <button onClick={send} disabled={loading || selectedAccounts.length === 0 || cart.length === 0}
+              style={{ width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '10px 0', fontSize: 14, borderRadius: 8, opacity: (selectedAccounts.length === 0 || cart.length === 0) ? 0.5 : 1 }}>
+              {loading ? '發送中…' : selectedAccounts.length > 1
+                ? `📬 發送至 ${selectedAccounts.length} 位玩家`
+                : `📬 發送至 ${selectedAccounts[0]?.onlineName || '玩家'}`}
             </button>
           </Card>
 

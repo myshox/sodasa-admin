@@ -215,7 +215,8 @@ export default function CostMilestonePage() {
           value={q}
           onChange={setQ}
           onSelect={(p: PlayerRow) => { setQ(p.onlineName || p.account); doSearch(p.account) }}
-          placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+          onSelectMulti={players => { setQ(players[0].onlineName || players[0].account); doSearch(players[0].account) }}
+          placeholder="主帳號 / 角色名稱 / UID（主帳號可複選，取第一個查詢）"
           style={{ flex: 1 }}
         />
         <button onClick={() => doSearch(q)} disabled={loading} style={{

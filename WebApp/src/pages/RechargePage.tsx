@@ -186,7 +186,8 @@ export default function RechargePage() {
                 value={playerQ}
                 onChange={setPlayerQ}
                 onSelect={(p: PlayerRow) => { setPlayerQ(p.onlineName || p.account); loadPlayer(p.account) }}
-                placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+                onSelectMulti={players => { setPlayerQ(players[0].onlineName || players[0].account); loadPlayer(players[0].account) }}
+                placeholder="主帳號 / 角色名稱 / UID（主帳號可複選，取第一個操作）"
                 style={{ flex: 1, fontSize: 13 }}
               />
               <button onClick={() => loadPlayer(playerQ)} disabled={infoLoading}

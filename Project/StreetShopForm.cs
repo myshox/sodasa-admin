@@ -83,7 +83,7 @@ namespace SQ_Email_Tools
             _vendorSearch = new TextBox
             {
                 Dock            = DockStyle.Top,
-                PlaceholderText = "搜尋攤主帳號…",
+                PlaceholderText = "搜尋攤主帳號 / 角色名 / 主帳號…",
                 BackColor       = Theme.BgLight,
                 ForeColor       = Theme.TextPrimary,
                 Font            = Theme.FontSmall,

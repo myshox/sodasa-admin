@@ -6,9 +6,10 @@ import type { ItemInfo } from '../components/ItemBrowser'
 import type { PlayerRow } from '../api'
 
 export default function PetCmdPage() {
-  const [cdkey,    setCdkey]   = useState('')
-  const [charName, setChar]    = useState('')
-  const [playerQ,  setPlayerQ] = useState('')
+  const [cdkey,         setCdkey]        = useState('')
+  const [charName,      setChar]         = useState('')
+  const [playerQ,       setPlayerQ]      = useState('')
+  const [pickedPlayers, setPickedPlayers]= useState<PlayerRow[]>([])
   const [petId,    setPetId]   = useState(1)
   const [petName,  setPetName] = useState('')
   const [useCdkey, setUseCdkey]= useState(false)
@@ -22,7 +23,10 @@ export default function PetCmdPage() {
   const [abiReb,   setAbiReb]  = useState(0)
   const [copied,   setCopied]  = useState('')
 
-  const mkCmd  = `[gm petmake ${petId} ${mkLv} ${mkReb}${useCdkey && cdkey ? ` ${cdkey}` : ''}]`
+  // 多角色：每人一行指令
+  const mkCmd = useCdkey && pickedPlayers.length > 1
+    ? pickedPlayers.map(p => `[gm petmake ${petId} ${mkLv} ${mkReb} ${p.account}]`).join('\n')
+    : `[gm petmake ${petId} ${mkLv} ${mkReb}${useCdkey && cdkey ? ` ${cdkey}` : ''}]`
   const abiCmd = `[gm petmakeabi ${petId} ${hp} ${atk} ${def} ${spd} ${abiLv} ${abiReb}]`
 
   const copy = (text: string, key: string) => {
@@ -31,9 +35,23 @@ export default function PetCmdPage() {
   }
 
   const onSelectPlayer = (p: PlayerRow) => {
+    setPickedPlayers([p])
     setCdkey(p.account)
     setChar(p.onlineName || p.account)
     setPlayerQ(p.onlineName || p.account)
+  }
+
+  const onSelectMultiPlayer = (players: PlayerRow[]) => {
+    setPickedPlayers(players)
+    if (players.length === 1) {
+      setCdkey(players[0].account)
+      setChar(players[0].onlineName || players[0].account)
+      setPlayerQ(players[0].onlineName || players[0].account)
+    } else {
+      setCdkey(players[0].account)
+      setChar(players[0].onlineName || players[0].account)
+      setPlayerQ(`已選取 ${players.length} 個角色`)
+    }
   }
 
   const onSelectPet = (item: ItemInfo) => {
@@ -73,20 +91,30 @@ export default function PetCmdPage() {
     </div>
   )
 
-  const CmdBar = ({ cmd, ckey }: { cmd: string; ckey: string }) => (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-      <input readOnly value={cmd} style={{
-        flex: 1, background: '#0d1a0d', color: '#6eff8a',
-        fontFamily: 'Consolas, monospace', fontSize: 13, fontWeight: 600
-      }} />
-      <button onClick={() => copy(cmd, ckey)} style={{
-        background: copied === ckey ? 'var(--accent-green)' : 'var(--accent-blue)',
-        color: '#fff', padding: '6px 14px', fontSize: 13, flexShrink: 0
-      }}>
-        {copied === ckey ? S.copied : S.copy}
-      </button>
-    </div>
-  )
+  const CmdBar = ({ cmd, ckey }: { cmd: string; ckey: string }) => {
+    const isMultiLine = cmd.includes('\n')
+    return (
+      <div style={{ display: 'flex', gap: 8, alignItems: isMultiLine ? 'flex-start' : 'center', marginTop: 12 }}>
+        {isMultiLine
+          ? <textarea readOnly value={cmd} rows={cmd.split('\n').length} style={{
+              flex: 1, background: '#0d1a0d', color: '#6eff8a',
+              fontFamily: 'Consolas, monospace', fontSize: 12, fontWeight: 600,
+              resize: 'vertical', minHeight: 60
+            }} />
+          : <input readOnly value={cmd} style={{
+              flex: 1, background: '#0d1a0d', color: '#6eff8a',
+              fontFamily: 'Consolas, monospace', fontSize: 13, fontWeight: 600
+            }} />
+        }
+        <button onClick={() => copy(cmd, ckey)} style={{
+          background: copied === ckey ? 'var(--accent-green)' : 'var(--accent-blue)',
+          color: '#fff', padding: '6px 14px', fontSize: 13, flexShrink: 0
+        }}>
+          {copied === ckey ? S.copied : S.copy}
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: 28, maxWidth: 660 }}>
@@ -99,12 +127,27 @@ export default function PetCmdPage() {
           value={playerQ}
           onChange={setPlayerQ}
           onSelect={onSelectPlayer}
-          placeholder="輸入帳號或角色名稱（自動下拉建議）"
+          onSelectMulti={onSelectMultiPlayer}
+          placeholder="主帳號 / 角色名 / UID（主帳號可複選全部子帳號）"
         />
-        {cdkey && (
-          <p style={{ marginTop: 8, fontSize: 13, color: 'var(--accent-green)' }}>
-            ✓ 已選：{charName}（{cdkey}）
-          </p>
+        {pickedPlayers.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            {pickedPlayers.length === 1
+              ? <p style={{ fontSize: 13, color: 'var(--accent-green)' }}>✓ 已選：{charName}（{cdkey}）</p>
+              : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                  {pickedPlayers.map(p => (
+                    <span key={p.account} style={{
+                      background: 'rgba(74,158,255,.15)', border: '1px solid rgba(74,158,255,.35)',
+                      borderRadius: 20, padding: '2px 8px', fontSize: 12, color: 'var(--accent-blue)'
+                    }}>
+                      {p.onlineName || p.account}
+                    </span>
+                  ))}
+                </div>
+              )
+            }
+          </div>
         )}
       </Card>
 

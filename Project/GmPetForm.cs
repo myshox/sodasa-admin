@@ -15,10 +15,11 @@ namespace SQ_Email_Tools
     internal class GmPetForm : Form
     {
         // ── 玩家搜尋 ──────────────────────────────────────────────
-        private TextBox  _txtSearch  = null!;
-        private Label    _lblResult  = null!;
-        private string   _foundCdkey = "";     // 搜尋到的帳號(CDKEY)
-        private string   _foundName  = "";     // 搜尋到的角色名
+        private TextBox  _txtSearch    = null!;
+        private Label    _lblResult    = null!;
+        private string   _foundCdkey   = "";     // 搜尋到的帳號(CDKEY)
+        private string   _foundName    = "";     // 搜尋到的角色名
+        private List<PlayerInfo> _pickedPlayers = new(); // 多選清單
 
         // ── 寵物選擇 ──────────────────────────────────────────────
         private TextBox       _txtPetSearch = null!;
@@ -452,32 +453,30 @@ namespace SQ_Email_Tools
 
             try
             {
-                // 支援主帳號展開
-                var picked = await PlayerPickerHelper.PickAsync(this, kw);
-                if (picked == null) { _lblResult.Text = ""; return; }
+                // 支援主帳號展開 + 複選
+                var picks = await PlayerPickerHelper.PickMultiAsync(this, kw, multiMode: true);
+                if (picks == null || picks.Count == 0) { _lblResult.Text = ""; return; }
 
-                var detail = await DatabaseManager.Instance.GetPlayerDetailAsync(picked.Account);
-                if (detail != null)
+                _pickedPlayers = picks;
+                _foundCdkey    = picks[0].Account;
+                _foundName     = picks[0].OnlineName;
+
+                if (picks.Count == 1)
                 {
-                    _foundCdkey = detail.Account;
-                    _foundName  = detail.OnlineName;
-                    _txtSearch.Text = _foundName.Length > 0 ? _foundName : _foundCdkey;
-
-                    // 自動帶入CDKEY欄位
+                    _txtSearch.Text      = _foundName.Length > 0 ? _foundName : _foundCdkey;
                     _txtCdkey.Text       = _foundCdkey;
                     _lblResult.ForeColor = Color.FromArgb(100, 255, 150);
                     _lblResult.Text      = $"✓ {_foundName}（{_foundCdkey}）";
-
-                    // 若勾選了CDKEY，刷新指令
-                    if (_chkCdkey.Checked) RefreshMk();
                 }
                 else
                 {
-                    _foundCdkey          = "";
-                    _foundName           = "";
-                    _lblResult.ForeColor = Color.FromArgb(255, 100, 100);
-                    _lblResult.Text      = "✗ 找不到玩家";
+                    string names = string.Join("、", picks.Select(p => p.OnlineName.Length > 0 ? p.OnlineName : p.Account));
+                    _txtSearch.Text      = names;
+                    _txtCdkey.Text       = _foundCdkey;
+                    _lblResult.ForeColor = Color.FromArgb(100, 200, 255);
+                    _lblResult.Text      = $"✓ 已選取 {picks.Count} 個角色：{names}";
                 }
+                if (_chkCdkey.Checked) RefreshMk();
             }
             catch (Exception ex)
             {
@@ -496,10 +495,22 @@ namespace SQ_Email_Tools
         private void RefreshMk()
         {
             if (_mkOut == null) return;
-            string cdkeyPart = (_chkCdkey?.Checked == true && !string.IsNullOrWhiteSpace(_txtCdkey?.Text))
-                ? $" {_txtCdkey.Text.Trim()}"
-                : "";
-            _mkOut.Text = $"[gm petmake {CurrentPetId} {(int)_mkLv.Value} {(int)_mkReb.Value}{cdkeyPart}]";
+            bool useCdkey = _chkCdkey?.Checked == true;
+
+            if (useCdkey && _pickedPlayers.Count > 1)
+            {
+                // 多角色：每人一行指令
+                var lines = _pickedPlayers.Select(p =>
+                    $"[gm petmake {CurrentPetId} {(int)_mkLv.Value} {(int)_mkReb.Value} {p.Account}]");
+                _mkOut.Text = string.Join(Environment.NewLine, lines);
+            }
+            else
+            {
+                string cdkeyPart = (useCdkey && !string.IsNullOrWhiteSpace(_txtCdkey?.Text))
+                    ? $" {_txtCdkey.Text.Trim()}"
+                    : "";
+                _mkOut.Text = $"[gm petmake {CurrentPetId} {(int)_mkLv.Value} {(int)_mkReb.Value}{cdkeyPart}]";
+            }
         }
 
         private void RefreshAbi()

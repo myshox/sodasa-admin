@@ -19,11 +19,12 @@ export default function BanPage() {
   const [listQ,   setListQ]   = useState('')
 
   // 快速封號
-  const [banQ,      setBanQ]      = useState('')
-  const [banDays,   setBanDays]   = useState(0)
-  const [banHours,  setBanHours]  = useState(0)   // 0 = 用天數模式
-  const [banReason, setBanReason] = useState('')
-  const [customDays, setCustomDays] = useState<number | ''>('')
+  const [banQ,        setBanQ]        = useState('')
+  const [banTargets,  setBanTargets]  = useState<PlayerRow[]>([])
+  const [banDays,     setBanDays]     = useState(0)
+  const [banHours,    setBanHours]    = useState(0)   // 0 = 用天數模式
+  const [banReason,   setBanReason]   = useState('')
+  const [customDays,  setCustomDays]  = useState<number | ''>('')
 
   const load = async (q = '') => {
     setLoading(true)
@@ -42,14 +43,26 @@ export default function BanPage() {
     flash(S.unbanned)
   }
 
+  const addBanTargets = (players: PlayerRow[]) => {
+    setBanTargets(prev => {
+      const existing = new Set(prev.map(p => p.account))
+      return [...prev, ...players.filter(p => !existing.has(p.account))]
+    })
+    setBanQ('')
+  }
+
   const doBan = async () => {
-    if (!banQ.trim()) return
+    const targets = banTargets.length > 0 ? banTargets : (banQ.trim() ? [{ account: banQ.trim(), onlineName: '', isOnline: false, vipLevel: 0, isBanned: false }] : [])
+    if (targets.length === 0) return
     const days  = banHours > 0 ? 0 : (customDays !== '' ? Number(customDays) : banDays)
     const hours = banHours > 0 ? banHours : 0
-    await api.post(`/players/${encodeURIComponent(banQ.trim())}/ban`, {
-      ban: true, days, hours, reason: banReason.trim()
-    })
-    flash(S.banned); setBanQ(''); setBanReason(''); setBanHours(0); load(listQ)
+    for (const t of targets) {
+      await api.post(`/players/${encodeURIComponent(t.account)}/ban`, {
+        ban: true, days, hours, reason: banReason.trim()
+      })
+    }
+    flash(targets.length > 1 ? `已封禁 ${targets.length} 位玩家` : S.banned)
+    setBanQ(''); setBanTargets([]); setBanReason(''); setBanHours(0); load(listQ)
   }
 
   const effectiveDays  = customDays !== '' ? Number(customDays) : banDays
@@ -67,16 +80,34 @@ export default function BanPage() {
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-red)', marginBottom: 12 }}>🚫 快速封號</h3>
         <div style={{ display: 'flex', gap: 10, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <label style={{ flex: 1 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>玩家帳號</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>玩家帳號（主帳號可複選）</span>
             <PlayerAutocomplete
               value={banQ}
               onChange={setBanQ}
-              onSelect={(p: PlayerRow) => setBanQ(p.account)}
-              placeholder="輸入帳號或角色名稱…"
+              onSelect={(p: PlayerRow) => addBanTargets([p])}
+              onSelectMulti={addBanTargets}
+              placeholder="主帳號 / 角色名 / UID…"
               style={{ marginTop: 2 }}
             />
-          </label>
+            {banTargets.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
+                {banTargets.map(p => (
+                  <span key={p.account} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(245,101,101,.15)', border: '1px solid rgba(245,101,101,.4)',
+                    borderRadius: 20, padding: '2px 8px', fontSize: 12, color: 'var(--accent-red)'
+                  }}>
+                    {p.onlineName || p.account}
+                    <button onClick={() => setBanTargets(prev => prev.filter(x => x.account !== p.account))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: 13, lineHeight: 1, padding: 0 }}>✕</button>
+                  </span>
+                ))}
+                <button onClick={() => setBanTargets([])}
+                  style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>清除全部</button>
+              </div>
+            )}
+          </div>
           <label style={{ flex: 2 }}>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>封禁原因（選填）</span>
             <input value={banReason} onChange={e => setBanReason(e.target.value)}
@@ -113,9 +144,9 @@ export default function BanPage() {
             選擇：{effectiveLabel}
           </div>
         </div>
-        <button onClick={doBan} disabled={!banQ.trim()}
-          style={{ background: 'var(--accent-red)', color: '#fff', padding: '8px 24px', opacity: !banQ.trim() ? 0.5 : 1 }}>
-          🚫 確定封號
+        <button onClick={doBan} disabled={banTargets.length === 0 && !banQ.trim()}
+          style={{ background: 'var(--accent-red)', color: '#fff', padding: '8px 24px', opacity: (banTargets.length === 0 && !banQ.trim()) ? 0.5 : 1 }}>
+          {banTargets.length > 1 ? `🚫 封禁 ${banTargets.length} 位玩家` : '🚫 確定封號'}
         </button>
       </div>
 

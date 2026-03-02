@@ -60,7 +60,7 @@ namespace SQ_Email_Tools
                 BackColor       = Theme.BgPage, ForeColor = Theme.TextPrimary,
                 BorderStyle     = BorderStyle.FixedSingle,
                 Font            = new Font(Theme.FontFamily, 11f),
-                PlaceholderText = "角色名稱或帳號（留空 = 顯示封禁清單）",
+                PlaceholderText = "主帳號 / 角色名 / UID（主帳號可帶出全部子帳號，留空 = 顯示封禁清單）",
                 Location        = new Point(42, 22), Height = 28,
                 Anchor          = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
@@ -151,11 +151,12 @@ namespace SQ_Email_Tools
             _dgv.Rows.Clear();
             try
             {
-                var players = await DatabaseManager.Instance.SearchPlayersAsync(query);
-                if (players.Count == 0) { _statusLbl.Text = "找不到符合的玩家"; return; }
+                // 使用 PlayerPickerHelper：主帳號自動帶出子帳號選擇對話框（可複選）
+                var picked = await PlayerPickerHelper.PickMultiAsync(this, query, multiMode: true);
+                if (picked == null || picked.Count == 0) { _statusLbl.Text = ""; return; }
 
                 long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                foreach (var p in players)
+                foreach (var p in picked)
                 {
                     var (isBanned, endTime) = await DatabaseManager.Instance.GetBanStatusAsync(p.Account);
                     string status  = isBanned ? "🔒 封禁中" : (p.IsOnline ? "🟢 在線" : "⚫ 離線");
@@ -165,7 +166,7 @@ namespace SQ_Email_Tools
                     _dgv.Rows[i].Tag = (isBanned ? "banned" : "active", p.Account);
                     if (isBanned) _dgv.Rows[i].DefaultCellStyle.ForeColor = Theme.AccentRed;
                 }
-                _statusLbl.Text = $"找到 {players.Count} 位玩家";
+                _statusLbl.Text = $"已載入 {picked.Count} 位玩家";
             }
             catch (Exception ex) { _statusLbl.Text = "✗ " + ex.Message; }
             finally { _btnSearch.Enabled = true; }

@@ -58,7 +58,7 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 Location  = new Point(x, y),
-                Size      = new Size(W, 100),
+                Size      = new Size(W, 96),
                 BackColor = Theme.BgCard
             };
 
@@ -67,13 +67,31 @@ namespace SQ_Email_Tools
             _rbSingle = new RadioButton { Text = "📋 指定帳號",   Location = new Point(320, 24), AutoSize = true, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
             _txtAccount = new TextBox
             {
-                Location = new Point(16, 58), Size = new Size(584, 24),
+                Location = new Point(16, 58), Size = new Size(480, 24),
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle, Font = Theme.FontBody,
-                PlaceholderText = "輸入玩家帳號（選擇「指定帳號」時生效）", Enabled = false
+                PlaceholderText = "主帳號 / 角色名 / UID（選擇「指定帳號」時生效）", Enabled = false
             };
-            _rbSingle.CheckedChanged += (s, e) => _txtAccount.Enabled = _rbSingle.Checked;
-            grpTarget.Controls.AddRange(new Control[] { _rbAll, _rbOnline, _rbSingle, _txtAccount });
+            var btnPickAccount = Theme.MakePrimaryButton("🔍 選擇玩家", 100, 24);
+            btnPickAccount.Location = new Point(500, 58);
+            btnPickAccount.Enabled  = false;
+            btnPickAccount.Click   += async (s, e) =>
+            {
+                string q = _txtAccount.Text.Trim();
+                if (string.IsNullOrEmpty(q))
+                {
+                    MessageBox.Show("請先輸入主帳號或角色名稱後再搜尋", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                var picked = await PlayerPickerHelper.PickAsync(this, q);
+                if (picked != null) _txtAccount.Text = picked.Account;
+            };
+            _rbSingle.CheckedChanged += (s, e) =>
+            {
+                _txtAccount.Enabled    = _rbSingle.Checked;
+                btnPickAccount.Enabled = _rbSingle.Checked;
+            };
+            grpTarget.Controls.AddRange(new Control[] { _rbAll, _rbOnline, _rbSingle, _txtAccount, btnPickAccount });
             Controls.Add(grpTarget);
             y += 110;
 

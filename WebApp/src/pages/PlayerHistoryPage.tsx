@@ -174,7 +174,8 @@ export default function PlayerHistoryPage() {
             value={query}
             onChange={setQuery}
             onSelect={(p: PlayerRow) => { setQuery(p.onlineName || p.account); doSearch(p.account) }}
-            placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+            onSelectMulti={players => { setQuery(players[0].onlineName || players[0].account); doSearch(players[0].account) }}
+            placeholder="主帳號 / 角色名稱 / UID（主帳號可複選，取第一個查詢）"
             style={{ width: 320, fontSize: 14 }}
           />
           <select value={limit} onChange={e => setLimit(+e.target.value)}

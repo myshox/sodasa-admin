@@ -34,10 +34,6 @@ namespace SQ_Email_Tools
         private long   _currentPoint      = 0;
         private int    _currentCheck      = -1;
 
-        // 主帳號多角色列表
-        private List<(string uid, string onlineName, bool isOnline, long point, int check)> _charList = new();
-        private Panel  _charListPanel;
-
         public CostMilestoneForm()
         {
             BuildUI();
@@ -103,7 +99,7 @@ namespace SQ_Email_Tools
             {
                 Dock = DockStyle.Fill, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, BorderStyle = BorderStyle.FixedSingle,
-                PlaceholderText = "輸入玩家帳號…"
+                PlaceholderText = "主帳號 / 角色名 / UID（主帳號可帶出全部子帳號）"
             };
             _txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) _ = SearchAsync(); };
             searchRow.Controls.Add(_txtSearch, 0, 0);
@@ -205,29 +201,17 @@ namespace SQ_Email_Tools
 
         private async Task SearchAsync()
         {
-            string acc = _txtSearch.Text.Trim();
-            if (string.IsNullOrEmpty(acc)) return;
+            string q = _txtSearch.Text.Trim();
+            if (string.IsNullOrEmpty(q)) return;
             _btnSearch.Enabled = false;
             _lblStatus.Text    = "查詢中…";
-            HideCharList();
             try
             {
-                // 先嘗試主帳號多角色
-                var chars = await DatabaseManager.Instance.GetAllCharsCostDataAsync(acc);
-                if (chars.Count > 1)
-                {
-                    _charList = chars;
-                    ShowCharList();
-                    _lblStatus.Text = $"找到 {chars.Count} 個角色，請選擇";
-                    return;
-                }
-                if (chars.Count == 1)
-                {
-                    LoadChar(chars[0].uid, chars[0].onlineName, chars[0].point, chars[0].check);
-                    return;
-                }
-                // 單角色查詢
-                var (pt, ck, uid, onlineName) = await DatabaseManager.Instance.GetCostDataAsync(acc);
+                // 統一使用 PlayerPickerHelper：自動處理「主帳號帶出多角色 → 選擇對話框」
+                var picked = await PlayerPickerHelper.PickAsync(this, q);
+                if (picked == null) { _lblStatus.Text = ""; return; }
+                _txtSearch.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
+                var (pt, ck, uid, onlineName) = await DatabaseManager.Instance.GetCostDataAsync(picked.Account);
                 LoadChar(uid, onlineName, pt, ck);
             }
             catch (Exception ex) { _lblStatus.Text = "✗ " + ex.Message; }
@@ -241,102 +225,6 @@ namespace SQ_Email_Tools
             _currentCheck      = ck;
             _currentOnlineName = onlineName;
             UpdateUI();
-        }
-
-        private void ShowCharList()
-        {
-            // 清空並隱藏主要面板
-            _infoPanel.Visible = false;
-            _milestonesPanel.Visible = false;
-            foreach (Control c in Controls[0].Controls)
-                if (c.Tag?.ToString() == "opPanel") c.Visible = false;
-
-            if (_charListPanel == null)
-            {
-                _charListPanel = new Panel
-                {
-                    Dock = DockStyle.Fill, BackColor = Color.Transparent, AutoScroll = true
-                };
-                // 插入到 root 的 Row 2
-                var root = (TableLayoutPanel)Controls[0];
-                root.Controls.Add(_charListPanel, 0, 2);
-                root.SetRowSpan(_charListPanel, 3);
-            }
-            _charListPanel.Controls.Clear();
-            _charListPanel.Visible = true;
-
-            var flow = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true, AutoScroll = false, BackColor = Color.Transparent,
-                Padding = new Padding(0, 4, 0, 4)
-            };
-
-            foreach (var (uid, name, online, pt, ck) in _charList)
-            {
-                int claimedCount = System.Numerics.BitOperations.PopCount((uint)Math.Max(0, ck));
-                int claimable = 0;
-                for (int i = 0; i < DatabaseManager.CostMilestones.Length; i++)
-                    if (pt >= DatabaseManager.CostMilestones[i] && (ck & (1 << i)) == 0) claimable++;
-
-                string capturedUid = uid; string capturedName = name;
-                long capturedPt = pt; int capturedCk = ck;
-
-                var card = new Panel
-                {
-                    Size = new Size(220, 110), Margin = new Padding(0, 0, 10, 10),
-                    BackColor = Theme.BgCard, Cursor = Cursors.Hand,
-                    Padding = new Padding(12, 10, 12, 10)
-                };
-                if (claimable > 0)
-                    card.BackColor = Color.FromArgb(40, 35, 10);
-
-                var lblName = new Label
-                {
-                    Text = string.IsNullOrEmpty(name) ? "（無角色名）" : name + (online ? "  ●" : ""),
-                    ForeColor = online ? Color.FromArgb(22, 183, 120) : Theme.TextPrimary,
-                    Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
-                    Dock = DockStyle.Top, Height = 22,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-                var lblUid = new Label
-                {
-                    Text = uid, ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                    Dock = DockStyle.Top, Height = 16,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-                var lblPt = new Label
-                {
-                    Text = $"{pt:N0} 金幣　已領 {claimedCount}/5",
-                    ForeColor = Color.FromArgb(180, 130, 255), Font = Theme.FontSmall,
-                    Dock = DockStyle.Top, Height = 18,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-                var lblClaim = new Label
-                {
-                    Text = claimable > 0 ? $"🎁 {claimable} 個待補發" : "✅ 無待補發",
-                    ForeColor = claimable > 0 ? Color.FromArgb(251, 191, 36) : Theme.TextMuted,
-                    Font = Theme.FontSmall, Dock = DockStyle.Fill,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-
-                card.Controls.Add(lblClaim);
-                card.Controls.Add(lblPt);
-                card.Controls.Add(lblUid);
-                card.Controls.Add(lblName);
-
-                card.Click += (s, e) => { HideCharList(); LoadChar(capturedUid, capturedName, capturedPt, capturedCk); };
-                foreach (Control child in card.Controls)
-                    child.Click += (s, e) => { HideCharList(); LoadChar(capturedUid, capturedName, capturedPt, capturedCk); };
-
-                flow.Controls.Add(card);
-            }
-            _charListPanel.Controls.Add(flow);
-        }
-
-        private void HideCharList()
-        {
-            if (_charListPanel != null) _charListPanel.Visible = false;
         }
 
         private void UpdateUI()
