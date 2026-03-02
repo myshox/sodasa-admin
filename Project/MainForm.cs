@@ -147,6 +147,30 @@ namespace SQ_Email_Tools
                 SwitchToHub(new VipForm());
             };
 
+            var btnCostMilestone2 = MakeNavBtn("💸", "消費達成獎勵", ref y);
+            btnCostMilestone2.Click += (s, e) =>
+            {
+                SetActiveNav(btnCostMilestone2);
+                if (!CheckConnected()) return;
+                SwitchToHub(new CostMilestoneForm());
+            };
+
+            var btnBan = MakeNavBtn("🔒", "封號管理", ref y);
+            btnBan.Click += (s, e) =>
+            {
+                SetActiveNav(btnBan);
+                if (!CheckConnected()) return;
+                SwitchToHub(new BanForm());
+            };
+
+            var btnPlayerHistNav = MakeNavBtn("🔍", "活動歷程", ref y);
+            btnPlayerHistNav.Click += (s, e) =>
+            {
+                SetActiveNav(btnPlayerHistNav);
+                if (!CheckConnected()) return;
+                SwitchToHub(new PlayerHistoryForm());
+            };
+
             AddSideGap(ref y);
 
             // ══ 監控管理 ══
@@ -158,14 +182,6 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnOnline);
                 if (!CheckConnected()) return;
                 SwitchToHub(new OnlineMonitorForm());
-            };
-
-            var btnBan = MakeNavBtn("🔒", "封號管理", ref y);
-            btnBan.Click += (s, e) =>
-            {
-                SetActiveNav(btnBan);
-                if (!CheckConnected()) return;
-                SwitchToHub(new BanForm());
             };
 
             AddSideGap(ref y);
@@ -221,14 +237,6 @@ namespace SQ_Email_Tools
                 SwitchToHub(new SpeedHackForm());
             };
 
-            var btnCostMilestone = MakeNavBtn("💸", "消費達成獎勵", ref y);
-            btnCostMilestone.Click += (s, e) =>
-            {
-                SetActiveNav(btnCostMilestone);
-                if (!CheckConnected()) return;
-                SwitchToHub(new CostMilestoneForm());
-            };
-
             AddSideGap(ref y);
 
             // ══ 紀錄查詢 ══
@@ -264,14 +272,6 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnMailHist);
                 if (!CheckConnected()) return;
                 SwitchToHub(new MailHistoryForm());
-            };
-
-            var btnPlayerHist = MakeNavBtn("🔍", "玩家活動歷程", ref y);
-            btnPlayerHist.Click += (s, e) =>
-            {
-                SetActiveNav(btnPlayerHist);
-                if (!CheckConnected()) return;
-                SwitchToHub(new PlayerHistoryForm());
             };
 
             var btnStreetShop = MakeNavBtn("🏪", "攤位 & 市場", ref y);
@@ -586,11 +586,9 @@ namespace SQ_Email_Tools
         {
             _contentArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
 
-            // 玩家管理容器（包含左側子選單 + 右側內容）
+            // 所有玩家管理控件放入 _playerPage，方便切換 Hub 時整體顯示/隱藏
             _playerPage = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
-
-            // 右側內容區（DataGridView 等）
-            _playerContent = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
+            _playerContent = _playerPage; // 相容舊有 Build* 方法
 
             BuildStatusBar();
             BuildPlayerGrid();
@@ -598,153 +596,8 @@ namespace SQ_Email_Tools
             BuildSearchBar();
             BuildContentHeader();
 
-            // 左側子選單（加在 _playerContent 之後，DockStyle.Left 優先佔左邊）
-            var subSidebar = BuildPlayerSubSidebar();
-            _playerPage.Controls.Add(_playerContent);
-            _playerPage.Controls.Add(subSidebar);
-
             _contentArea.Controls.Add(_playerPage);
             Controls.Add(_contentArea);
-        }
-
-        // ── 玩家管理左側子選單 ────────────────────────────────────
-        private Panel BuildPlayerSubSidebar()
-        {
-            const int SW = 168;
-            var panel = new Panel
-            {
-                Dock      = DockStyle.Left,
-                Width     = SW,
-                BackColor = Color.FromArgb(18, 28, 48),
-            };
-            // 右側分隔線
-            panel.Paint += (s, e) =>
-            {
-                using var pen = new System.Drawing.Pen(Theme.Border, 1);
-                e.Graphics.DrawLine(pen, SW - 1, 0, SW - 1, panel.Height);
-            };
-
-            int y = 12;
-
-            void AddSubLabel(string text)
-            {
-                panel.Controls.Add(new Label
-                {
-                    Text      = text,
-                    ForeColor = Theme.TextMuted,
-                    Font      = new Font(Theme.FontFamily, 7.5f, FontStyle.Bold),
-                    AutoSize  = false,
-                    Width     = SW - 24,
-                    Height    = 18,
-                    Location  = new Point(14, y),
-                    TextAlign = ContentAlignment.MiddleLeft,
-                });
-                y += 20;
-            }
-
-            Button MakeSubBtn(string icon, string text, bool isActive = false)
-            {
-                var btn = new Button
-                {
-                    Text      = $"  {icon}  {text}",
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    FlatStyle = FlatStyle.Flat,
-                    Width     = SW - 12,
-                    Height    = 36,
-                    Location  = new Point(6, y),
-                    ForeColor = isActive ? Color.White : Color.FromArgb(180, 200, 230),
-                    BackColor = isActive ? Color.FromArgb(30, 80, 160) : Color.Transparent,
-                    Font      = new Font(Theme.FontFamily, 9.5f),
-                    Cursor    = Cursors.Hand,
-                };
-                btn.FlatAppearance.BorderSize          = 0;
-                btn.FlatAppearance.MouseOverBackColor  = Color.FromArgb(30, 60, 110);
-                btn.FlatAppearance.MouseDownBackColor  = Color.FromArgb(20, 50, 100);
-                y += 40;
-                panel.Controls.Add(btn);
-                return btn;
-            }
-
-            void AddSubGap() { y += 6; }
-
-            // ── 玩家帳號 ──
-            AddSubLabel("玩家帳號");
-
-            var btnList = MakeSubBtn("👥", "玩家列表", isActive: true);
-            _playerSubActive = btnList;
-            btnList.Click += (s, e) =>
-            {
-                // 已在玩家列表頁面，聚焦搜尋框
-                _searchBox?.Focus();
-            };
-
-            var btnMasterSub = MakeSubBtn("👑", "主帳號查詢");
-            btnMasterSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new MasterAccountForm());
-            };
-
-            AddSubGap();
-
-            // ── 充值 & 獎勵 ──
-            AddSubLabel("充值 & 獎勵");
-
-            var btnRechargeSub = MakeSubBtn("💳", "充值管理");
-            btnRechargeSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnRecharge);
-                SwitchToHub(new RechargeForm());
-            };
-
-            var btnVipSub = MakeSubBtn("💎", "VIP 管理");
-            btnVipSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new VipForm());
-            };
-
-            var btnCostSub = MakeSubBtn("💸", "消費達成獎勵");
-            btnCostSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new CostMilestoneForm());
-            };
-
-            AddSubGap();
-
-            // ── 管理操作 ──
-            AddSubLabel("管理操作");
-
-            var btnBanSub = MakeSubBtn("🔒", "封號管理");
-            btnBanSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new BanForm());
-            };
-
-            var btnHistSub = MakeSubBtn("🔍", "活動歷程");
-            btnHistSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new PlayerHistoryForm());
-            };
-
-            var btnSendSub = MakeSubBtn("✉", "發送道具");
-            btnSendSub.Click += (s, e) =>
-            {
-                if (!CheckConnected()) return;
-                SetActiveNav(_btnPlayerNav);
-                SwitchToHub(new ItemQueueForm());
-            };
-
-            return panel;
         }
 
         // ── Hub 切換 ───────────────────────────────────────────
