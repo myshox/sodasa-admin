@@ -459,6 +459,44 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>
+        /// 修正 endtime=0 的未領取郵件，延長到 30 天後到期
+        /// （有些遊戲會把 endtime=0 視為已過期，導致無法領取）
+        /// </summary>
+        public async Task<int> FixMailEndtimeAsync(string account = "")
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            int futureTs = (int)DateTimeOffset.Now.AddDays(30).ToUnixTimeSeconds();
+            string accWhere = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc";
+            string sql = $"UPDATE maildata SET endtime=@end WHERE (endtime IS NULL OR endtime=0) AND `check`=0 AND deleamill=0 {accWhere}";
+            using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@end", futureTs);
+            if (!string.IsNullOrWhiteSpace(account)) cmd.Parameters.AddWithValue("@acc", account);
+            int count = await cmd.ExecuteNonQueryAsync();
+            await GmLogger.Instance.LogAsync("修正endtime", string.IsNullOrWhiteSpace(account) ? "全服" : account, $"設定endtime={futureTs} 共{count}封", true);
+            return count;
+        }
+
+        /// <summary>
+        /// 取得「已領取」vs「未領取」的郵件樣本，用於診斷可領取格式
+        /// </summary>
+        public async Task<(List<MailRecord> claimed, List<MailRecord> unclaimed)> GetMailDiagnoseAsync(string cdkey)
+        {
+            var claimed   = new List<MailRecord>();
+            var unclaimed = new List<MailRecord>();
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            using var cmd1 = new MySqlCommand("SELECT * FROM maildata WHERE cdkey=@ck AND `check`=1 AND deleamill=0 ORDER BY id DESC LIMIT 10", conn);
+            cmd1.Parameters.AddWithValue("@ck", cdkey);
+            claimed = await ReadMailRecords(cmd1, cdkey);
+
+            using var cmd2 = new MySqlCommand("SELECT * FROM maildata WHERE cdkey=@ck AND `check`=0 AND deleamill=0 ORDER BY id DESC LIMIT 10", conn);
+            cmd2.Parameters.AddWithValue("@ck", cdkey);
+            unclaimed = await ReadMailRecords(cmd2, cdkey);
+            return (claimed, unclaimed);
+        }
+
+        /// <summary>
         /// 修正舊版發送的郵件：
         ///   1. 把標題為「[GM] ...」格式的 buff1/buff2 改為「道具#ID」格式
         ///   2. 用 items.xlsx 已載入的道具描述回填 buff3（讓遊戲能顯示道具說明）

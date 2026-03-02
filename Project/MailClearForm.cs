@@ -149,25 +149,70 @@ namespace SQ_Email_Tools
             // 修正按鈕列
             var fixRow = new FlowLayoutPanel
             {
-                Location = new Point(12, fy), Size = new Size(W - 24, 38),
+                Location = new Point(12, fy), Size = new Size(W - 24, 40),
                 FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, WrapContents = false
             };
-            _btnFixBuff3 = Theme.MakeButton("修正全服舊郵件 buff3（讓舊道具可領取）", Color.FromArgb(80, 30, 30), Color.FromArgb(245, 101, 101), 280, 34);
+            _btnFixBuff3 = Theme.MakeButton("🔧 修正全服舊郵件 buff3", Color.FromArgb(80, 30, 30), Color.FromArgb(245, 101, 101), 200, 34);
             _btnFixBuff3.Font    = Theme.FontSmall;
             _btnFixBuff3.Margin  = new Padding(0, 2, 8, 0);
             _btnFixBuff3.Click  += async (s, e) => await DoFixBuff3Async("");
             fixRow.Controls.Add(_btnFixBuff3);
+
+            // ★ 新增：修正 endtime 按鈕
+            var btnFixEndtime = Theme.MakeButton("⏰ 修正 endtime=0（延長30天）", Color.FromArgb(20, 50, 80), Color.FromArgb(74, 158, 255), 220, 34);
+            btnFixEndtime.Font   = Theme.FontSmall;
+            btnFixEndtime.Margin = new Padding(0, 2, 0, 0);
+            btnFixEndtime.Click += async (s, e) =>
+            {
+                if (MessageBox.Show(
+                    "確定要修正全服所有 endtime=0 的未領取郵件，設定為 30 天後到期？\n" +
+                    "（遊戲可能將 endtime=0 視為已過期，導致郵件無法領取）",
+                    "確認修正 endtime", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                btnFixEndtime.Enabled = false; btnFixEndtime.Text = "處理中…";
+                _fixStatusLbl.ForeColor = Theme.AccentOrange;
+                _fixStatusLbl.Text = "修正 endtime 中…";
+                try
+                {
+                    int count = await DatabaseManager.Instance.FixMailEndtimeAsync("");
+                    _fixStatusLbl.ForeColor = Theme.AccentGreen;
+                    _fixStatusLbl.Text = $"✓ 已修正 {count} 封郵件的 endtime（延長至30天後）";
+                }
+                catch (Exception ex) { _fixStatusLbl.ForeColor = Theme.AccentRed; _fixStatusLbl.Text = "✗ 失敗：" + ex.Message; }
+                finally { if (!IsDisposed) { btnFixEndtime.Enabled = true; btnFixEndtime.Text = "⏰ 修正 endtime=0（延長30天）"; } }
+            };
+            fixRow.Controls.Add(btnFixEndtime);
+
             grpFix.Controls.Add(fixRow);
             fy += 44;
+
+            // 無法領取說明
+            var hintPanel = new Panel
+            {
+                Location  = new Point(12, fy),
+                Size      = new Size(W - 24, 56),
+                BackColor = Color.FromArgb(20, 50, 20)
+            };
+            hintPanel.Controls.Add(new Label
+            {
+                Text = "💡 無法領取常見原因：\n" +
+                       "① type=0 + data=null = 遊戲通知郵件（道具已直接給予，非信箱領取機制）\n" +
+                       "② endtime=0 = 可能被遊戲視為已過期  ③ data=null = 缺少道具ID（遊戲不知道給什麼）",
+                ForeColor = Color.FromArgb(86, 196, 118),
+                Font      = new Font(Theme.FontFamily, 7.5f),
+                AutoSize  = false, Size = new Size(W - 30, 52),
+                Location  = new Point(4, 2)
+            });
+            grpFix.Controls.Add(hintPanel);
+            fy += 60;
 
             // 修正結果顯示
             _fixStatusLbl = new Label
             {
-                Location = new Point(14, fy), Size = new Size(W - 28, 36),
+                Location = new Point(14, fy), Size = new Size(W - 28, 52),
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = false
             };
             grpFix.Controls.Add(_fixStatusLbl);
-            fy += 42;
+            fy += 58;
 
             // 分隔線
             grpFix.Controls.Add(new Panel

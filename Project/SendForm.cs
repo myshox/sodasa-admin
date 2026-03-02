@@ -1017,28 +1017,40 @@ namespace SQ_Email_Tools
                     Anchor    = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
                 };
 
-                var fields = new (string key, string val, bool highlight)[]
+                // ★ 診斷：判斷此郵件是否可能無法領取
+                bool isNotification = r.Type == 0 && r.Data == 0;
+                bool endtimeExpired = r.EndTime > 0 && r.EndTime < (int)DateTimeOffset.Now.ToUnixTimeSeconds();
+                bool endtimeZero    = r.EndTime == 0;
+                var  warnings = new System.Collections.Generic.List<string>();
+                if (isNotification) warnings.Add("type=0+data=0 → 遊戲通知郵件（道具已直接給予，無需領取）");
+                if (endtimeExpired)  warnings.Add($"endtime 已過期：{r.EndTimeStr}");
+                if (endtimeZero)     warnings.Add("endtime=0 → 某些遊戲版本視為過期");
+                if (string.IsNullOrWhiteSpace(r.Buff3) && r.Type == 0) warnings.Add("buff3 為空（可用「修正 buff3」功能回填）");
+
+                var fields = new (string key, string val, bool highlight, bool warn)[]
                 {
-                    ("id",        r.Id.ToString(),       false),
-                    ("type",      r.Type.ToString(),     r.Type > 0),
-                    ("cdkey",     r.Cdkey,               false),
-                    ("buff1",     r.Buff1,               false),
-                    ("buff2",     r.Buff2,               false),
-                    ("data",      r.RawData.Length > 0 ? r.RawData : r.Data.ToString(), r.Data > 0),
-                    ("sendtime",  r.SendTimeStr,         false),
-                    ("endtime",   r.EndTimeStr,          false),
-                    ("check",     r.CheckFlag.ToString(), false),
-                    ("deleamill", r.Deleamill.ToString(), false),
-                    ("buff3",     r.Buff3,               false),
+                    ("id",        r.Id.ToString(),                                    false, false),
+                    ("type",      r.Type == 0 ? "0（通知）" : r.Type.ToString(),      r.Type > 0, isNotification),
+                    ("cdkey",     r.Cdkey,                                            false, false),
+                    ("buff1",     r.Buff1,                                            false, false),
+                    ("buff2",     r.Buff2,                                            false, false),
+                    ("data",      r.RawData.Length > 0 ? r.RawData : r.Data.ToString(), r.Data > 0, r.Data == 0 && r.Type > 0),
+                    ("sendtime",  r.SendTimeStr,                                      false, false),
+                    ("endtime",   r.EndTime == 0 ? "0（可能過期）" : r.EndTimeStr,   !endtimeExpired && !endtimeZero, endtimeExpired || endtimeZero),
+                    ("check",     r.CheckFlag.ToString(),                             false, false),
+                    ("deleamill", r.Deleamill.ToString(),                             false, r.Deleamill != 0),
+                    ("buff3",     r.Buff3,                                            false, false),
                 };
 
                 string status  = r.CheckFlag == 1 ? "✓ 已領取" : "○ 未領取";
                 Color  statClr = r.CheckFlag == 1 ? Color.FromArgb(86, 196, 118) : Color.FromArgb(255, 159, 10);
 
+                string hdrText = $"記錄 #{r.Id} — check={r.CheckFlag} deleamill={r.Deleamill}";
+                if (warnings.Count > 0) hdrText += "  ⚠";
                 var hdr = new Label
                 {
-                    Text      = $"記錄 #{r.Id} — check={r.CheckFlag} deleamill={r.Deleamill}",
-                    ForeColor = Color.FromArgb(139, 92, 246),
+                    Text      = hdrText,
+                    ForeColor = warnings.Count > 0 ? Color.FromArgb(255, 159, 10) : Color.FromArgb(139, 92, 246),
                     Font      = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
                     AutoSize  = true, Location = new Point(0, 0)
                 };
@@ -1055,15 +1067,18 @@ namespace SQ_Email_Tools
                 // 欄位格 2-column grid
                 int cy = 22;
                 bool left = true;
-                foreach (var (k, v, hi) in fields)
+                foreach (var (k, v, hi, wn) in fields)
                 {
                     int cx = left ? 0 : 260;
                     string display = string.IsNullOrEmpty(v) ? "(空)" : v;
+                    Color fg = wn ? Color.FromArgb(255, 100, 100)
+                             : hi ? Theme.TextPrimary
+                             : string.IsNullOrEmpty(v) ? Theme.TextMuted : Theme.TextSecondary;
                     var lbl = new Label
                     {
                         Text      = $"{k}: {display}",
-                        ForeColor = hi ? Theme.TextPrimary : (string.IsNullOrEmpty(v) ? Theme.TextMuted : Theme.TextSecondary),
-                        Font      = hi ? new Font(Theme.FontFamily, 8.5f, FontStyle.Bold) : Theme.FontSmall,
+                        ForeColor = fg,
+                        Font      = (hi || wn) ? new Font(Theme.FontFamily, 8.5f, FontStyle.Bold) : Theme.FontSmall,
                         AutoSize  = false, Size = new Size(250, 18),
                         Location  = new Point(cx, cy)
                     };
@@ -1072,6 +1087,23 @@ namespace SQ_Email_Tools
                     left = !left;
                 }
                 if (!left) cy += 18; // 奇數時補一行
+
+                // 警告訊息
+                if (warnings.Count > 0)
+                {
+                    cy += 4;
+                    string warnText = "⚠ " + string.Join("  |  ", warnings);
+                    var warnLbl = new Label
+                    {
+                        Text      = warnText,
+                        ForeColor = Color.FromArgb(255, 159, 10),
+                        Font      = new Font(Theme.FontFamily, 7.5f),
+                        AutoSize  = false, Size = new Size(490, 30),
+                        Location  = new Point(0, cy)
+                    };
+                    card.Controls.Add(warnLbl);
+                    cy += 32;
+                }
 
                 card.Height = cy + 12;
                 scroll.Controls.Add(card);
@@ -1084,7 +1116,7 @@ namespace SQ_Email_Tools
             // 底部提示
             var hint = new Label
             {
-                Text      = "Type: 1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  6=公會資金  7=寵物糖果  8=VIP點",
+                Text      = "Type: 0=通知(已直接給予)  1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  8=VIP點",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft,
                 Padding = new Padding(8, 0, 0, 0), BackColor = Theme.BgDark
