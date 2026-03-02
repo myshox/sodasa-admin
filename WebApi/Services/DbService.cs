@@ -2551,7 +2551,7 @@ public class DbService
             await using var db = Open(); await db.OpenAsync();
             var (uid, _) = await ResolveCsaloginAsync(db, account);
             await using var cmd = new MySqlCommand(
-                "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", db);
+                "UPDATE costdata SET `check`=0, time=NOW() WHERE cdkey=@acc", db);
             cmd.Parameters.AddWithValue("@acc", uid);
             return await cmd.ExecuteNonQueryAsync() > 0;
         }

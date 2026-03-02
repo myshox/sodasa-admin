@@ -3345,11 +3345,11 @@ namespace SQ_Email_Tools
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
                 using var cmd = new MySqlCommand(
-                    "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", conn);
+                    "UPDATE costdata SET `check`=0, time=NOW() WHERE cdkey=@acc", conn);
                 cmd.Parameters.AddWithValue("@acc", account);
                 int rows = await cmd.ExecuteNonQueryAsync();
                 if (rows > 0)
-                    await GmLogger.Instance.LogAsync("重置消費進度", account, "costdata.point/check 歸零", true);
+                    await GmLogger.Instance.LogAsync("重置消費進度", account, "costdata.check 歸零（已領狀態清除，point 保留）", true);
                 return rows > 0;
             }
             catch (Exception ex)

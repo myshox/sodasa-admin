@@ -347,17 +347,20 @@ export default function CostMilestonePage() {
                 </div>
               </div>
 
-              {/* 重置 */}
-              <button
-                onClick={handleReset} disabled={loading}
-                style={{
-                  padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                  background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)',
-                  color: '#f87171', opacity: loading ? 0.5 : 1,
-                }}
-              >
-                🗑 重置進度
-              </button>
+              {/* 重置已領狀態 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <button
+                  onClick={handleReset} disabled={loading}
+                  style={{
+                    padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                    background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)',
+                    color: '#f87171', opacity: loading ? 0.5 : 1,
+                  }}
+                >
+                  🔄 重置已領狀態
+                </button>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>清除 check，讓補發按鈕可再次點擊</span>
+              </div>
             </div>
           </div>
         </div>

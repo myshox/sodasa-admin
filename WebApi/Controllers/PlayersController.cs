@@ -237,7 +237,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> ResetCostdata(string account)
     {
         var ok = await _db.ResetCostdataAsync(account);
-        return ok ? Ok(new { message = "✓ 已重置消費進度" }) : BadRequest(new { message = "重置失敗（玩家可能無 costdata 記錄）" });
+        return ok ? Ok(new { message = "✓ 已清除已領狀態（check=0），消費點數保留，補發按鈕可再次使用" }) : BadRequest(new { message = "重置失敗（玩家可能無 costdata 記錄）" });
     }
 
     /// <summary>同步遊戲模式：退 check=milestoneIdx，讓遊戲伺服器自動發道具到背包</summary>
