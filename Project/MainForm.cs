@@ -189,20 +189,12 @@ namespace SQ_Email_Tools
             // ══ GM 操作 ══
             AddSectionLabel("GM 操作", ref y);
 
-            var btnBatchSend = MakeNavBtn("📢", "批量發送", ref y);
-            btnBatchSend.Click += (s, e) =>
+            var btnBatchOps = MakeNavBtn("📨", "郵件操作", ref y);
+            btnBatchOps.Click += (s, e) =>
             {
-                SetActiveNav(btnBatchSend);
+                SetActiveNav(btnBatchOps);
                 if (!CheckConnected()) return;
-                SwitchToHub(new BatchSendForm());
-            };
-
-            var btnItemQueue = MakeNavBtn("📬", "道具給予", ref y);
-            btnItemQueue.Click += (s, e) =>
-            {
-                SetActiveNav(btnItemQueue);
-                if (!CheckConnected()) return;
-                SwitchToHub(new ItemQueueForm());
+                SwitchToHub(new BatchOpsHubForm());
             };
 
             var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
@@ -221,13 +213,7 @@ namespace SQ_Email_Tools
                 SwitchToHub(new GmPetForm());
             };
 
-            var btnMailClear = MakeNavBtn("🗑", "清除郵件", ref y);
-            btnMailClear.Click += (s, e) =>
-            {
-                SetActiveNav(btnMailClear);
-                if (!CheckConnected()) return;
-                SwitchToHub(new MailClearForm());
-            };
+            // 清除郵件已整合至「郵件操作」的「維護工具」Tab
 
             var btnSpeedHack = MakeNavBtn("⚡", "加速外掛封禁", ref y);
             btnSpeedHack.Click += (s, e) =>

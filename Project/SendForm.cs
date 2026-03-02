@@ -49,6 +49,13 @@ namespace SQ_Email_Tools
         private const int      PageSize       = 50;
         private int            MaxPage        => Math.Max(1, (_filteredItems.Count + PageSize - 1) / PageSize);
 
+        // 從 BatchOpsHubForm 整合頁開啟（無預選玩家）
+        public SendForm()
+        {
+            InitUI();
+            ApplyFilter();
+        }
+
         public SendForm(PlayerInfo player)
         {
             _recipients.Add(player);
