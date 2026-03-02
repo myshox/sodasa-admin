@@ -19,7 +19,7 @@ namespace SQ_Email_Tools
         {
             public ItemInfo Item { get; set; }
             public int Qty  { get; set; } = 1;
-            public int Type { get; set; } = 1;
+            public int Type { get; set; } = 0;   // 此遊戲用 type=0 + data=itemId 格式
         }
         private readonly List<CartEntry> _cart = new();
 
@@ -551,7 +551,7 @@ namespace SQ_Email_Tools
             };
             // 數量/type 改為在購物車欄直接編輯
             _nudQty  = new NumericUpDown { Minimum = 1, Maximum = 99, Value = 1, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
-            _nudType = new NumericUpDown { Minimum = 0, Maximum = 9,  Value = 1, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
+            _nudType = new NumericUpDown { Minimum = 0, Maximum = 9,  Value = 0, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
 
             // 預約發送
             _chkSchedule = new CheckBox
@@ -772,7 +772,7 @@ namespace SQ_Email_Tools
             }
             else
             {
-                _cart.Add(new CartEntry { Item = item, Qty = 1, Type = 1 });
+                _cart.Add(new CartEntry { Item = item, Qty = 1, Type = (int)_nudType.Value });
                 ShowStatus($"✓ 已加入：{item.Name}（購物車共 {_cart.Count} 種道具）", null);
             }
             RefreshCartDgv();
@@ -1018,25 +1018,28 @@ namespace SQ_Email_Tools
                 };
 
                 // ★ 診斷：判斷此郵件是否可能無法領取
-                bool isNotification = r.Type == 0 && r.Data == 0;
+                // 正常 GM 道具郵件：type=0, data=非0（對應遊戲自身格式）
+                bool isPureNotification = r.Type == 0 && r.Data == 0;  // 真的無道具通知
+                bool wrongType          = r.Type != 0;                   // type非0可能遊戲不認識
                 bool endtimeExpired = r.EndTime > 0 && r.EndTime < (int)DateTimeOffset.Now.ToUnixTimeSeconds();
                 bool endtimeZero    = r.EndTime == 0;
                 var  warnings = new System.Collections.Generic.List<string>();
-                if (isNotification) warnings.Add("type=0+data=0 → 遊戲通知郵件（道具已直接給予，無需領取）");
-                if (endtimeExpired)  warnings.Add($"endtime 已過期：{r.EndTimeStr}");
-                if (endtimeZero)     warnings.Add("endtime=0 → 某些遊戲版本視為過期");
-                if (string.IsNullOrWhiteSpace(r.Buff3) && r.Type == 0) warnings.Add("buff3 為空（可用「修正 buff3」功能回填）");
+                if (isPureNotification) warnings.Add("type=0+data=0 → 純通知（無道具可領取）");
+                if (wrongType)          warnings.Add($"type={r.Type} → 遊戲可能只認識 type=0，建議改為 0");
+                if (endtimeExpired)     warnings.Add($"endtime 已過期：{r.EndTimeStr}");
+                if (endtimeZero)        warnings.Add("endtime=0 → 某些遊戲版本視為過期（可用「修正 endtime」功能修復）");
+                if (string.IsNullOrWhiteSpace(r.Buff3)) warnings.Add("buff3 為空（可用「修正 buff3」功能回填）");
 
                 var fields = new (string key, string val, bool highlight, bool warn)[]
                 {
                     ("id",        r.Id.ToString(),                                    false, false),
-                    ("type",      r.Type == 0 ? "0（通知）" : r.Type.ToString(),      r.Type > 0, isNotification),
+                    ("type",      r.Type == 0 ? "0（道具/通知）" : $"{r.Type}（⚠建議改0）", r.Type == 0, wrongType),
                     ("cdkey",     r.Cdkey,                                            false, false),
                     ("buff1",     r.Buff1,                                            false, false),
                     ("buff2",     r.Buff2,                                            false, false),
                     ("data",      r.RawData.Length > 0 ? r.RawData : r.Data.ToString(), r.Data > 0, r.Data == 0 && r.Type > 0),
                     ("sendtime",  r.SendTimeStr,                                      false, false),
-                    ("endtime",   r.EndTime == 0 ? "0（可能過期）" : r.EndTimeStr,   !endtimeExpired && !endtimeZero, endtimeExpired || endtimeZero),
+                    ("endtime",   r.EndTime == 0 ? "0（永久/不過期）" : r.EndTimeStr,  !endtimeExpired, endtimeExpired),
                     ("check",     r.CheckFlag.ToString(),                             false, false),
                     ("deleamill", r.Deleamill.ToString(),                             false, r.Deleamill != 0),
                     ("buff3",     r.Buff3,                                            false, false),
@@ -1116,7 +1119,7 @@ namespace SQ_Email_Tools
             // 底部提示
             var hint = new Label
             {
-                Text      = "Type: 0=通知(已直接給予)  1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  8=VIP點",
+                Text      = "此遊戲郵件格式：type=0 + data=道具ID（遊戲原生格式，可領取）  |  data=0 = 純通知",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft,
                 Padding = new Padding(8, 0, 0, 0), BackColor = Theme.BgDark
