@@ -458,6 +458,87 @@ namespace SQ_Email_Tools
             return count;
         }
 
+        /// <summary>
+        /// 修正舊版發送的郵件：
+        ///   1. 把標題為「[GM] ...」格式的 buff1/buff2 改為「道具#ID」格式
+        ///   2. 用 items.xlsx 已載入的道具描述回填 buff3（讓遊戲能顯示道具說明）
+        ///   3. 從資料庫已有非空 buff3 記錄補救其餘空 buff3
+        /// </summary>
+        public async Task<(int titleFixed, int buff3Fixed, int totalEmpty)> FixOldMailsAsync(
+            string account = "",
+            IEnumerable<(int ItemId, string Desc)>? itemDescs = null)
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            string accFilter = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc";
+
+            // 1. 統計 buff3 為空且未領取的郵件數
+            using var cnt = new MySqlCommand(
+                $"SELECT COUNT(*) FROM maildata WHERE `check`=0 AND deleamill=0 AND (buff3 IS NULL OR buff3='') {accFilter}", conn);
+            if (!string.IsNullOrWhiteSpace(account)) cnt.Parameters.AddWithValue("@acc", account);
+            int totalEmpty = Convert.ToInt32(await cnt.ExecuteScalarAsync());
+
+            // 2. 修正 buff1/buff2（舊式通用標題 → 道具#ID）
+            string updTitle = string.IsNullOrWhiteSpace(account)
+                ? @"UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data)
+                    WHERE `check`=0 AND deleamill=0
+                    AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%'
+                         OR buff1='[GM] 批量發送' OR buff1 LIKE '[GM] %')"
+                : @"UPDATE maildata SET buff1=CONCAT('道具#',data), buff2=CONCAT('道具#',data)
+                    WHERE `check`=0 AND deleamill=0 AND cdkey=@acc2
+                    AND (buff1='[GM] 道具發送' OR buff1 LIKE '[GM] 道具 #%'
+                         OR buff1='[GM] 批量發送' OR buff1 LIKE '[GM] %')";
+            using var fixTitle = new MySqlCommand(updTitle, conn);
+            if (!string.IsNullOrWhiteSpace(account)) fixTitle.Parameters.AddWithValue("@acc2", account);
+            int titleFixed = await fixTitle.ExecuteNonQueryAsync();
+
+            int buff3Fixed = 0;
+
+            // 3a. 用 items.xlsx 道具描述逐一回填 buff3
+            if (itemDescs != null)
+            {
+                string accWhere = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc3";
+                foreach (var (itemId, desc) in itemDescs)
+                {
+                    if (string.IsNullOrWhiteSpace(desc)) continue;
+                    using var upd = new MySqlCommand(
+                        $"UPDATE maildata SET buff3=@desc WHERE data=@id AND `check`=0 AND (buff3 IS NULL OR buff3='') {accWhere}", conn);
+                    upd.Parameters.AddWithValue("@desc", desc);
+                    upd.Parameters.AddWithValue("@id",   itemId);
+                    if (!string.IsNullOrWhiteSpace(account)) upd.Parameters.AddWithValue("@acc3", account);
+                    try { buff3Fixed += await upd.ExecuteNonQueryAsync(); } catch { }
+                }
+            }
+
+            // 3b. 從資料庫現有非空 buff3 記錄補救剩餘的
+            string updBuff3 = string.IsNullOrWhiteSpace(account)
+                ? @"UPDATE maildata m
+                    JOIN (
+                        SELECT data, buff3 FROM maildata
+                        WHERE buff3 IS NOT NULL AND buff3 != ''
+                        GROUP BY data, buff3 ORDER BY COUNT(*) DESC
+                    ) ref ON m.data = ref.data
+                    SET m.buff3 = ref.buff3
+                    WHERE m.`check`=0 AND m.deleamill=0 AND (m.buff3 IS NULL OR m.buff3='')"
+                : @"UPDATE maildata m
+                    JOIN (
+                        SELECT data, buff3 FROM maildata
+                        WHERE buff3 IS NOT NULL AND buff3 != ''
+                        GROUP BY data, buff3 ORDER BY COUNT(*) DESC
+                    ) ref ON m.data = ref.data
+                    SET m.buff3 = ref.buff3
+                    WHERE m.`check`=0 AND m.deleamill=0 AND (m.buff3 IS NULL OR m.buff3='')
+                    AND m.cdkey=@acc4";
+            using var fixBuff3 = new MySqlCommand(updBuff3, conn);
+            if (!string.IsNullOrWhiteSpace(account)) fixBuff3.Parameters.AddWithValue("@acc4", account);
+            try { buff3Fixed += await fixBuff3.ExecuteNonQueryAsync(); } catch { }
+
+            await GmLogger.Instance.LogAsync("修正郵件", string.IsNullOrWhiteSpace(account) ? "全服" : account,
+                $"標題修正:{titleFixed} buff3回填:{buff3Fixed} 空郵件:{totalEmpty}", true);
+            return (titleFixed, buff3Fixed, totalEmpty);
+        }
+
         // ══════════════════════════════════════════════════════════
         // 道具直接給予（itempetgetdata 表）
         // 對應 [gm additem 道具ID 數量 帳號] 指令
