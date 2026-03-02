@@ -121,8 +121,8 @@ namespace SQ_Email_Tools
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 200
             });
 
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(toolPanel);
             Controls.Add(header);
         }

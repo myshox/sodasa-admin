@@ -160,7 +160,8 @@ namespace SQ_Email_Tools
             };
             split.Panel1.BackColor = Theme.BgPage;
             split.Panel2.BackColor = Theme.BgPage;
-            Load += (s, e) => { try { split.SplitterDistance = tab.Height * 6 / 10; } catch { } };
+            // 用 Resize 事件動態設定，確保有實際寬度才計算（避免嵌入時 Width=0 問題）
+            split.Resize += (s, e) => { if (split.Height > 0) try { split.SplitterDistance = (int)(split.Height * 0.6); } catch { } };
 
             // 上方：月度長條圖
             var card = MakeChartCard("近 12 個月充值金額（NT$）", ref _monthlyPanel);
@@ -220,7 +221,7 @@ namespace SQ_Email_Tools
             };
             split.Panel1.BackColor = Theme.BgPage;
             split.Panel2.BackColor = Theme.BgPage;
-            Load += (s, e) => { try { split.SplitterDistance = tab.Width * 56 / 100; } catch { } };
+            split.Resize += (s, e) => { if (split.Width > 0) try { split.SplitterDistance = (int)(split.Width * 0.56); } catch { } };
 
             // 左：圓餅
             var card = MakeChartCard("付費玩家分層分佈", ref _tierPanel);

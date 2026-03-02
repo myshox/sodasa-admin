@@ -107,9 +107,9 @@ namespace SQ_Email_Tools
             AddCol("cEnd",   "到期",    95);
             AddCol("cStat",  "狀態",    72);
 
-            // 加入順序：Bottom → Fill → Top
-            Controls.Add(statusBar);
+            // Fill 先加，Bottom 次之，Top 最後（確保 DockStyle 正確分配空間）
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(searchPanel);
             Controls.Add(header);
         }

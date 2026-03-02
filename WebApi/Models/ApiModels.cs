@@ -410,6 +410,13 @@ public class SpeedHackDto
 public class BatchBanRequest
 {
     public List<string> Accounts { get; set; } = new();
-    public int  Days    { get; set; } = 0;   // 0 = 永久
+    public int  Days    { get; set; } = 0;
     public double Hours { get; set; } = 0;
+}
+
+public class AdjustCostRequest
+{
+    public long   AddPoint { get; set; }
+    public string? CharName { get; set; }
+    public int    Quantity  { get; set; } = 1;
 }

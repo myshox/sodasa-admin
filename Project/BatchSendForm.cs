@@ -150,13 +150,14 @@ namespace SQ_Email_Tools
             };
             split.Panel1.BackColor = Theme.BgMid;
             split.Panel2.BackColor = Theme.BgMid;
-            Load += (s, e) =>
+            split.HandleCreated += (_, __) =>
             {
                 try
                 {
                     split.Panel1MinSize    = 320;
                     split.Panel2MinSize    = 320;
-                    split.SplitterDistance = Math.Max(320, Math.Min(split.Width - 320, 480));
+                    if (split.Width >= 640)
+                        split.SplitterDistance = Math.Max(320, Math.Min(split.Width - 320, 480));
                 }
                 catch { }
             };
@@ -289,6 +290,8 @@ namespace SQ_Email_Tools
         private void BuildRightPanel(Panel p)
         {
             var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            scroll.HorizontalScroll.Enabled = false;
+            scroll.HorizontalScroll.Visible = false;
             p.Controls.Add(scroll);
 
             int y = 12, x = 14;
@@ -428,6 +431,7 @@ namespace SQ_Email_Tools
             _chkSchedule = new CheckBox
             {
                 Text = "預約發送時間", ForeColor = Theme.TextSecondary, Font = Theme.FontBody,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent,
                 AutoSize = true, Checked = false
             };
             _dtStart = new DateTimePicker

@@ -22,31 +22,31 @@ namespace SQ_Email_Tools
             return "Segoe UI";
         }
 
-        // ── 背景層次 ─────────────────────────────────────────────
-        //   深色 Header / Sidebar → 中性頁面底 → 白色卡片 → 輸入框
-        public static readonly Color BgDark    = Color.FromArgb( 28,  28,  30); // Header / Sidebar / 狀態列
-        public static readonly Color BgMid     = Color.FromArgb( 40,  42,  54); // 次深（SplitContainer 背板）
-        public static readonly Color BgCard    = Color.FromArgb( 50,  52,  65); // 卡片 / 面板
-        public static readonly Color BgPage    = Color.FromArgb( 36,  37,  50); // 頁面底色
-        public static readonly Color BgLight   = Color.FromArgb( 62,  64,  78); // 輸入框 / 較淺面板
+        // ── 背景層次（各層色差拉大，視覺區隔明顯）──────────────────
+        //   Sidebar(最深) → Header → Page底 → Mid板 → Card → Input(最淺)
+        public static readonly Color BgSidebar = Color.FromArgb( 14,  15,  20); // 側邊欄（近黑）
+        public static readonly Color BgDark    = Color.FromArgb( 22,  24,  34); // Header / 狀態列 / Toolbar
+        public static readonly Color BgPage    = Color.FromArgb( 30,  32,  46); // 頁面主底色
+        public static readonly Color BgMid     = Color.FromArgb( 38,  41,  58); // SplitContainer / 次底
+        public static readonly Color BgCard    = Color.FromArgb( 48,  52,  72); // 卡片 / 面板（比Page亮18步）
+        public static readonly Color BgLight   = Color.FromArgb( 62,  67,  90); // 輸入框 / 按鈕背板
         public static readonly Color BgInput   = BgLight;
-        public static readonly Color BgSidebar = Color.FromArgb( 22,  22,  26); // 側邊欄（更深）
         public static readonly Color CardBg    = BgCard;
 
-        public static readonly Color Border    = Color.FromArgb( 68,  70,  84); // 分隔線
-        public static readonly Color BorderHov = Color.FromArgb(  0, 145, 255); // focus ring
+        public static readonly Color Border    = Color.FromArgb( 76,  82, 108); // 分隔線（比 Card 亮，清晰可見）
+        public static readonly Color BorderHov = Color.FromArgb( 30, 160, 255); // focus ring
 
-        // 強調色（飽和，在深色底上清晰可見）
-        public static readonly Color AccentBlue   = Color.FromArgb(  0, 145, 255);
-        public static readonly Color AccentGreen  = Color.FromArgb( 52, 199,  89);
-        public static readonly Color AccentRed    = Color.FromArgb(255,  69,  58);
-        public static readonly Color AccentOrange = Color.FromArgb(255, 159,  10);
-        public static readonly Color AccentPurple = Color.FromArgb(191, 100, 246);
+        // 強調色（飽和度提高，在深色底上更顯眼）
+        public static readonly Color AccentBlue   = Color.FromArgb(  0, 160, 255);
+        public static readonly Color AccentGreen  = Color.FromArgb( 48, 215,  90);
+        public static readonly Color AccentRed    = Color.FromArgb(255,  65,  55);
+        public static readonly Color AccentOrange = Color.FromArgb(255, 168,  10);
+        public static readonly Color AccentPurple = Color.FromArgb(200, 110, 255);
 
-        // 文字（深色底上清晰可見）
-        public static readonly Color TextPrimary   = Color.FromArgb(240, 240, 245); // 主要文字（近白）
-        public static readonly Color TextSecondary = Color.FromArgb(180, 180, 190); // 次要文字
-        public static readonly Color TextMuted     = Color.FromArgb(120, 120, 132); // 提示文字
+        // 文字（對比度提升）
+        public static readonly Color TextPrimary   = Color.FromArgb(245, 245, 252); // 主要文字（近白，更亮）
+        public static readonly Color TextSecondary = Color.FromArgb(195, 198, 215); // 次要文字
+        public static readonly Color TextMuted     = Color.FromArgb(130, 135, 158); // 提示文字
 
         // ── 字體 ────────────────────────────────────────────────
         public static readonly Font FontTitle  = new Font(_ff, 15f,  FontStyle.Bold);
@@ -193,29 +193,94 @@ namespace SQ_Email_Tools
                     dgv, pt.X, pt.Y - 22, 1400);
             };
 
-            // 資料列
+            // 資料列（偶數列用 BgCard）
             dgv.DefaultCellStyle.BackColor          = BgCard;
             dgv.DefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 0, 80, 160);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(  0, 100, 200);
             dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
             dgv.DefaultCellStyle.Padding            = new Padding(8, 0, 8, 0);
 
-            // 交錯列（稍微淺一點）
-            dgv.AlternatingRowsDefaultCellStyle.BackColor          = Color.FromArgb(58, 60, 74);
+            // 交錯列（奇數列明顯亮一級，對比強化）
+            dgv.AlternatingRowsDefaultCellStyle.BackColor          = Color.FromArgb(58, 63, 86);
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(0, 80, 160);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(0, 100, 200);
 
-            // 欄位標題列
-            dgv.ColumnHeadersDefaultCellStyle.BackColor = BgDark;
-            dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextSecondary;
+            // 欄位標題列（更深，與資料列形成明顯邊界）
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(18, 20, 30);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(200, 210, 240);
             dgv.ColumnHeadersDefaultCellStyle.Font      = new Font(_ff, 9.5f, FontStyle.Bold);
             dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
-            dgv.ColumnHeadersHeight                     = 36;
+            dgv.ColumnHeadersHeight                     = 38;
             dgv.RowTemplate.Height                      = 36;
         }
 
         public static string FontFamily => _ff;
+
+        // ── 原生控件深色樣式 ─────────────────────────────────────
+
+        /// <summary>套用深色主題到 ComboBox（背景/前景/平面邊框）</summary>
+        public static void StyleComboBox(ComboBox cb)
+        {
+            cb.BackColor   = BgLight;
+            cb.ForeColor   = TextPrimary;
+            cb.FlatStyle   = FlatStyle.Flat;
+            cb.Font        = FontBody;
+        }
+
+        /// <summary>套用深色主題到 NumericUpDown</summary>
+        public static void StyleNumericUpDown(NumericUpDown nud)
+        {
+            nud.BackColor  = BgLight;
+            nud.ForeColor  = TextPrimary;
+            nud.BorderStyle = BorderStyle.FixedSingle;
+            nud.Font       = FontBody;
+        }
+
+        /// <summary>套用深色主題到 CheckBox</summary>
+        public static void StyleCheckBox(CheckBox cb, Color? fg = null)
+        {
+            cb.ForeColor   = fg ?? TextPrimary;
+            cb.BackColor   = Color.Transparent;
+            cb.FlatStyle   = FlatStyle.Flat;
+            cb.Font        = FontBody;
+            cb.Cursor      = Cursors.Hand;
+        }
+
+        /// <summary>套用深色主題到 RadioButton</summary>
+        public static void StyleRadioButton(RadioButton rb, Color? fg = null)
+        {
+            rb.ForeColor   = fg ?? TextPrimary;
+            rb.BackColor   = Color.Transparent;
+            rb.FlatStyle   = FlatStyle.Flat;
+            rb.Font        = FontBody;
+            rb.Cursor      = Cursors.Hand;
+        }
+
+        /// <summary>深色次要按鈕（清除/重置/取消類）</summary>
+        public static Button MakeGhostButton(string text, int w = 80, int h = 32)
+        {
+            var bg = Color.FromArgb(55, 60, 80);
+            var btn = new Button
+            {
+                Text      = text,
+                BackColor = bg,
+                ForeColor = TextSecondary,
+                FlatStyle = FlatStyle.Flat,
+                Font      = FontBody,
+                Size      = new Size(w, h),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            btn.FlatAppearance.BorderColor        = Color.FromArgb(85, 90, 115);
+            btn.FlatAppearance.BorderSize         = 1;
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 75, 100);
+            return btn;
+        }
+
+        /// <summary>危險按鈕（刪除/封號/強制類）</summary>
+        public static Button MakeDangerButton(string text, int w = 110, int h = 32)
+            => MakeButton(text, Color.FromArgb(160, 30, 30), Color.White, w, h);
 
         // ── 數值感知排序（供各歷史表單使用）────────────────────────
         /// <summary>

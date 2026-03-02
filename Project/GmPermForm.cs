@@ -111,8 +111,8 @@ namespace SQ_Email_Tools
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 150
             });
 
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(searchPanel);
             Controls.Add(infoBar);
             Controls.Add(header);
@@ -185,7 +185,8 @@ namespace SQ_Email_Tools
             {
                 Text = "啟用 GM 標記（NeiCe = 1）",
                 Checked = gm.NeiCe == 1,
-                ForeColor = Theme.TextPrimary, AutoSize = true
+                ForeColor = Theme.TextPrimary, AutoSize = true,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             AddRow("GM 標記：", chkNeiCe);
 

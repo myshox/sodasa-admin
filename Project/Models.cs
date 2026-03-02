@@ -279,6 +279,12 @@ namespace SQ_Email_Tools
         public int    PaydataCheck     { get; set; } = 1;
         /// <summary>是否有未領的循環獎勵（check==0 且 totalCheck>0）</summary>
         public bool   ClaimReady       => PaydataCheck == 0 && TotalCheck > 0;
+
+        // ── 累計消費達成獎勵（costdata，與累積儲值 paydata 平行）────────
+        /// <summary>消費達成累計點數 = costdata.point（花費的金幣總計）</summary>
+        public long CostPoint  { get; set; }
+        /// <summary>已領取的里程碑數 = costdata.check（對應遊戲「消費達成獎勵」）</summary>
+        public int  CostCheck  { get; set; } = -1; // -1 表示無記錄
         public string QQ         { get; set; }
         public string Uid        { get; set; }
         public string MAC        { get; set; }
@@ -494,6 +500,34 @@ namespace SQ_Email_Tools
         public double AvgSpeedTime { get; set; }
         public int    MaxSpeedTime { get; set; }
         public bool   IsBanned     { get; set; }
+    }
+
+    // ── 伺服器狀態（最新註冊 / 分流在線 / 主帳號統計）──────────────
+
+    public class RecentRegAccount
+    {
+        public string Account    { get; set; } = "";
+        public string CharName   { get; set; } = "";
+        public string MasterName { get; set; } = "";
+        public string RegTime    { get; set; } = "";
+        public string RegIP      { get; set; } = "";
+        public string ServerName { get; set; } = "";
+        public bool   IsOnline   { get; set; }
+    }
+
+    public class ChannelOnlineEntry
+    {
+        public int    ServerId    { get; set; }
+        public string ServerName  { get; set; } = "";
+        public int    OnlineCount { get; set; }
+        public int    TotalCount  { get; set; }
+    }
+
+    public class MasterAccountStats
+    {
+        public int TotalMasters   { get; set; }
+        public int OnlineMasters  { get; set; }
+        public int OfflineMasters => TotalMasters - OnlineMasters;
     }
 
 }

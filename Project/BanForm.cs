@@ -110,8 +110,8 @@ namespace SQ_Email_Tools
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 200
             });
 
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(searchPanel);
             Controls.Add(header);
         }
@@ -211,7 +211,7 @@ namespace SQ_Email_Tools
             Control AddCtl(Control c) { c.Location = new Point(140, y); dlg.Controls.Add(c); return c; }
 
             AddLbl("封禁時長：");
-            var cboDuration = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            var cboDuration = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat };
             cboDuration.Items.AddRange(new object[] { "1 天", "3 天", "7 天", "14 天", "30 天", "永久" });
             cboDuration.SelectedIndex = 0;
             AddCtl(cboDuration); y += 36;
@@ -221,7 +221,7 @@ namespace SQ_Email_Tools
             AddCtl(txtReason); y += 36;
 
             AddLbl("自訂到期：");
-            var chkCustom = new CheckBox { Text = "啟用自訂日期", AutoSize = true, ForeColor = Theme.TextSecondary };
+            var chkCustom = new CheckBox { Text = "啟用自訂日期", AutoSize = true, ForeColor = Theme.TextSecondary, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
             AddCtl(chkCustom); y += 36;
 
             AddLbl("到期時間：");

@@ -36,7 +36,14 @@ const navGroups: NavGroup[] = [
   {
     label: '數據分析',
     items: [
-      { to: '/analytics', icon: '📈', label: '數據分析' },
+      { to: '/server-status',  icon: '🖥', label: '伺服器狀態'   },
+      { to: '/analytics',      icon: '📈', label: '數據分析'     },
+    ]
+  },
+  {
+    label: '獎勵管理',
+    items: [
+      { to: '/cost-milestone', icon: '💸', label: '消費達成獎勵' },
     ]
   },
   {

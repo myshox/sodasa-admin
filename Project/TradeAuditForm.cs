@@ -296,7 +296,7 @@ namespace SQ_Email_Tools
                 BackColor = Theme.Border, SplitterWidth = 3
             };
             split.Panel1.BackColor = split.Panel2.BackColor = Theme.BgPage;
-            Load += (s, e) => { try { split.SplitterDistance = tab.Width / 2; } catch { } };
+            split.Resize += (s, e) => { if (split.Width > 0) try { split.SplitterDistance = split.Width / 2; } catch { } };
 
             // 左：DGV
             var leftPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 10, 6, 12), BackColor = Theme.BgPage };

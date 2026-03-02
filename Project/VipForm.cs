@@ -199,8 +199,8 @@ namespace SQ_Email_Tools
 
             SetActiveFilter(0);
 
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(filterPanel);
             Controls.Add(infoPanel);
             Controls.Add(header);

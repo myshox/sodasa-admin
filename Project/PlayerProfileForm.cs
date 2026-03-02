@@ -1059,6 +1059,105 @@ namespace SQ_Email_Tools
                 y += 20;
             }
 
+            // ── 累計消費達成獎勵（costdata，與累積儲值 paydata 平行）────────
+            y += 4;
+            long  costPt    = _detail.CostPoint;
+            int   costCk    = _detail.CostCheck;        // -1=無記錄; Bitmask: bit i=第i+1個里程碑已領
+            var   milestones= DatabaseManager.CostMilestones;
+            // 計算下一個可領取的里程碑（達成且 bit 未設）
+            int   nextIdx   = -1;
+            for (int mi = 0; mi < milestones.Length; mi++)
+            {
+                int bit = 1 << mi;
+                if (costPt >= milestones[mi] && (costCk & bit) == 0) { nextIdx = mi; break; }
+            }
+            bool  hasCostData = costCk >= 0;
+
+            // 計算已領取數量（bitmask 中 bit 為 1 的數量）
+            int claimedCount = costCk < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)costCk);
+            Section($"💸  累計消費達成獎勵  —  消費 {costPt:N0} 金幣  ·  已領 {claimedCount}/5 獎",
+                Color.FromArgb(180, 130, 255));
+
+            // 里程碑進度顯示（bitmask）
+            for (int mi = 0; mi < milestones.Length; mi++)
+            {
+                bool reached = costPt >= milestones[mi];
+                int  bit     = 1 << mi;
+                bool claimed = costCk >= 0 && (costCk & bit) != 0;
+                Color stateColor = claimed  ? Color.FromArgb(22, 183, 120)
+                                 : reached  ? Color.FromArgb(251, 191, 36)
+                                 :            Theme.TextMuted;
+                string stateText = claimed ? "✅ 已領取"
+                                 : reached ? "🎁 可領取"
+                                 :           "🔒 未達成";
+
+                Row($"里程碑 {mi + 1}（{milestones[mi]:N0} 金幣）：",
+                    $"{stateText}　　（累計需 {milestones[mi]:N0} 金幣，目前 {costPt:N0}）",
+                    stateColor);
+            }
+
+            // 操作按鈕區
+            {
+                int bx = x + 140;
+                // 調整點數
+                var btnAdj = Theme.MakeButton("➕ 調整消費點數", Color.FromArgb(50, 80, 160), Color.White, 130, 24);
+                btnAdj.Location = new Point(bx, y);
+                btnAdj.Font     = Theme.FontSmall;
+                btnAdj.Click   += async (s, e) =>
+                {
+                    using var dlg = new AdjustCostDialog(_player.OnlineName, costPt, _player.Account);
+                    if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                    bool ok = await DatabaseManager.Instance.AdjustCostDataPointAsync(
+                        _player.Account, _detail.OnlineName, dlg.AddPoint);
+                    if (ok)
+                    {
+                        MessageBox.Show($"✅ 已增加 {dlg.AddPoint:N0} 消費點數。",
+                            "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        BuildDetailUI();
+                    }
+                };
+                _bodyPanel.Controls.Add(btnAdj);
+
+                // 重置
+                var btnReset = Theme.MakeButton("🗑 重置進度", Color.FromArgb(120, 30, 30), Color.FromArgb(255, 140, 140), 100, 24);
+                btnReset.Location = new Point(bx + 138, y);
+                btnReset.Font     = Theme.FontSmall;
+                btnReset.Click   += async (s, e) =>
+                {
+                    if (MessageBox.Show($"確定將「{_detail.OnlineName}」消費達成進度歸零？",
+                        "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                    bool ok = await DatabaseManager.Instance.ResetCostDataAsync(_player.Account);
+                    if (ok) { MessageBox.Show("✅ 消費進度已歸零。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); BuildDetailUI(); }
+                };
+                _bodyPanel.Controls.Add(btnReset);
+
+                // 補發獎勵（只在有可領取里程碑時顯示）
+                if (nextIdx >= 0)
+                {
+                    var btnClaim = Theme.MakeButton($"🎁 補發第 {nextIdx + 1} 獎（{milestones[nextIdx]:N0} 金幣）",
+                        Color.FromArgb(120, 80, 0), Color.FromArgb(255, 200, 60), 200, 24);
+                    btnClaim.Location = new Point(bx + 246, y);
+                    btnClaim.Font     = Theme.FontSmall;
+                    btnClaim.Click   += async (s, e) =>
+                    {
+                        using var dlg = new CostClaimDialog(_player.Account, nextIdx, milestones[nextIdx]);
+                        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                        bool ok;
+                        if (dlg.UseMailMode)
+                            ok = await DatabaseManager.Instance.ClaimCostMilestoneByMailAsync(
+                                _player.Account, _detail.OnlineName, nextIdx, dlg.ItemId, dlg.ItemName, dlg.ItemQty);
+                        else
+                            ok = await DatabaseManager.Instance.ClaimCostMilestoneAsync(_player.Account, nextIdx);
+                        if (ok) { MessageBox.Show("✅ 補發已執行。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); BuildDetailUI(); }
+                    };
+                    _bodyPanel.Controls.Add(btnClaim);
+                }
+                y += 30;
+            }
+
+            if (!hasCostData)
+                Row("備註：", "此玩家尚無 costdata 記錄（從未達成任何消費里程碑）", Theme.TextMuted);
+
             // ── 寵物四圍素質 ──────────────────────────────────────
             y += 4;
             Section("🐾  寵物（capturepet）", Color.FromArgb(150, 220, 150));
@@ -1839,13 +1938,15 @@ namespace SQ_Email_Tools
             {
                 Text      = "🔘  【僅增加累儲進度】— 不發放金幣（補資料 / 賽季轉移用）",
                 ForeColor = Color.FromArgb(160, 210, 255), Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 32), Checked = false, Cursor = Cursors.Hand
+                AutoSize = true, Location = new Point(10, 32), Checked = false, Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             _rbWithGold = new RadioButton
             {
                 Text      = "🟡  【增加累儲進度 ＋ 同步發放金幣】— 正常補單使用",
                 ForeColor = Color.FromArgb(200, 240, 170), Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 60), Checked = false, Cursor = Cursors.Hand
+                AutoSize = true, Location = new Point(10, 60), Checked = false, Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             opBox.Controls.AddRange(new Control[] { _rbOnlyProgress, _rbWithGold });
             Controls.Add(opBox);

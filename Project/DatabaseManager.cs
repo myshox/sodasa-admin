@@ -1536,6 +1536,21 @@ namespace SQ_Email_Tools
                 // 若 paydata 無記錄，PayTotal / LifetimePayTotal 維持 csalogin.PayTotal 的值
             }
 
+            // 累計消費達成獎勵：costdata（point = 累計消費金幣, check = 已領取里程碑數）
+            try
+            {
+                using var cmdC = new MySqlCommand(
+                    "SELECT point, IFNULL(`check`, 0) AS ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", conn);
+                cmdC.Parameters.AddWithValue("@acc", account);
+                using var rC = await cmdC.ExecuteReaderAsync();
+                if (await rC.ReadAsync())
+                {
+                    detail.CostPoint = rC["point"] == DBNull.Value ? 0 : Convert.ToInt64(rC["point"]);
+                    detail.CostCheck = rC["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(rC["ck"]);
+                }
+            }
+            catch (Exception dbEx) { System.Diagnostics.Debug.WriteLine("[DB/costdata] " + dbEx.Message); }
+
             return detail;
         }
 
@@ -3267,6 +3282,155 @@ namespace SQ_Email_Tools
         }
 
         // ══════════════════════════════════════════════════════════
+        // 累計消費達成獎勵（costdata）
+        // ══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 里程碑定義（金幣）：3000 / 5000 / 10000 / 50000 / 100000
+        /// check 欄位 = 已領取的里程碑數（0~5），與遊戲一致。
+        /// </summary>
+        public static readonly long[] CostMilestones = { 3_000, 5_000, 10_000, 50_000, 100_000 };
+
+        /// <summary>讀取玩家的消費達成進度（costdata）</summary>
+        public async Task<(long point, int check)> GetCostDataAsync(string account)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "SELECT point, IFNULL(`check`,0) AS ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@acc", account);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                    return (r["point"] == DBNull.Value ? 0 : Convert.ToInt64(r["point"]),
+                            r["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ck"]));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/GetCostData] " + ex.Message); }
+            return (0, 0);
+        }
+
+        /// <summary>
+        /// 調整消費達成進度（INSERT…ON DUPLICATE KEY UPDATE），類似 AdjustPayDataPointAsync。
+        /// addPoint：增加的消費金幣數量。
+        /// </summary>
+        public async Task<bool> AdjustCostDataPointAsync(string account, string charName, long addPoint)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"INSERT INTO costdata (cdkey, name, point, `check`, time)
+                      VALUES (@cdkey, @name, @pt, 0, NOW())
+                      ON DUPLICATE KEY UPDATE
+                          point = point + @pt,
+                          time  = NOW()", conn);
+                cmd.Parameters.AddWithValue("@cdkey", account);
+                cmd.Parameters.AddWithValue("@name",  charName);
+                cmd.Parameters.AddWithValue("@pt",    addPoint);
+                await cmd.ExecuteNonQueryAsync();
+                await GmLogger.Instance.LogAsync("調整消費進度", account, $"+{addPoint:N0} 金幣消費點數", true);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/AdjustCostData] " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>重置消費達成進度（point 歸零，check 歸零）</summary>
+        public async Task<bool> ResetCostDataAsync(string account)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", conn);
+                cmd.Parameters.AddWithValue("@acc", account);
+                int rows = await cmd.ExecuteNonQueryAsync();
+                if (rows > 0)
+                    await GmLogger.Instance.LogAsync("重置消費進度", account, "costdata.point/check 歸零", true);
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/ResetCostData] " + ex.Message);
+                return false;
+            }
+        }
+
+        // ── Bitmask 說明 ──────────────────────────────────────────────
+        // costdata.check 是位元遮罩：bit i = 第 i+1 個里程碑已領取
+        //   bit 0 (1)  = 3,000  金幣里程碑已領
+        //   bit 1 (2)  = 5,000  金幣里程碑已領
+        //   bit 2 (4)  = 10,000 金幣里程碑已領
+        //   bit 3 (8)  = 50,000 金幣里程碑已領
+        //   bit 4 (16) = 100,000金幣里程碑已領
+        //   check=31 (11111₂) = 全部五個里程碑都已領取
+        // ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// 補發消費達成獎勵（同步遊戲模式）：
+        /// 清除 check 中對應 bit（讓遊戲偵測到「達成但未領」並自動發放道具到背包）。
+        /// </summary>
+        public async Task<bool> ClaimCostMilestoneAsync(string account, int milestoneIdx)
+        {
+            if (milestoneIdx < 0 || milestoneIdx >= CostMilestones.Length) return false;
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                int bit = 1 << milestoneIdx;
+                // check & ~bit = 清除第 milestoneIdx 位，遊戲看到 point>=milestone 且 bit=0 時自動補發
+                using var cmd = new MySqlCommand(
+                    "UPDATE costdata SET `check`=(`check` & ~@bit), time=NOW() WHERE cdkey=@acc", conn);
+                cmd.Parameters.AddWithValue("@bit", bit);
+                cmd.Parameters.AddWithValue("@acc", account);
+                int rows = await cmd.ExecuteNonQueryAsync();
+                if (rows > 0)
+                    await GmLogger.Instance.LogAsync("補發消費獎勵(同步遊戲)", account,
+                        $"里程碑 {CostMilestones[milestoneIdx]:N0} 金幣（清除 bit{milestoneIdx}，等待遊戲自動發放）", true);
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/ClaimCostMilestone] " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 補發消費達成獎勵（郵件模式）：直接寄出道具，並設定對應 bit 為已領。
+        /// </summary>
+        public async Task<bool> ClaimCostMilestoneByMailAsync(
+            string account, string playerName, int milestoneIdx, int itemId, string itemName, int quantity)
+        {
+            if (milestoneIdx < 0 || milestoneIdx >= CostMilestones.Length) return false;
+            try
+            {
+                bool mailOk = await GiveItemDirectAsync(account, playerName, itemId, itemName, quantity);
+
+                // 設定 bit = 1（標記已發送）
+                int bit = 1 << milestoneIdx;
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "UPDATE costdata SET `check`=(`check` | @bit), time=NOW() WHERE cdkey=@acc", conn);
+                cmd.Parameters.AddWithValue("@bit", bit);
+                cmd.Parameters.AddWithValue("@acc", account);
+                await cmd.ExecuteNonQueryAsync();
+
+                if (mailOk)
+                    await GmLogger.Instance.LogAsync("補發消費獎勵(郵件)", account,
+                        $"里程碑 {CostMilestones[milestoneIdx]:N0} 金幣 → 道具 ID:{itemId} x{quantity:N0}（設 bit{milestoneIdx}）", true);
+                return mailOk;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/ClaimCostMilestoneMail] " + ex.Message);
+                return false;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════
         // 攤位 & 市場查詢（StreetShopForm 使用）
         // ══════════════════════════════════════════════════════════
 
@@ -3480,6 +3644,115 @@ namespace SQ_Email_Tools
             }
             catch (Exception dbEx) { System.Diagnostics.Debug.WriteLine("[DB] " + dbEx.Message); }
             return (total, pairs, suspicious, sameIp);
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // 伺服器狀態：最新註冊 / 分流在線 / 主帳號統計
+        // ══════════════════════════════════════════════════════════
+
+        /// <summary>最新註冊帳號（依 created_at 或 id 排序）</summary>
+        public async Task<List<RecentRegAccount>> GetRecentRegistrationsAsync(int limit = 30)
+        {
+            var list = new List<RecentRegAccount>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                // 嘗試用 created_at 排序；若欄位不存在則 fallback 到 RegTime
+                bool hasCreatedAt = false;
+                try
+                {
+                    using var chk = new MySqlCommand(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='csalogin' AND COLUMN_NAME='created_at'", conn);
+                    var r = await chk.ExecuteScalarAsync();
+                    hasCreatedAt = r != null && Convert.ToInt32(r) > 0;
+                }
+                catch { }
+
+                string orderBy = hasCreatedAt ? "c.created_at DESC" : "c.RegTime DESC";
+                using var cmd = new MySqlCommand(
+                    $@"SELECT c.Name, IFNULL(c.OnlineName,'') AS CharName,
+                              IFNULL(m.Name,'') AS MasterName,
+                              IFNULL(c.RegTime,'') AS RegTime,
+                              IFNULL(c.RegIP,'')   AS RegIP,
+                              IFNULL(c.ServerName,'') AS ServerName,
+                              c.Online
+                       FROM csalogin c
+                       LEFT JOIN csaloginmaster m ON m.Id = c.MasterId
+                       ORDER BY {orderBy}
+                       LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@lim", limit);
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    list.Add(new RecentRegAccount
+                    {
+                        Account    = reader["Name"]?.ToString()       ?? "",
+                        CharName   = reader["CharName"]?.ToString()   ?? "",
+                        MasterName = reader["MasterName"]?.ToString() ?? "",
+                        RegTime    = reader["RegTime"]?.ToString()    ?? "",
+                        RegIP      = reader["RegIP"]?.ToString()      ?? "",
+                        ServerName = reader["ServerName"]?.ToString() ?? "",
+                        IsOnline   = reader["Online"] != DBNull.Value && Convert.ToInt32(reader["Online"]) == 1
+                    });
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/RecentReg] " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>各分流在線人數（+ 各分流總人數）</summary>
+        public async Task<List<ChannelOnlineEntry>> GetChannelOnlineCountAsync()
+        {
+            var list = new List<ChannelOnlineEntry>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT ServerId,
+                             IFNULL(ServerName,'') AS ServerName,
+                             SUM(CASE WHEN Online=1 THEN 1 ELSE 0 END) AS OnlineCount,
+                             COUNT(*) AS TotalCount
+                      FROM csalogin
+                      GROUP BY ServerId, ServerName
+                      ORDER BY ServerId", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add(new ChannelOnlineEntry
+                    {
+                        ServerId    = r["ServerId"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ServerId"]),
+                        ServerName  = r["ServerName"]?.ToString() ?? "",
+                        OnlineCount = r["OnlineCount"] == DBNull.Value ? 0 : Convert.ToInt32(r["OnlineCount"]),
+                        TotalCount  = r["TotalCount"]  == DBNull.Value ? 0 : Convert.ToInt32(r["TotalCount"])
+                    });
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/ChannelOnline] " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>主帳號在線 / 離線統計（csaloginmaster）</summary>
+        public async Task<MasterAccountStats> GetMasterAccountStatsAsync()
+        {
+            var stats = new MasterAccountStats();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT COUNT(DISTINCT m.Id) AS TotalMasters,
+                             COUNT(DISTINCT CASE WHEN c.Online=1 THEN m.Id END) AS OnlineMasters
+                      FROM csaloginmaster m
+                      LEFT JOIN csalogin c ON c.MasterId = m.Id", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    stats.TotalMasters  = r["TotalMasters"]  == DBNull.Value ? 0 : Convert.ToInt32(r["TotalMasters"]);
+                    stats.OnlineMasters = r["OnlineMasters"] == DBNull.Value ? 0 : Convert.ToInt32(r["OnlineMasters"]);
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/MasterStats] " + ex.Message); }
+            return stats;
         }
     }
 }

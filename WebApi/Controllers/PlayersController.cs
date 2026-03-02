@@ -219,6 +219,52 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> GetPaydata(string account)
         => Ok(await _db.GetPaydataSummaryAsync(account));
 
+    // ── 消費達成獎勵（costdata）────────────────────────────────────
+
+    [HttpGet("{account}/costdata")]
+    public async Task<IActionResult> GetCostdata(string account)
+        => Ok(await _db.GetCostdataSummaryAsync(account));
+
+    [HttpPost("{account}/costdata/adjust")]
+    public async Task<IActionResult> AdjustCostdata(string account, [FromBody] AdjustCostRequest req)
+    {
+        if (req.AddPoint <= 0) return BadRequest(new { message = "增加量必須大於 0" });
+        var ok = await _db.AdjustCostdataPointAsync(account, req.CharName ?? "", req.AddPoint);
+        return ok ? Ok(new { message = $"✓ 已增加 {req.AddPoint:N0} 消費點數" }) : BadRequest(new { message = "調整失敗" });
+    }
+
+    [HttpPost("{account}/costdata/reset")]
+    public async Task<IActionResult> ResetCostdata(string account)
+    {
+        var ok = await _db.ResetCostdataAsync(account);
+        return ok ? Ok(new { message = "✓ 已重置消費進度" }) : BadRequest(new { message = "重置失敗（玩家可能無 costdata 記錄）" });
+    }
+
+    /// <summary>同步遊戲模式：退 check=milestoneIdx，讓遊戲伺服器自動發道具到背包</summary>
+    [HttpPost("{account}/costdata/claim/{milestoneIdx:int}")]
+    public async Task<IActionResult> ClaimCostMilestone(string account, int milestoneIdx)
+    {
+        var ok = await _db.ClaimCostMilestoneAsync(account, milestoneIdx);
+        return ok
+            ? Ok(new { message = $"✓ 已退回 check={milestoneIdx}，遊戲伺服器下次偵測時將自動發放道具到背包" })
+            : BadRequest(new { message = "操作失敗（可能無記錄或索引超出範圍）" });
+    }
+
+    /// <summary>郵件模式：直接寄出道具，同時標 check=milestoneIdx+1</summary>
+    [HttpPost("{account}/costdata/claim-mail/{milestoneIdx:int}")]
+    public async Task<IActionResult> ClaimCostMilestoneMail(
+        string account, int milestoneIdx, [FromBody] AdjustCostRequest req)
+    {
+        var ok = await _db.ClaimCostMilestoneByMailAsync(
+            account, req.CharName ?? "", milestoneIdx,
+            (int)(req.AddPoint),          // 郵件模式：AddPoint 當 itemId 傳入
+            req.CharName ?? "消費達成獎勵道具",
+            req.Quantity);
+        return ok
+            ? Ok(new { message = $"✓ 道具已寄出，check 標記為已領取" })
+            : BadRequest(new { message = "操作失敗" });
+    }
+
     [HttpPost("send-cart")]
     public async Task<IActionResult> SendCart([FromBody] SendCartRequest req)
     {

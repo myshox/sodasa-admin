@@ -238,8 +238,8 @@ namespace SQ_Email_Tools
                 BackColor = Color.Transparent
             }, 0, 0);
 
-            var btnClear = Theme.MakeButton("清除", Color.FromArgb(35, 42, 68),
-                Color.FromArgb(100, 115, 155), 52, 24);
+            var btnClear = Theme.MakeButton("清除", Color.FromArgb(60, 65, 90),
+                Color.FromArgb(180, 190, 225), 52, 24);
             btnClear.Click += (_, __) => { _logDgv.Rows.Clear(); };
             logHdr.Controls.Add(btnClear, 1, 0);
 

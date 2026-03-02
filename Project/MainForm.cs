@@ -219,6 +219,14 @@ namespace SQ_Email_Tools
                 SwitchToHub(new SpeedHackForm());
             };
 
+            var btnCostMilestone = MakeNavBtn("💸", "消費達成獎勵", ref y);
+            btnCostMilestone.Click += (s, e) =>
+            {
+                SetActiveNav(btnCostMilestone);
+                if (!CheckConnected()) return;
+                SwitchToHub(new CostMilestoneForm());
+            };
+
             AddSideGap(ref y);
 
             // ══ 紀錄查詢 ══
@@ -276,6 +284,14 @@ namespace SQ_Email_Tools
 
             // ══ 數據分析 ══
             AddSectionLabel("數據分析", ref y);
+
+            var btnServerStatus = MakeNavBtn("🖥", "伺服器狀態", ref y);
+            btnServerStatus.Click += (s, e) =>
+            {
+                SetActiveNav(btnServerStatus);
+                if (!CheckConnected()) return;
+                SwitchToHub(new ServerStatusForm());
+            };
 
             var btnDashboard = MakeNavBtn("📊", "統計面板", ref y);
             btnDashboard.Click += (s, e) =>
@@ -364,6 +380,9 @@ namespace SQ_Email_Tools
                 SwitchToHub(new BackupForm());
             };
 
+            // 明確告知 AutoScroll 可捲動總高度（避免捲軸範圍計算錯誤）
+            _navPanel.AutoScrollMinSize = new Size(0, y + 16);
+
             // ── 底部：連線狀態（固定底部，96px）────────────────────
             var bottomPanel = new Panel
             {
@@ -423,8 +442,9 @@ namespace SQ_Email_Tools
 
         private void SidebarMouseWheel(object sender, MouseEventArgs e)
         {
-            int delta = e.Delta > 0 ? -60 : 60;
-            int newY  = Math.Max(0, -_navPanel.AutoScrollPosition.Y + delta);
+            int delta  = e.Delta > 0 ? -60 : 60;
+            int maxY   = Math.Max(0, _navPanel.AutoScrollMinSize.Height - _navPanel.ClientSize.Height);
+            int newY   = Math.Max(0, Math.Min(maxY, -_navPanel.AutoScrollPosition.Y + delta));
             _navPanel.AutoScrollPosition = new Point(0, newY);
         }
 
@@ -456,10 +476,10 @@ namespace SQ_Email_Tools
         {
             const int BH = 38;
             var bgNorm = Theme.BgSidebar;
-            var bgAct  = Color.FromArgb( 0,  70, 140); // 深藍選取（深色主題）
+            var bgAct  = Color.FromArgb(  0,  85, 170); // 藍色選取
             var fgNorm = Theme.TextSecondary;
-            var fgAct  = Color.FromArgb(140, 200, 255); // 亮藍文字
-            var bgHov  = Color.FromArgb( 42,  44,  58); // 深色 hover
+            var fgAct  = Color.FromArgb(160, 215, 255); // 亮藍文字
+            var bgHov  = Color.FromArgb( 32,  36,  52); // hover（比 sidebar 淺）
 
             // 按鈕寬度 196（留 20px 給捲軸，避免水平捲動）
             var btn = new Button
@@ -596,6 +616,8 @@ namespace SQ_Email_Tools
             hub.FormBorderStyle = FormBorderStyle.None;
             hub.Dock            = DockStyle.Fill;
             hub.BackColor       = Theme.BgPage;
+            hub.MinimumSize     = Size.Empty;   // 清除最小尺寸限制，避免 Fill 時裁剪
+            hub.Location        = Point.Empty;  // 強制從左上角開始，避免 CenterParent 偏移
 
             _currentHubPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
             _currentHubPanel.Controls.Add(hub);
@@ -2955,7 +2977,7 @@ namespace SQ_Email_Tools
             _chkSchedule = new CheckBox
             {
                 Text = "預約發送時間", ForeColor = Theme.TextSecondary, Font = Theme.FontBody,
-                AutoSize = true, Checked = false
+                AutoSize = true, Checked = false, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             _dtStart = new DateTimePicker
             {

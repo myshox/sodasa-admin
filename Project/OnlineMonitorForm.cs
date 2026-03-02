@@ -88,8 +88,8 @@ namespace SQ_Email_Tools
 
             Theme.AddNumericAwareSort(_dgv, "cPayTotal");
 
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(infoBar);
             Controls.Add(header);
         }

@@ -71,6 +71,8 @@ namespace SQ_Email_Tools
                 BackColor  = Theme.BgPage,
                 Padding    = new Padding(14, 10, 14, 10)
             };
+            scroll.HorizontalScroll.Enabled = false;
+            scroll.HorizontalScroll.Visible = false;
 
             var inner = new FlowLayoutPanel
             {
@@ -256,7 +258,9 @@ namespace SQ_Email_Tools
                 Font      = Theme.FontSmall,
                 Location  = new Point(110, cy),
                 AutoSize  = true,
-                Checked   = false
+                Checked   = false,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent
             };
             _chkCdkey.CheckedChanged += (_, __) =>
             {

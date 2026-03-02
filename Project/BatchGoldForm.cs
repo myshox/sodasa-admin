@@ -83,9 +83,10 @@ namespace SQ_Email_Tools
             };
             split.Panel1.BackColor = Theme.BgMid;
             split.Panel2.BackColor = Theme.BgMid;
-            Load += (s, e) =>
+            split.HandleCreated += (_, __) =>
             {
-                try { split.SplitterDistance = Math.Max(300, Math.Min(split.Width - 460, 340)); } catch { }
+                if (split.Width >= 760)
+                    try { split.SplitterDistance = Math.Max(300, Math.Min(split.Width - 460, 340)); } catch { }
             };
 
             BuildLeftPanel(split.Panel1);
@@ -166,8 +167,8 @@ namespace SQ_Email_Tools
             AddSection(scroll, "STEP 2 — 設定金幣金額", ref y, x);
 
             scroll.Controls.Add(new Label { Text = "操作：", Location = new Point(x, y + 4), ForeColor = Theme.TextSecondary, AutoSize = true });
-            _rbAdd = new RadioButton { Text = "➕ 發放（增加）", Location = new Point(x + 56, y), ForeColor = Theme.AccentGreen, AutoSize = true, Checked = true };
-            _rbSub = new RadioButton { Text = "➖ 扣除（減少）", Location = new Point(x + 210, y), ForeColor = Theme.AccentRed, AutoSize = true };
+            _rbAdd = new RadioButton { Text = "➕ 發放（增加）", Location = new Point(x + 56, y), ForeColor = Theme.AccentGreen, AutoSize = true, Checked = true, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
+            _rbSub = new RadioButton { Text = "➖ 扣除（減少）", Location = new Point(x + 210, y), ForeColor = Theme.AccentRed, AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
             scroll.Controls.AddRange(new Control[] { _rbAdd, _rbSub });
             y += 36;
 
@@ -547,7 +548,8 @@ namespace SQ_Email_Tools
             var rb = new RadioButton
             {
                 Text = text, Location = new Point(x, y),
-                ForeColor = Theme.TextPrimary, AutoSize = true, Checked = check
+                ForeColor = Theme.TextPrimary, AutoSize = true, Checked = check,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             parent.Controls.Add(rb);
             y += 28;

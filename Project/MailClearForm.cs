@@ -55,21 +55,27 @@ namespace SQ_Email_Tools
                 Location  = new Point(160, 24),
                 AutoSize  = true,
                 ForeColor = Theme.TextPrimary,
-                Checked   = true
+                Checked   = true,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent
             };
             _rbAll = new RadioButton
             {
                 Text      = "🌐 全部玩家",
                 Location  = new Point(16, 24),
                 AutoSize  = true,
-                ForeColor = Theme.TextPrimary
+                ForeColor = Theme.TextPrimary,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent
             };
             _rbSingle = new RadioButton
             {
                 Text      = "📋 指定帳號",
                 Location  = new Point(320, 24),
                 AutoSize  = true,
-                ForeColor = Theme.TextPrimary
+                ForeColor = Theme.TextPrimary,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent
             };
 
             _txtAccount = new TextBox
@@ -95,7 +101,9 @@ namespace SQ_Email_Tools
                 Location  = new Point(x, y),
                 AutoSize  = true,
                 ForeColor = Theme.TextPrimary,
-                Checked   = true
+                Checked   = true,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent
             };
             y += 32;
 

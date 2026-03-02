@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -52,8 +52,6 @@ namespace SQ_Email_Tools
                 Padding   = new Padding(10, 0, 0, 0)
             };
             bottom.Controls.Add(_statusLbl);
-            Controls.Add(bottom);
-
             // ── 進度列 ───────────────────────────────────────────
             _progress = new ProgressBar
             {
@@ -62,7 +60,6 @@ namespace SQ_Email_Tools
                 Style   = ProgressBarStyle.Marquee,
                 Visible = false
             };
-            Controls.Add(_progress);
 
             // ── 主體（TableLayoutPanel 兩行：備份區 + 還原區）───
             var main = new TableLayoutPanel
@@ -230,7 +227,10 @@ namespace SQ_Email_Tools
             restorePanel.Controls.AddRange(new Control[] { _btnRestoreSelected, _btnRestoreFile });
             main.Controls.Add(restorePanel, 0, 2);
 
+            // Fill 先加，Bottom 依序後加（確保 DockStyle 正確分配空間）
             Controls.Add(main);
+            Controls.Add(_progress);
+            Controls.Add(bottom);
         }
 
         private void RefreshList()

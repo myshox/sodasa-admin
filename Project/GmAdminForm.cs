@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -34,8 +34,6 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.AccentBlue, Font = Theme.FontHeader,
                 AutoSize = true, Location = new Point(14, 12)
             });
-            Controls.Add(hdr);
-
             // 說明
             var infoBar = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = Theme.BgCard };
             infoBar.Controls.Add(new Label
@@ -44,7 +42,6 @@ namespace SQ_Email_Tools
                 ForeColor = Color.FromArgb(120, 210, 100), Font = Theme.FontSmall,
                 AutoSize = true, Location = new Point(10, 8)
             });
-            Controls.Add(infoBar);
 
             // DataGrid
             _dgv = new DataGridView { Dock = DockStyle.Fill };
@@ -55,12 +52,10 @@ namespace SQ_Email_Tools
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cNickname",  HeaderText = "暱稱", Width = 130 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStatus",    HeaderText = "狀態", Width = 80 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCreated",   HeaderText = "建立時間", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-            // 操作按鈕欄
             _dgv.Columns.Add(MakeBtnCol("cToggle",  "啟用/停用", Theme.AccentOrange));
             _dgv.Columns.Add(MakeBtnCol("cPwd",     "重設密碼",  Color.FromArgb(40, 100, 150)));
             _dgv.Columns.Add(MakeBtnCol("cDelete",  "刪除",      Theme.AccentRed));
             _dgv.CellClick += Dgv_CellClick;
-            Controls.Add(_dgv);
 
             // 底部工具列
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 54, BackColor = Theme.BgCard };
@@ -75,7 +70,12 @@ namespace SQ_Email_Tools
             btnClose.Location = new Point(590, 11);
             btnClose.Click += (s, e) => Close();
             bottom.Controls.AddRange(new Control[] { btnAdd, btnRefresh, _statusLbl, btnClose });
+
+            // Fill 先加（背景），Bottom 次之，Top 最後加（前景），確保 DockStyle 正確分配空間
+            Controls.Add(_dgv);
             Controls.Add(bottom);
+            Controls.Add(infoBar);
+            Controls.Add(hdr);
         }
 
         private DataGridViewButtonColumn MakeBtnCol(string name, string text, Color bg) =>

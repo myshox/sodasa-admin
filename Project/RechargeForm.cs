@@ -141,12 +141,14 @@ namespace SQ_Email_Tools
             var split = new SplitContainer
             {
                 Dock = DockStyle.Fill, Orientation = Orientation.Vertical,
-                BackColor = Theme.BgMid, SplitterWidth = 6,
-                Panel1MinSize = 240, Panel2MinSize = 480
+                BackColor = Theme.BgMid, SplitterWidth = 6
+                // Panel1MinSize / Panel2MinSize 不能在建構時設定（此時 Width=0 會拋例外）
             };
             Controls.Add(split);
-            Load += (_, __) =>
+            split.HandleCreated += (_, __) =>
             {
+                split.Panel1MinSize = 240;
+                split.Panel2MinSize = 480;
                 int d = Math.Max(270, Math.Min(split.Width - 500, (int)(split.Width * 0.27)));
                 try { split.SplitterDistance = d; } catch { }
             };
@@ -454,7 +456,8 @@ namespace SQ_Email_Tools
                 Text = "同時發放金幣（將金幣加入玩家帳戶）",
                 Checked = true, Location = new Point(x, y),
                 ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
-                AutoSize = true, Cursor = Cursors.Hand
+                AutoSize = true, Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             _chkGiveGold.CheckedChanged += (s, e) => { _giveGold = _chkGiveGold.Checked; UpdatePreview(); };
             scroll.Controls.Add(_chkGiveGold);

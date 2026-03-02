@@ -225,6 +225,7 @@ export default function RechargePage() {
                 <StatBox label="歷史總計" value={`NT$${(info.lifetimeTotal || info.payTotal).toLocaleString()}`} color="#a78bfa" />
               </div>
 
+
               {/* 累儲進度條 */}
               <div style={{ padding: '0 18px 16px' }}>
                 <div style={{ background: 'var(--bg-input)', borderRadius: 10, padding: '12px 14px' }}>

@@ -36,33 +36,23 @@ namespace SQ_Email_Tools
 
         private void BuildUI()
         {
-            // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
-            var btnRefresh = Theme.MakePrimaryButton("🔄 重新整理", 110, 28);
-            btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnRefresh.Click += (s, e) => _ = LoadAllAsync();
-            header.Controls.Add(new Label
-            {
-                Text      = "  🏪  商城熱賣分析  —  統計各商城最熱賣道具 & 消費最多玩家",
-                ForeColor = Color.FromArgb(255, 200, 80),
-                Font      = Theme.FontBody,
-                Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(8, 0, 0, 0)
-            });
-            header.Controls.Add(btnRefresh);
-            header.Resize += (s, e) => { btnRefresh.Left = header.Width - btnRefresh.Width - 12; btnRefresh.Top = 8; };
-            Controls.Add(header);
-
-            // ── 狀態列 ──
-            var statusBar = new Panel { Dock = DockStyle.Bottom, Height = 28, BackColor = Theme.BgDark };
+            // ── 工具列（頁籤上方一列，含狀態 + 重整按鈕）──
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Theme.BgDark };
             _lblStatus = new Label
             {
-                Text = "載入中…", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0)
+                Text      = "載入中…",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(10, 0, 0, 0)
             };
-            statusBar.Controls.Add(_lblStatus);
-            Controls.Add(statusBar);
+            var btnRefresh = Theme.MakePrimaryButton("🔄 重新整理", 110, 26);
+            btnRefresh.Dock   = DockStyle.Right;
+            btnRefresh.Margin = new Padding(0, 4, 8, 4);
+            btnRefresh.Click += (s, e) => _ = LoadAllAsync();
+            toolbar.Controls.Add(_lblStatus);
+            toolbar.Controls.Add(btnRefresh);
 
             // ── 頁籤 ──────────────────────────────────────────────
             _tabs = new TabControl
@@ -80,7 +70,9 @@ namespace SQ_Email_Tools
                 _tabs.TabPages.Add(tp);
             }
 
+            // Fill 先加（放到最後 z-order），Top 後加（前景），確保 DockStyle 正確分配空間
             Controls.Add(_tabs);
+            Controls.Add(toolbar);
         }
 
         private async Task LoadAllAsync()

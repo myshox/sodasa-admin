@@ -117,9 +117,9 @@ namespace SQ_Email_Tools
             // 數值感知排序（元寶和台幣欄位用數值比較）
             Theme.AddNumericAwareSort(_dgv, "colYuanbao", "colTwd");
 
-            // 加入順序：Bottom → Fill → Top（後加的 Top 排最上方）
-            Controls.Add(statusBar);
+            // Fill 先加，Bottom 次之，Top 最後（確保 DockStyle 正確分配空間）
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(infoBar);
             Controls.Add(searchPanel);
             Controls.Add(header);
@@ -256,9 +256,8 @@ namespace SQ_Email_Tools
 
             Theme.AddNumericAwareSort(_dgv, "colGold");
 
-            // 加入順序：Bottom → Fill → Top
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(searchPanel);
             Controls.Add(header);
         }
@@ -391,9 +390,8 @@ namespace SQ_Email_Tools
 
             Theme.AddNumericAwareSort(_dgv, "colPoint", "colOld", "colNew");
 
-            // 加入順序：Bottom → Fill → Top
-            Controls.Add(statusBar);
             Controls.Add(_dgv);
+            Controls.Add(statusBar);
             Controls.Add(searchPanel);
             Controls.Add(header);
         }
