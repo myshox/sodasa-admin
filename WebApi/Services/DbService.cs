@@ -673,10 +673,27 @@ public class DbService
         // claimReady = check==0 且已完成至少一輪（totalcheck > 0）
         // 防呆：point 在本輪尚未達標但 check=0 代表尚有未領的跨輪獎勵
         bool claimReady = checkVal == 0 && tc > 0;
+        // 消費達成獎勵：costdata
+        long costPoint = 0;
+        int costCheck = -1;
+        try
+        {
+            await using var cmdC = new MySqlCommand(
+                "SELECT point, IFNULL(`check`,0) ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", db);
+            cmdC.Parameters.AddWithValue("@acc", account);
+            await using var rC = await cmdC.ExecuteReaderAsync();
+            if (await rC.ReadAsync())
+            {
+                costPoint = rC.IsDBNull(0) ? 0 : rC.GetInt64(0);
+                costCheck = rC.IsDBNull(1) ? 0 : rC.GetInt32(1);
+            }
+        }
+        catch { }
         return new { account, onlineName, masterName, isOnline, gold, crystal, payTotal,
                      paydataPoint = point, totalCheck = tc, lifetimeTotal = lt,
                      paydataCheck = checkVal, claimReady,
-                     vipLevel = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0 };
+                     vipLevel = payTotal >= 15000 ? 2 : payTotal >= 5000 ? 1 : 0,
+                     costPoint, costCheck };
     }
 
     // ── 給予儲值（與 EXE 一致：paydata 循環 25,000、csalogin.PayTotal/VipPoint）────────
@@ -2377,6 +2394,231 @@ public class DbService
         }
         list.Sort((a, b) => string.Compare(b.Time, a.Time, StringComparison.Ordinal));
         return list;
+    }
+
+    // ── 伺服器狀態查詢 ────────────────────────────────────────────────────────────────
+
+    public async Task<List<object>> GetRecentRegistrationsAsync(int limit = 30)
+    {
+        var list = new List<object>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT `Name`, IFNULL(OnlineName,'') onlineName,
+                         IFNULL(DATE_FORMAT(IFNULL(created_at,LoginTime),'%Y-%m-%d %H:%i'),'') regTime,
+                         IFNULL(IP,'') ip
+                  FROM csalogin
+                  ORDER BY IFNULL(created_at,LoginTime) DESC LIMIT @lim", db);
+            cmd.Parameters.AddWithValue("@lim", limit);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    account    = r.GetString("Name"),
+                    onlineName = r.GetString("onlineName"),
+                    regTime    = r.GetString("regTime"),
+                    ip         = r.GetString("ip")
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<List<object>> GetChannelOnlineCountAsync()
+    {
+        var list = new List<object>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT IFNULL(ServerId,0) serverId, COUNT(*) cnt
+                  FROM csalogin WHERE Online=1
+                  GROUP BY ServerId ORDER BY ServerId", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    serverId = r.GetInt32("serverId"),
+                    count    = r.GetInt32("cnt")
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<object> GetMasterAccountStatsAsync()
+    {
+        int total = 0, online = 0;
+        try
+        {
+            await using var db = Open();
+            await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT COUNT(DISTINCT m.Id) TotalMasters,
+                         COUNT(DISTINCT CASE WHEN c.Online=1 THEN m.Id END) OnlineMasters
+                  FROM csaloginmaster m
+                  LEFT JOIN csalogin c ON c.MasterId = m.Id", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                total  = r["TotalMasters"]  == DBNull.Value ? 0 : Convert.ToInt32(r["TotalMasters"]);
+                online = r["OnlineMasters"] == DBNull.Value ? 0 : Convert.ToInt32(r["OnlineMasters"]);
+            }
+        }
+        catch { }
+        return new { totalMasters = total, onlineMasters = online, offlineMasters = total - online };
+    }
+
+    // ── 累計消費達成獎勵（costdata，與累積儲值 paydata 對稱）─────────────────────────
+    private static readonly long[] CostMilestones = { 3_000, 5_000, 10_000, 50_000, 100_000 };
+
+    /// <summary>
+    /// 將任意輸入（主帳號名/角色名/csalogin.Name UID）解析為 csalogin.Name（12位UID）。
+    /// costdata/paydata 的 cdkey 即為此值。
+    /// </summary>
+    private async Task<(string uid, string onlineName)> ResolveCsaloginAsync(MySqlConnection db, string input)
+    {
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT c.`Name`, IFNULL(c.OnlineName,'') n
+                  FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE c.`Name`=@inp OR c.OnlineName=@inp OR m.`Name`=@inp
+                  ORDER BY c.Online DESC, c.LoginTime DESC LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@inp", input);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+                return (r.GetString(0), r.GetString(1));
+        }
+        catch { }
+        return (input, "");
+    }
+
+    public async Task<object> GetCostdataSummaryAsync(string account)
+    {
+        long costPoint = 0; int costCheck = -1;
+        await using var db = Open(); await db.OpenAsync();
+
+        var (uid, onlineName) = await ResolveCsaloginAsync(db, account);
+
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                "SELECT point, IFNULL(`check`,0) ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@acc", uid);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                costPoint = r.IsDBNull(0) ? 0 : r.GetInt64(0);
+                costCheck = r.IsDBNull(1) ? 0 : r.GetInt32(1);
+            }
+        }
+        catch { }
+        // costdata.check 是 Bitmask：bit i = 第 i+1 個里程碑已領取（check=31=11111₂=全部5個）
+        var milestones = CostMilestones.Select((m, i) => new
+        {
+            index    = i,
+            required = m,
+            reached  = costPoint >= m,
+            claimed  = costCheck >= 0 && (costCheck & (1 << i)) != 0
+        }).ToArray();
+        int claimedCount = costCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)costCheck);
+        return new { account = uid, onlineName, costPoint, costCheck, claimedCount, milestones };
+    }
+
+    public async Task<bool> AdjustCostdataPointAsync(string account, string charName, long addPoint)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            var (uid, _) = await ResolveCsaloginAsync(db, account);
+            await using var cmd = new MySqlCommand(
+                @"INSERT INTO costdata (cdkey, name, point, `check`, time)
+                  VALUES (@cdkey, @name, @pt, 0, NOW())
+                  ON DUPLICATE KEY UPDATE point = point + @pt, time = NOW()", db);
+            cmd.Parameters.AddWithValue("@cdkey", uid);
+            cmd.Parameters.AddWithValue("@name",  charName);
+            cmd.Parameters.AddWithValue("@pt",    addPoint);
+            return await cmd.ExecuteNonQueryAsync() >= 0;
+        }
+        catch { return false; }
+    }
+
+    public async Task<bool> ResetCostdataAsync(string account)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            var (uid, _) = await ResolveCsaloginAsync(db, account);
+            await using var cmd = new MySqlCommand(
+                "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", db);
+            cmd.Parameters.AddWithValue("@acc", uid);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
+    // costdata.check Bitmask 說明：
+    // bit 0(1)=3000已領, bit 1(2)=5000已領, bit 2(4)=10000已領,
+    // bit 3(8)=50000已領, bit 4(16)=100000已領, 全部=31(11111₂)
+
+    /// <summary>
+    /// 補發消費達成獎勵（同步遊戲模式）：
+    /// 清除 check 中對應的 bit，讓遊戲伺服器偵測到「達成但未領」並自動發道具到背包。
+    /// </summary>
+    public async Task<bool> ClaimCostMilestoneAsync(string account, int milestoneIdx)
+    {
+        if (milestoneIdx < 0 || milestoneIdx >= CostMilestones.Length) return false;
+        try
+        {
+            int bit = 1 << milestoneIdx;
+            await using var db = Open(); await db.OpenAsync();
+            var (uid, _) = await ResolveCsaloginAsync(db, account);
+            await using var cmd = new MySqlCommand(
+                "UPDATE costdata SET `check`=(`check` & ~@bit), time=NOW() WHERE cdkey=@acc", db);
+            cmd.Parameters.AddWithValue("@bit", bit);
+            cmd.Parameters.AddWithValue("@acc", uid);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// 補發消費達成獎勵（郵件模式）：直接寄出道具，並設定對應 bit 為已領。
+    /// </summary>
+    public async Task<bool> ClaimCostMilestoneByMailAsync(
+        string account, string charName, int milestoneIdx, int itemId, string itemName, int quantity)
+    {
+        if (milestoneIdx < 0 || milestoneIdx >= CostMilestones.Length) return false;
+        try
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            await using var dbMail = Open(); await dbMail.OpenAsync();
+            var (uid, _) = await ResolveCsaloginAsync(dbMail, account);
+            await using var cmdMail = new MySqlCommand(
+                @"INSERT INTO maildata (cdkey,type,buff1,buff2,data,starttime,endtime,buff3,`check`,deleamill,quantity)
+                  VALUES (@k,@t,@b1,@b2,@d,@s,@e,'',0,0,@q)", dbMail);
+            cmdMail.Parameters.AddWithValue("@k",  uid);
+            cmdMail.Parameters.AddWithValue("@t",  1);
+            cmdMail.Parameters.AddWithValue("@b1", $"[GM] {itemName}");
+            cmdMail.Parameters.AddWithValue("@b2", $"消費達成里程碑 {CostMilestones[milestoneIdx]:N0} 金幣獎勵補發");
+            cmdMail.Parameters.AddWithValue("@d",  itemId);
+            cmdMail.Parameters.AddWithValue("@s",  (int)now);
+            cmdMail.Parameters.AddWithValue("@e",  (int)(now + 30L * 24 * 3600));
+            cmdMail.Parameters.AddWithValue("@q",  quantity);
+            await cmdMail.ExecuteNonQueryAsync();
+
+            // 設定 bit（標記此里程碑已發送）
+            int bit = 1 << milestoneIdx;
+            await using var dbCk = Open(); await dbCk.OpenAsync();
+            await using var cmdCk = new MySqlCommand(
+                "UPDATE costdata SET `check`=(`check` | @bit), time=NOW() WHERE cdkey=@acc", dbCk);
+            cmdCk.Parameters.AddWithValue("@bit", bit);
+            cmdCk.Parameters.AddWithValue("@acc", uid);
+            await cmdCk.ExecuteNonQueryAsync();
+            return true;
+        }
+        catch { return false; }
     }
 
 }
