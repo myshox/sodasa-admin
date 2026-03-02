@@ -10,6 +10,8 @@
     <AssemblyName>SQ_Email_Tools_TW</AssemblyName>
     <RootNamespace>SQ_Email_Tools</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- 直接 publish 到 GMTool 資料夾，確保 dll/exe 同步更新 -->
+    <PublishDir>..\GMTool\</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>
