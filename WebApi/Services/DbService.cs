@@ -2405,19 +2405,27 @@ public class DbService
         {
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(
-                @"SELECT `Name`, IFNULL(OnlineName,'') onlineName,
-                         IFNULL(DATE_FORMAT(IFNULL(created_at,LoginTime),'%Y-%m-%d %H:%i'),'') regTime,
-                         IFNULL(IP,'') ip
-                  FROM csalogin
-                  ORDER BY IFNULL(created_at,LoginTime) DESC LIMIT @lim", db);
+                @"SELECT c.`Name` account,
+                         IFNULL(c.OnlineName,'') charName,
+                         IFNULL(m.Name,'') masterName,
+                         IFNULL(DATE_FORMAT(IFNULL(c.created_at,c.LoginTime),'%Y-%m-%d %H:%i'),'') regTime,
+                         IFNULL(c.IP,'') regIP,
+                         IFNULL(c.ServerId,0) serverId,
+                         IF(c.Online=1,1,0) isOnlineBit
+                  FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id = c.MasterId
+                  ORDER BY IFNULL(c.created_at,c.LoginTime) DESC LIMIT @lim", db);
             cmd.Parameters.AddWithValue("@lim", limit);
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
                 list.Add(new {
-                    account    = r.GetString("Name"),
-                    onlineName = r.GetString("onlineName"),
+                    account    = r.GetString("account"),
+                    charName   = r.GetString("charName"),
+                    masterName = r.GetString("masterName"),
                     regTime    = r.GetString("regTime"),
-                    ip         = r.GetString("ip")
+                    regIP      = r.GetString("regIP"),
+                    serverName = $"分流 {r.GetInt32("serverId")}",
+                    isOnline   = r.GetInt32("isOnlineBit") == 1
                 });
         }
         catch { }
@@ -2431,15 +2439,22 @@ public class DbService
         {
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(
-                @"SELECT IFNULL(ServerId,0) serverId, COUNT(*) cnt
-                  FROM csalogin WHERE Online=1
+                @"SELECT IFNULL(ServerId,0) serverId,
+                         SUM(IF(Online=1,1,0)) onlineCount,
+                         COUNT(*) totalCount
+                  FROM csalogin
                   GROUP BY ServerId ORDER BY ServerId", db);
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
+            {
+                int sid = r.GetInt32("serverId");
                 list.Add(new {
-                    serverId = r.GetInt32("serverId"),
-                    count    = r.GetInt32("cnt")
+                    serverId    = sid,
+                    serverName  = $"分流 {sid}",
+                    onlineCount = Convert.ToInt32(r["onlineCount"]),
+                    totalCount  = Convert.ToInt32(r["totalCount"])
                 });
+            }
         }
         catch { }
         return list;
