@@ -42,7 +42,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             string hintText = _multiMode
-                ? "  主帳號旗下所有角色如下，可多選（Ctrl/Shift）或點「全選」，加入收件人："
+                ? "  雙擊角色可快速單選；多選請用 Ctrl/Shift 勾選多行，再點「加入選取角色」："
                 : "  此主帳號底下有多個角色，請選擇要操作的角色（雙擊 或 選取後按確定）：";
 
             var lblHint = new Label
@@ -84,16 +84,15 @@ namespace SQ_Email_Tools
                     _dgv.Rows[i].DefaultCellStyle.ForeColor = Color.FromArgb(80, 220, 140);
             }
 
-            // 雙擊：單選模式直接確認，多選模式切換選取
+            // 雙擊：任何模式下都直接確認該筆
             _dgv.CellDoubleClick += (s, e) =>
             {
                 if (e.RowIndex < 0) return;
-                if (!_multiMode)
-                {
-                    SelectedPlayer  = _dgv.Rows[e.RowIndex].Tag as PlayerInfo;
-                    SelectedPlayers = new List<PlayerInfo> { SelectedPlayer };
-                    DialogResult    = DialogResult.OK;
-                }
+                var p = _dgv.Rows[e.RowIndex].Tag as PlayerInfo;
+                if (p == null) return;
+                SelectedPlayer  = p;
+                SelectedPlayers = new List<PlayerInfo> { p };
+                DialogResult    = DialogResult.OK;
             };
 
             // 底部按鈕列

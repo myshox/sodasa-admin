@@ -875,6 +875,8 @@ namespace SQ_Email_Tools
         {
             if (_cart.Count == 0)
             { ShowStatus("⚠ 購物車是空的，請先雙擊左側清單加入道具！", false); return; }
+            if (_recipients.Count == 0)
+            { ShowStatus("⚠ 尚未選取收件人，請先搜尋並加入玩家！", false); return; }
 
             string title   = _txtTitle.Text.Trim();
             string content = _txtContent.Text.Trim();
