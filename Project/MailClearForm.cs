@@ -344,8 +344,9 @@ namespace SQ_Email_Tools
                 if (descCount > 0)
                 {
                     var list = new List<(int, string)>();
-                    list.AddRange(gm.GetAllItems().Where(i => !string.IsNullOrEmpty(i.Description)).Select(i => (i.Id, i.Description)));
-                    list.AddRange(gm.GetAllPets() .Where(p => !string.IsNullOrEmpty(p.Description)).Select(p => (p.Id, p.Description)));
+                    // ★ 遊戲以 buff3=道具名稱(Name) 判斷給什麼道具，優先用 Name，Name 空才用 Description
+                    list.AddRange(gm.GetAllItems().Select(i => (i.Id, !string.IsNullOrEmpty(i.Name) ? i.Name : i.Description)));
+                    list.AddRange(gm.GetAllPets() .Select(p => (p.Id, !string.IsNullOrEmpty(p.Name) ? p.Name : p.Description)));
                     descs = list;
                 }
 

@@ -906,7 +906,7 @@ namespace SQ_Email_Tools
                                 Cdkey     = recipient.Account,
                                 Buff1     = itemTitle,
                                 Buff2     = itemContent,
-                                Buff3     = entry.Item.Description,
+                                Buff3     = entry.Item.Name,   // ★ 遊戲用 buff3=道具名稱 判斷給什麼道具
                                 Data      = entry.Item.Id,
                                 StartTime = startTs,
                                 EndTime   = startTs + 30 * 24 * 3600,

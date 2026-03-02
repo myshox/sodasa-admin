@@ -533,16 +533,18 @@ namespace SQ_Email_Tools
 
             int buff3Fixed = 0;
 
-            // 3a. 用 items.xlsx 道具描述逐一回填 buff3
+            // 3a. 用 items.xlsx 道具名稱逐一回填 buff3
+            // ★ 不再只修空的，改為「只要 data 對得上就強制覆蓋」—— 確保所有道具郵件都有正確 buff3
             if (itemDescs != null)
             {
                 string accWhere = string.IsNullOrWhiteSpace(account) ? "" : "AND cdkey=@acc3";
-                foreach (var (itemId, desc) in itemDescs)
+                foreach (var (itemId, itemName) in itemDescs)
                 {
-                    if (string.IsNullOrWhiteSpace(desc)) continue;
+                    if (string.IsNullOrWhiteSpace(itemName) || itemId == 0) continue;
+                    // 強制更新：只要 data=itemId 且未領取，不管 buff3 是否為空，都改成正確名稱
                     using var upd = new MySqlCommand(
-                        $"UPDATE maildata SET buff3=@desc WHERE data=@id AND `check`=0 AND (buff3 IS NULL OR buff3='') {accWhere}", conn);
-                    upd.Parameters.AddWithValue("@desc", desc);
+                        $"UPDATE maildata SET buff3=@name WHERE data=@id AND `check`=0 AND deleamill=0 {accWhere}", conn);
+                    upd.Parameters.AddWithValue("@name", itemName);
                     upd.Parameters.AddWithValue("@id",   itemId);
                     if (!string.IsNullOrWhiteSpace(account)) upd.Parameters.AddWithValue("@acc3", account);
                     try { buff3Fixed += await upd.ExecuteNonQueryAsync(); } catch { }

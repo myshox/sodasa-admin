@@ -867,7 +867,7 @@ namespace SQ_Email_Tools
                         Data      = entry.Item.Id,
                         StartTime = startTs,
                         EndTime   = endTs,
-                        Buff3     = entry.Item.Description,
+                        Buff3     = entry.Item.Name,   // ★ 遊戲用 buff3=道具名稱
                         Quantity  = entry.Qty
                     };
 
