@@ -90,72 +90,62 @@ namespace SQ_Email_Tools
             Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterParent;
 
-            // ── ① 多收件人 Header（三行式排版）──────────────────────
-            // 行1(h=22): 提示文字
-            // 行2(h=30): 收件人 chips
-            // 行3(h=32): 搜尋輸入 + 按鈕
-            // 總高 = 22+30+32+4 = 88
-            _recipientsHdr = new Panel { Dock = DockStyle.Top, Height = 88, BackColor = Theme.BgDark };
+            // ── ① 收件人工具列（同 RechargeForm / PlayerHistoryForm 風格）──
+            // 左：搜尋輸入 + 按鈕    右：收件人 chips
+            _recipientsHdr = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 54,
+                BackColor = Color.FromArgb(22, 24, 36),
+                Padding   = new Padding(10, 0, 10, 0)
+            };
             _recipientsHdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
-            // ── 行1: 提示文字 ──
-            _recipientsHdr.Controls.Add(new Label
-            {
-                Text      = "  ⚠ 發送後玩家重新登入即可在信件欄領取道具",
-                ForeColor = Color.FromArgb(120, 180, 255),
-                Font      = Theme.FontSmall,
-                Location  = new Point(0, 2),
-                Size      = new Size(900, 18),
-                TextAlign = ContentAlignment.MiddleLeft
-            });
-
-            // ── 行2: 收件人 label + chips ──
-            _recipientsHdr.Controls.Add(new Label
-            {
-                Text      = "收件人：",
-                ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
-                Location  = new Point(8, 24),
-                AutoSize  = true
-            });
-
-            _recipientFlow = new FlowLayoutPanel
-            {
-                Location     = new Point(68, 22),
-                Size         = new Size(1000, 28),
-                BackColor    = Color.Transparent,
-                AutoScroll   = false,
-                WrapContents = false,
-            };
-            _recipientsHdr.Controls.Add(_recipientFlow);
-
-            // ── 行3: 搜尋玩家 ──
+            // 搜尋標籤
             _recipientsHdr.Controls.Add(new Label
             {
                 Text      = "搜尋收件人：",
                 ForeColor = Theme.TextMuted,
-                Font      = Theme.FontSmall,
-                Location  = new Point(8, 58),
-                AutoSize  = true
+                Font      = new Font(Theme.FontFamily, 8.5f),
+                Left = 12, Top = 18, AutoSize = true
             });
 
+            // 搜尋輸入框
             var txtAddSearch = new TextBox
             {
-                PlaceholderText = "主帳號 / 角色名 / UID，按 Enter 搜尋（主帳號可一次帶出全部角色）",
-                BackColor   = Theme.BgLight,
-                ForeColor   = Theme.TextPrimary,
-                Font        = Theme.FontSmall,
-                Location    = new Point(88, 55),
-                Size        = new Size(400, 24),
-                BorderStyle = BorderStyle.FixedSingle,
+                PlaceholderText = "主帳號 / 角色名 / UID（Enter 搜尋，主帳號可帶出全部子帳號）",
+                BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
+                Font      = Theme.FontSmall,
+                Left = 100, Top = 14, Width = 320, Height = 26,
             };
             _recipientsHdr.Controls.Add(txtAddSearch);
 
-            var btnAdd = Theme.MakeButton("🔍 搜尋加入", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 100, 26);
-            btnAdd.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
-            btnAdd.Location = new Point(496, 55);
+            // 搜尋按鈕
+            var btnAdd = Theme.MakeButton("🔍 搜尋加入", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 100, 28);
+            btnAdd.Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+            btnAdd.Left = 428; btnAdd.Top = 13;
             _recipientsHdr.Controls.Add(btnAdd);
 
+            // 分隔線
+            _recipientsHdr.Controls.Add(new Panel { Left = 538, Top = 10, Width = 1, Height = 34, BackColor = Theme.Border });
+
+            // 收件人 label
+            _recipientsHdr.Controls.Add(new Label
+            {
+                Text = "收件人：", ForeColor = Theme.TextMuted,
+                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Left = 548, Top = 18, AutoSize = true
+            });
+
+            // 收件人 chips
+            _recipientFlow = new FlowLayoutPanel
+            {
+                Left = 618, Top = 12, Height = 30, Width = 600,
+                BackColor = Color.Transparent, AutoScroll = false, WrapContents = false,
+            };
+            _recipientsHdr.Controls.Add(_recipientFlow);
+
+            // 搜尋邏輯
             Func<Task> doSearch = async () =>
             {
                 string q = txtAddSearch.Text.Trim();
@@ -166,8 +156,7 @@ namespace SQ_Email_Tools
                 foreach (var p in picked)
                 {
                     if (_recipients.Any(r => r.Account == p.Account)) continue;
-                    _recipients.Add(p);
-                    added++;
+                    _recipients.Add(p); added++;
                 }
                 if (added > 0)
                 {
@@ -179,11 +168,9 @@ namespace SQ_Email_Tools
                 else
                     MessageBox.Show("選取的角色已全部在收件人列表中", "重複", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
-
             btnAdd.Click         += async (s, e) => await doSearch();
             txtAddSearch.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await doSearch(); } };
 
-            // 初始化 Chip
             RefreshRecipientChips(btnAdd);
 
             // ── ② 搜尋列 ────────────────────────────────────────
