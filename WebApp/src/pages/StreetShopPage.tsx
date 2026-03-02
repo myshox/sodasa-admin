@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import type { PlayerRow } from '../api'
 
 type PageTab = 'vendor' | 'streetbuyer' | 'shopbuyer'
 
@@ -163,9 +165,13 @@ export default function StreetShopPage() {
         {pageTab === 'vendor' && (
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-              <input value={vendorQ} onChange={e => setVendorQ(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && searchVendor(vendorQ)}
-                placeholder="角色名 或 帳號（cdkey）" style={{ width: 260, fontSize: 14 }} />
+              <PlayerAutocomplete
+                value={vendorQ}
+                onChange={setVendorQ}
+                onSelect={(p: PlayerRow) => { setVendorQ(p.onlineName || p.account); searchVendor(p.account) }}
+                placeholder="主帳號 / 角色名 / UID（自動顯示旗下角色）"
+                style={{ width: 320, fontSize: 14 }}
+              />
               <select value={vendorLimit} onChange={e => setVendorLimit(+e.target.value)}
                 style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
                 {[50, 100, 200, 500].map(n => <option key={n} value={n}>最多 {n} 筆</option>)}

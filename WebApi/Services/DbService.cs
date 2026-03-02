@@ -31,7 +31,7 @@ public class DbService
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
             LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
             LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
-            WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw
+            WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw OR m.`Name` LIKE @kw
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
             @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
                    (c.Online=1) isOnline, IFNULL(c.ServerId,0) serverId,

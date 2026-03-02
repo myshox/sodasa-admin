@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import type { PlayerRow } from '../api'
 
 const MILESTONES = [3_000, 5_000, 10_000, 50_000, 100_000]
 
@@ -209,15 +211,12 @@ export default function CostMilestonePage() {
 
       {/* 搜尋 */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input
-          value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && doSearch(q)}
-          placeholder="輸入主帳號 / 角色名 / UID…"
-          style={{
-            flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14,
-            background: 'var(--bg-input)', border: '1px solid var(--border)',
-            color: 'var(--text-primary)', outline: 'none',
-          }}
+        <PlayerAutocomplete
+          value={q}
+          onChange={setQ}
+          onSelect={(p: PlayerRow) => { setQ(p.onlineName || p.account); doSearch(p.account) }}
+          placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+          style={{ flex: 1 }}
         />
         <button onClick={() => doSearch(q)} disabled={loading} style={{
           padding: '10px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',

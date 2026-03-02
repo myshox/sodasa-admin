@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { S } from '../strings'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
+import type { PlayerRow } from '../api'
 
 function useIsMobile() {
   const [m, setM] = useState(window.innerWidth < 768)
@@ -180,10 +182,13 @@ export default function RechargePage() {
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 18 }}>
             <StepLabel n={1} text="選定玩家" />
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <input value={playerQ} onChange={e => setPlayerQ(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && loadPlayer(playerQ)}
-                placeholder="帳號 / 角色名稱"
-                style={{ flex: 1, fontSize: 13, borderRadius: 7, padding: '8px 12px' }} />
+              <PlayerAutocomplete
+                value={playerQ}
+                onChange={setPlayerQ}
+                onSelect={(p: PlayerRow) => { setPlayerQ(p.onlineName || p.account); loadPlayer(p.account) }}
+                placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+                style={{ flex: 1, fontSize: 13 }}
+              />
               <button onClick={() => loadPlayer(playerQ)} disabled={infoLoading}
                 style={{ padding: '8px 14px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', borderRadius: 7, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', minWidth: 44 }}>
                 {infoLoading ? '…' : '🔍'}

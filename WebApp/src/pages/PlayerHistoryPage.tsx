@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 import type { PlayerRow } from '../api'
+import PlayerAutocomplete from '../components/PlayerAutocomplete'
 
 interface TradeLog {
   time: string; fromCdkey: string; fromName: string
@@ -47,7 +48,7 @@ export default function PlayerHistoryPage() {
   const [limit, setLimit]     = useState(100)
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
 
-  const searchRef = useRef<HTMLInputElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null) // kept for clickPlayer focus
 
   // 頁面載入時自動拉玩家名單
   useEffect(() => {
@@ -169,9 +170,13 @@ export default function PlayerHistoryPage() {
 
         {/* 搜尋列 */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input ref={searchRef} value={query} onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && search()}
-            placeholder="帳號（cdkey）或角色名稱" style={{ width: 260, fontSize: 14 }} />
+          <PlayerAutocomplete
+            value={query}
+            onChange={setQuery}
+            onSelect={(p: PlayerRow) => { setQuery(p.onlineName || p.account); doSearch(p.account) }}
+            placeholder="主帳號 / 角色名稱 / UID（自動顯示旗下角色）"
+            style={{ width: 320, fontSize: 14 }}
+          />
           <select value={limit} onChange={e => setLimit(+e.target.value)}
             style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
             {[50, 100, 200, 500].map(n => <option key={n} value={n}>最多 {n} 筆</option>)}
