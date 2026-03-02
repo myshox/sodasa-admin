@@ -2494,6 +2494,71 @@ public class DbService
         return (input, "");
     }
 
+    /// <summary>
+    /// 查詢主帳號下所有角色的 costdata（用於主帳號搜尋顯示角色列表）。
+    /// 若輸入不是主帳號名，則退化為單角色查詢。
+    /// </summary>
+    public async Task<List<object>> GetAllCharsCostdataAsync(string masterName)
+    {
+        var result = new List<object>();
+        await using var db = Open(); await db.OpenAsync();
+        try
+        {
+            // 找主帳號 ID
+            int masterId = 0;
+            await using var cmdM = new MySqlCommand(
+                "SELECT Id FROM csaloginmaster WHERE `Name`=@n LIMIT 1", db);
+            cmdM.Parameters.AddWithValue("@n", masterName);
+            await using var rM = await cmdM.ExecuteReaderAsync();
+            if (await rM.ReadAsync()) masterId = rM.GetInt32(0);
+            await rM.CloseAsync();
+
+            if (masterId == 0) return result; // 不是主帳號
+
+            // 取主帳號下所有角色
+            await using var cmdC = new MySqlCommand(
+                @"SELECT c.`Name`, IFNULL(c.OnlineName,'') onlineName, (c.Online=1) isOnline
+                  FROM csalogin c WHERE c.MasterId=@mid ORDER BY c.Online DESC, c.LoginTime DESC", db);
+            cmdC.Parameters.AddWithValue("@mid", masterId);
+            var chars = new List<(string uid, string onlineName, bool isOnline)>();
+            await using (var rC = await cmdC.ExecuteReaderAsync())
+            {
+                while (await rC.ReadAsync())
+                    chars.Add((rC.GetString(0), rC.GetString(1), rC.GetBoolean(2)));
+            }
+
+            // 逐一查 costdata
+            foreach (var (uid, onlineName, isOnline) in chars)
+            {
+                long costPoint = 0; int costCheck = -1;
+                try
+                {
+                    await using var cmdCd = new MySqlCommand(
+                        "SELECT point, IFNULL(`check`,0) ck FROM costdata WHERE cdkey=@acc LIMIT 1", db);
+                    cmdCd.Parameters.AddWithValue("@acc", uid);
+                    await using var rCd = await cmdCd.ExecuteReaderAsync();
+                    if (await rCd.ReadAsync())
+                    {
+                        costPoint = rCd.IsDBNull(0) ? 0 : rCd.GetInt64(0);
+                        costCheck = rCd.IsDBNull(1) ? 0 : rCd.GetInt32(1);
+                    }
+                }
+                catch { }
+
+                var milestones = CostMilestones.Select((m, i) => new
+                {
+                    index = i, required = m,
+                    reached = costPoint >= m,
+                    claimed = costCheck >= 0 && (costCheck & (1 << i)) != 0
+                }).ToArray();
+                int claimedCount = costCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)costCheck);
+                result.Add(new { account = uid, onlineName, isOnline, costPoint, costCheck, claimedCount, milestones });
+            }
+        }
+        catch { }
+        return result;
+    }
+
     public async Task<object> GetCostdataSummaryAsync(string account)
     {
         long costPoint = 0; int costCheck = -1;

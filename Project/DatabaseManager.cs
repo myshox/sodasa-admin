@@ -3314,6 +3314,54 @@ namespace SQ_Email_Tools
             return (input, "");
         }
 
+        /// <summary>
+        /// 取主帳號下所有角色的 costdata（用於 CostMilestoneForm 列出多角色）。
+        /// 回傳空列表代表輸入不是主帳號名。
+        /// </summary>
+        public async Task<List<(string uid, string onlineName, bool isOnline, long point, int check)>> GetAllCharsCostDataAsync(string masterName)
+        {
+            var result = new List<(string, string, bool, long, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                int masterId = 0;
+                using (var cmdM = new MySqlCommand(
+                    "SELECT Id FROM csaloginmaster WHERE `Name`=@n LIMIT 1", conn))
+                {
+                    cmdM.Parameters.AddWithValue("@n", masterName);
+                    var val = await cmdM.ExecuteScalarAsync();
+                    if (val == null || val == DBNull.Value) return result;
+                    masterId = Convert.ToInt32(val);
+                }
+                using var cmdC = new MySqlCommand(
+                    @"SELECT c.`Name`, IFNULL(c.OnlineName,''), (c.Online=1)
+                      FROM csalogin c WHERE c.MasterId=@mid
+                      ORDER BY c.Online DESC, c.LoginTime DESC", conn);
+                cmdC.Parameters.AddWithValue("@mid", masterId);
+                var chars = new List<(string uid, string name, bool online)>();
+                using (var rC = await cmdC.ExecuteReaderAsync())
+                    while (await rC.ReadAsync())
+                        chars.Add((rC.GetString(0), rC.GetString(1), rC.GetBoolean(2)));
+
+                foreach (var (uid, name, online) in chars)
+                {
+                    long pt = 0; int ck = 0;
+                    using var cmdCd = new MySqlCommand(
+                        "SELECT point, IFNULL(`check`,0) FROM costdata WHERE cdkey=@acc LIMIT 1", conn);
+                    cmdCd.Parameters.AddWithValue("@acc", uid);
+                    using var rCd = await cmdCd.ExecuteReaderAsync();
+                    if (await rCd.ReadAsync())
+                    {
+                        pt = rCd[0] == DBNull.Value ? 0 : Convert.ToInt64(rCd[0]);
+                        ck = rCd[1] == DBNull.Value ? 0 : Convert.ToInt32(rCd[1]);
+                    }
+                    result.Add((uid, name, online, pt, ck));
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/GetAllCharsCostData] " + ex.Message); }
+            return result;
+        }
+
         /// <summary>讀取玩家的消費達成進度（costdata），支援主帳號名/角色名/UID</summary>
         public async Task<(long point, int check, string uid, string onlineName)> GetCostDataAsync(string account)
         {

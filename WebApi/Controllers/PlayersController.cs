@@ -225,6 +225,10 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> GetCostdata(string account)
         => Ok(await _db.GetCostdataSummaryAsync(account));
 
+    [HttpGet("{master}/costdata/all-chars")]
+    public async Task<IActionResult> GetAllCharsCostdata(string master)
+        => Ok(await _db.GetAllCharsCostdataAsync(master));
+
     [HttpPost("{account}/costdata/adjust")]
     public async Task<IActionResult> AdjustCostdata(string account, [FromBody] AdjustCostRequest req)
     {
