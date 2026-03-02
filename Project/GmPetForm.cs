@@ -452,11 +452,16 @@ namespace SQ_Email_Tools
 
             try
             {
-                var detail = await DatabaseManager.Instance.GetPlayerDetailAsync(kw);
+                // 支援主帳號展開
+                var picked = await PlayerPickerHelper.PickAsync(this, kw);
+                if (picked == null) { _lblResult.Text = ""; return; }
+
+                var detail = await DatabaseManager.Instance.GetPlayerDetailAsync(picked.Account);
                 if (detail != null)
                 {
                     _foundCdkey = detail.Account;
                     _foundName  = detail.OnlineName;
+                    _txtSearch.Text = _foundName.Length > 0 ? _foundName : _foundCdkey;
 
                     // 自動帶入CDKEY欄位
                     _txtCdkey.Text       = _foundCdkey;

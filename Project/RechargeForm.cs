@@ -654,8 +654,13 @@ namespace SQ_Email_Tools
             ShowMsg("搜尋中…", true);
             try
             {
-                _account = q;
-                _detail  = await DatabaseManager.Instance.GetPlayerDetailAsync(q);
+                // 支援主帳號展開：若底下有多個角色，跳出選擇視窗
+                var picked = await PlayerPickerHelper.PickAsync(this, q);
+                if (picked == null) { ShowMsg("", true); return; }
+
+                _account  = picked.Account;
+                _txtSearch.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
+                _detail   = await DatabaseManager.Instance.GetPlayerDetailAsync(picked.Account);
                 // 預設依 VIP 套用加成
                 _bonusPct = VipHelper.BonusPercent(_detail.PayTotal);
                 RefreshBonusButtons();
@@ -664,7 +669,7 @@ namespace SQ_Email_Tools
                 UpdatePreview();
                 ShowMsg($"✓ 已載入玩家：{_detail.OnlineName}（{_detail.Account}）", true);
             }
-            catch { ShowMsg("找不到玩家，請確認帳號或角色名稱", false); _detail = null; _account = null; RebuildPlayerInfo(); }
+            catch (Exception ex) { ShowMsg("找不到玩家：" + ex.Message, false); _detail = null; _account = null; RebuildPlayerInfo(); }
             finally { _btnSearch.Enabled = true; _btnSearch.Text = "🔍 搜尋"; }
         }
 

@@ -183,12 +183,16 @@ namespace SQ_Email_Tools
 
             _btnSearch.Enabled = false;
             SetStatus("查詢中…");
+            try
+            {
+                // 支援主帳號展開：若底下有多個角色，跳出選擇視窗
+                var picked = await PlayerPickerHelper.PickAsync(this, kw);
+                if (picked == null) { SetStatus("已取消"); return; }
 
-            // 先嘗試把角色名稱對應到 cdkey
-            string account = await DatabaseManager.Instance.ResolveAccountAsync(kw);
-
-            await LoadAllAsync(account);
-            _btnSearch.Enabled = true;
+                _searchBox.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
+                await LoadAllAsync(picked.Account);
+            }
+            finally { _btnSearch.Enabled = true; }
         }
 
         private async System.Threading.Tasks.Task LoadAllAsync(string account)
