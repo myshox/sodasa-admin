@@ -9,7 +9,10 @@ namespace SQ_Email_Tools
 {
     public class SendForm : Form
     {
-        private readonly PlayerInfo _player;
+        // 支援多位收件人
+        private readonly List<PlayerInfo> _recipients = new();
+        private FlowLayoutPanel _recipientFlow;
+        private Panel           _recipientsHdr;
 
         // ── 購物車資料結構 ──
         private class CartEntry
@@ -48,7 +51,16 @@ namespace SQ_Email_Tools
 
         public SendForm(PlayerInfo player)
         {
-            _player = player;
+            _recipients.Add(player);
+            InitUI();
+            _ = LoadHistoryAsync();
+            ApplyFilter();
+        }
+
+        // 也可由外部傳入多位玩家
+        public SendForm(IEnumerable<PlayerInfo> players)
+        {
+            _recipients.AddRange(players);
             InitUI();
             _ = LoadHistoryAsync();
             ApplyFilter();
@@ -60,7 +72,10 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════════════════
         private void InitUI()
         {
-            Text          = $"✉ 道具發送 — {_player.OnlineName}";
+            var firstName = _recipients.Count > 0 ? _recipients[0].OnlineName : "—";
+            Text          = _recipients.Count == 1
+                ? $"✉ 道具發送 — {firstName}"
+                : $"✉ 道具發送 — {_recipients.Count} 位玩家";
             Size          = new Size(1120, 740);
             MinimumSize   = new Size(860, 560);
             BackColor     = Theme.BgMid;
@@ -68,19 +83,75 @@ namespace SQ_Email_Tools
             Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterParent;
 
-            // ── ① 玩家資訊 Header ──────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
-            header.Controls.Add(new Label
+            // ── ① 多收件人 Header ──────────────────────────────
+            _recipientsHdr = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Theme.BgDark };
+            _recipientsHdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+
+            // 第一行：提示文字
+            _recipientsHdr.Controls.Add(new Label
             {
-                Text      = $"  {(_player.IsOnline ? "🟢" : "⚫")}  {_player.OnlineName}（{_player.Account}）" +
-                            $"  {(_player.IsOnline ? "在線中" : "離線")}    " +
-                            $"⚠ 發送後玩家重新登入即可在信件欄領取道具",
-                ForeColor = _player.IsOnline ? Theme.AccentGreen : Theme.TextSecondary,
-                Font      = Theme.FontBody,
-                Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(8, 0, 0, 0)
+                Text      = "  ⚠ 發送後玩家重新登入即可在信件欄領取道具",
+                ForeColor = Color.FromArgb(120, 180, 255),
+                Font      = Theme.FontSmall,
+                Location  = new Point(0, 2),
+                Size      = new Size(760, 18),
+                TextAlign = ContentAlignment.MiddleLeft
             });
+
+            // 第二行：收件人 label
+            _recipientsHdr.Controls.Add(new Label
+            {
+                Text      = "收件人：",
+                ForeColor = Theme.TextMuted,
+                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                Location  = new Point(8, 24),
+                AutoSize  = true
+            });
+
+            // FlowLayoutPanel 顯示收件人 Chip
+            _recipientFlow = new FlowLayoutPanel
+            {
+                Location    = new Point(68, 20),
+                Size        = new Size(900, 40),
+                BackColor   = Color.Transparent,
+                AutoScroll  = false,
+                WrapContents= false,
+            };
+            _recipientsHdr.Controls.Add(_recipientFlow);
+
+            // "＋ 新增" 按鈕（動態加在 Flow 最右）
+            var btnAdd = Theme.MakeButton("＋ 新增", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 72, 28);
+            btnAdd.Font   = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+            btnAdd.Margin = new Padding(4, 4, 0, 0);
+            btnAdd.Click += async (s, e) =>
+            {
+                using var input = new Form
+                {
+                    Text = "新增收件人", Size = new Size(360, 130),
+                    BackColor = Theme.BgPage, ForeColor = Theme.TextPrimary,
+                    Font = Theme.FontBody, FormBorderStyle = FormBorderStyle.FixedDialog,
+                    StartPosition = FormStartPosition.CenterParent,
+                    MaximizeBox = false, MinimizeBox = false
+                };
+                var txt = new TextBox { Location = new Point(12, 14), Width = 310, PlaceholderText = "主帳號 / 角色名 / UID" };
+                var ok  = Theme.MakeButton("確定", Theme.AccentBlue, Color.White, 80, 28);
+                ok.Location = new Point(12, 50);
+                ok.Click += (_, _2) => input.DialogResult = DialogResult.OK;
+                input.Controls.AddRange(new Control[] { txt, ok });
+                input.AcceptButton = ok;
+                if (input.ShowDialog(this) != DialogResult.OK) return;
+
+                var picked = await PlayerPickerHelper.PickAsync(this, txt.Text);
+                if (picked == null) return;
+                if (_recipients.Any(r => r.Account == picked.Account))
+                { MessageBox.Show("此玩家已在收件人列表中", "重複", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
+                _recipients.Add(picked);
+                RefreshRecipientChips(btnAdd);
+                Text = $"✉ 道具發送 — {_recipients.Count} 位玩家";
+            };
+
+            // 初始化 Chip
+            RefreshRecipientChips(btnAdd);
 
             // ── ② 搜尋列 ────────────────────────────────────────
             var searchPanel = new Panel
@@ -165,9 +236,9 @@ namespace SQ_Email_Tools
             BuildRightPanel(split.Panel2);
 
             // 加入順序：Fill → Top（後加的 Top 視覺上更靠頂端）
-            Controls.Add(split);        // Fill
-            Controls.Add(searchPanel);  // Top（視覺第二，在 header 正下方）
-            Controls.Add(header);       // Top（視覺最頂端，最後加）
+            Controls.Add(split);           // Fill
+            Controls.Add(searchPanel);     // Top（視覺第二，在 header 正下方）
+            Controls.Add(_recipientsHdr);  // Top（視覺最頂端，最後加）
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -690,13 +761,67 @@ namespace SQ_Email_Tools
             _sendBtn.BackColor = hasItems ? Theme.AccentGreen : Color.FromArgb(60, 62, 78);
             _sendBtn.ForeColor = hasItems ? Color.White       : Theme.TextMuted;
             _sendBtn.Text      = hasItems
-                ? $"✉  發送 {_cart.Count} 種道具（共 {_cart.Sum(c => c.Qty)} 份）至 {_player.OnlineName} 郵件信箱"
+                ? $"✉  發送 {_cart.Count} 種道具（共 {_cart.Sum(c => c.Qty)} 份）至 {(_recipients.Count == 1 ? _recipients[0].OnlineName : _recipients.Count + " 位玩家")} 郵件信箱"
                 : "🛒  請先從左側清單加入道具至購物車";
         }
 
         // ═══════════════════════════════════════════════════════════
         // 發送（支援多道具購物車）
         // ═══════════════════════════════════════════════════════════
+        private void RefreshRecipientChips(Button addBtn)
+        {
+            _recipientFlow.Controls.Clear();
+            foreach (var p in _recipients.ToList())
+            {
+                var chip = new Panel
+                {
+                    BackColor   = Color.FromArgb(20, 50, 100),
+                    Size        = new Size(0, 28),
+                    Margin      = new Padding(0, 4, 6, 0),
+                    BorderStyle = BorderStyle.FixedSingle,
+                };
+                string statusEmoji = p.IsOnline ? "🟢" : "⚫";
+                var lblName = new Label
+                {
+                    Text      = $"{statusEmoji} {(string.IsNullOrEmpty(p.OnlineName) ? p.Account : p.OnlineName)}",
+                    ForeColor = p.IsOnline ? Color.FromArgb(80, 220, 140) : Theme.TextSecondary,
+                    Font      = Theme.FontSmall,
+                    AutoSize  = true,
+                    Location  = new Point(4, 5),
+                };
+                var btnX = new Button
+                {
+                    Text      = "✕",
+                    FlatStyle = FlatStyle.Flat,
+                    ForeColor = Theme.TextMuted,
+                    BackColor = Color.Transparent,
+                    Size      = new Size(20, 20),
+                    Font      = new Font(Theme.FontFamily, 7.5f),
+                    Cursor    = Cursors.Hand,
+                    TabStop   = false,
+                };
+                btnX.FlatAppearance.BorderSize = 0;
+                btnX.FlatAppearance.MouseOverBackColor = Color.FromArgb(80, 0, 0);
+                var captured = p;
+                btnX.Click += (s, ev) =>
+                {
+                    if (_recipients.Count <= 1) { MessageBox.Show("至少需要一位收件人", "提示"); return; }
+                    _recipients.Remove(captured);
+                    RefreshRecipientChips(addBtn);
+                    Text = _recipients.Count == 1
+                        ? $"✉ 道具發送 — {_recipients[0].OnlineName}"
+                        : $"✉ 道具發送 — {_recipients.Count} 位玩家";
+                };
+                chip.Controls.Add(lblName);
+                lblName.BringToFront();
+                chip.Resize += (s, ev) => btnX.Left = chip.Width - btnX.Width - 2;
+                chip.Controls.Add(btnX);
+                chip.Width = lblName.PreferredWidth + 30;
+                _recipientFlow.Controls.Add(chip);
+            }
+            _recipientFlow.Controls.Add(addBtn);
+        }
+
         private async void SendBtn_Click(object sender, EventArgs e)
         {
             if (_cart.Count == 0)
@@ -717,47 +842,56 @@ namespace SQ_Email_Tools
             var cartLines = string.Join("\n", _cart.Select(c =>
                 $"  • {c.Item.Name}（編號 {c.Item.Id}）× {c.Qty}"));
 
+            // 收件人列表文字
+            var recipientLines = _recipients.Count == 1
+                ? $"  玩家：{_recipients[0].OnlineName}（{_recipients[0].Account}）"
+                : "  收件人（共 " + _recipients.Count + " 位）：\n" +
+                  string.Join("\n", _recipients.Select(r => $"    • {r.OnlineName}（{r.Account}）"));
+
             if (MessageBox.Show(
-                $"確認發送以下 {_cart.Count} 種道具給玩家？\n\n" +
-                $"  玩家：{_player.OnlineName}（{_player.Account}）\n" +
-                $"  標　　題：{(string.IsNullOrEmpty(title) ? "（各道具名稱）" : title)}\n" +
-                $"  信件內容：{(string.IsNullOrEmpty(content) ? "（各道具名稱）" : content)}\n" +
+                $"確認發送以下 {_cart.Count} 種道具？\n\n" +
+                recipientLines + "\n" +
+                $"  標題：{(string.IsNullOrEmpty(title) ? "（各道具名稱）" : title)}\n" +
+                $"  內容：{(string.IsNullOrEmpty(content) ? "（各道具名稱）" : content)}\n" +
                 scheduleNote +
-                $"  道具清單（每種各寫入一封郵件）：\n{cartLines}",
-                "確認批量發送", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                $"  道具清單：\n{cartLines}",
+                "確認發送", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             _sendBtn.Enabled = false;
             int success = 0, fail = 0;
             ShowStatus("發送中…", null);
             try
             {
-                foreach (var entry in _cart)
+                foreach (var recipient in _recipients)
                 {
-                    string itemTitle   = string.IsNullOrEmpty(title)   ? entry.Item.Name : title;
-                    string itemContent = string.IsNullOrEmpty(content) ? entry.Item.Name : content;
-
-                    for (int q = 0; q < entry.Qty; q++)
+                    foreach (var entry in _cart)
                     {
-                        bool ok = await DatabaseManager.Instance.SendMailAsync(new SendMailRequest
+                        string itemTitle   = string.IsNullOrEmpty(title)   ? entry.Item.Name : title;
+                        string itemContent = string.IsNullOrEmpty(content) ? entry.Item.Name : content;
+
+                        for (int q = 0; q < entry.Qty; q++)
                         {
-                            Type      = entry.Type,
-                            Cdkey     = _player.Account,
-                            Buff1     = itemTitle,
-                            Buff2     = itemContent,
-                            Buff3     = entry.Item.Description,
-                            Data      = entry.Item.Id,
-                            StartTime = startTs,
-                            EndTime   = startTs + 30 * 24 * 3600,
-                            Quantity  = 1,
-                            Operator  = GmLogger.Instance.OperatorName
-                        });
-                        if (ok) success++; else fail++;
+                            bool ok = await DatabaseManager.Instance.SendMailAsync(new SendMailRequest
+                            {
+                                Type      = entry.Type,
+                                Cdkey     = recipient.Account,
+                                Buff1     = itemTitle,
+                                Buff2     = itemContent,
+                                Buff3     = entry.Item.Description,
+                                Data      = entry.Item.Id,
+                                StartTime = startTs,
+                                EndTime   = startTs + 30 * 24 * 3600,
+                                Quantity  = 1,
+                                Operator  = GmLogger.Instance.OperatorName
+                            });
+                            if (ok) success++; else fail++;
+                        }
                     }
-                    ShowStatus($"發送中… {entry.Item.Name}", null);
+                    ShowStatus($"發送中… {recipient.OnlineName}", null);
                 }
                 int total = success + fail;
                 ShowStatus(fail == 0
-                    ? $"✓ 全部 {total} 封郵件發送成功！玩家重新登入後可在信件欄領取。"
+                    ? $"✓ 全部 {total} 封郵件發送成功（{_recipients.Count} 位玩家）！重新登入後可在信件欄領取。"
                     : $"⚠ {success} 成功 / {fail} 失敗，請確認資料庫連線", fail == 0);
                 if (success > 0)
                 {
@@ -784,7 +918,7 @@ namespace SQ_Email_Tools
         {
             try
             {
-                var records = await DatabaseManager.Instance.GetMailHistoryAsync(_player.Account);
+                var records = await DatabaseManager.Instance.GetMailHistoryAsync(_recipients.Count > 0 ? _recipients[0].Account : "");
                 if (InvokeRequired) Invoke(new Action(() => FillHistory(records)));
                 else FillHistory(records);
             }
