@@ -160,12 +160,12 @@ namespace SQ_Email_Tools
     public static class PlayerPickerHelper
     {
         /// <summary>
-        /// 選擇模式：找到多個角色時彈出多選框（可勾選多個），回傳第一個選定的玩家。
-        /// 若需取全部選定清單，請直接呼叫 PickMultiAsync。
+        /// 單選模式：找到多個角色時彈出選擇框（單點選取，不顯示多選勾選框），回傳單一玩家。
+        /// 若需多選，請直接呼叫 PickMultiAsync(multiMode: true)。
         /// </summary>
         public static async Task<PlayerInfo?> PickAsync(Form parent, string query, string title = "選擇角色")
         {
-            var list = await PickMultiAsync(parent, query, multiMode: true);
+            var list = await PickMultiAsync(parent, query, multiMode: false);
             return list?.Count > 0 ? list[0] : null;
         }
 
