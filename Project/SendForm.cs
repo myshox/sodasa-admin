@@ -497,6 +497,18 @@ namespace SQ_Email_Tools
             scroll.Controls.Add(_cartDgv);
             y += 168;
 
+            // Type 說明提示
+            scroll.Controls.Add(new Label
+            {
+                Text      = "T欄 Type: 1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  6=公會資金  7=寵物糖果  8=VIP點",
+                ForeColor = Theme.TextMuted,
+                Font      = new Font(Theme.FontFamily, 7.5f),
+                AutoSize  = false, Size = new Size(440, 18),
+                Location  = new Point(x, y),
+                BackColor = Color.FromArgb(20, 22, 34)
+            });
+            y += 20;
+
             var sendPanel = new Panel
             {
                 Location    = new Point(x, y),
@@ -625,12 +637,26 @@ namespace SQ_Email_Tools
             scroll.Controls.Add(_statusLbl);
             y += 50;
 
-            scroll.Controls.Add(new Label
+            // 郵件記錄標題列（標題 + 🧬 完整欄位 按鈕）
+            var histHdr = new Panel { Location = new Point(x, y), Size = new Size(440, 24), BackColor = Color.Transparent };
+            histHdr.Controls.Add(new Label
             {
-                Text      = "📋  此角色的郵件記錄",
+                Text = "📋  此角色的郵件記錄（雙擊查看完整欄位）",
                 ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
-                AutoSize  = true, Location = new Point(x, y)
+                AutoSize = true, Location = new Point(0, 3)
             });
+            var btnMailFull = Theme.MakeButton("🧬 完整欄位", Color.FromArgb(60, 30, 90), Color.FromArgb(139, 92, 246), 80, 22);
+            btnMailFull.Font     = new Font(Theme.FontFamily, 7.5f);
+            btnMailFull.Location = new Point(320, 0);
+            btnMailFull.Anchor   = AnchorStyles.Right | AnchorStyles.Top;
+            btnMailFull.Click   += async (s, e) =>
+            {
+                if (_recipients.Count == 0) return;
+                var recs = await DatabaseManager.Instance.GetMailHistoryAsync(_recipients[0].Account);
+                ShowMailFullDialog(_recipients[0].OnlineName, recs);
+            };
+            histHdr.Controls.Add(btnMailFull);
+            scroll.Controls.Add(histHdr);
             y += 22;
 
             _histDgv = new DataGridView { Location = new Point(x, y), Size = new Size(440, 170) };
@@ -647,7 +673,8 @@ namespace SQ_Email_Tools
                 UseColumnTextForButtonValue = true, Text = "🗑",
                 DefaultCellStyle = { BackColor = Theme.AccentRed, ForeColor = Color.White, SelectionBackColor = Theme.AccentRed }
             });
-            _histDgv.CellClick += HistDgv_CellClick;
+            _histDgv.CellClick       += HistDgv_CellClick;
+            _histDgv.CellDoubleClick += HistDgv_DoubleClick;
             scroll.Controls.Add(_histDgv);
 
             p.Resize += (s, e) =>
@@ -660,7 +687,9 @@ namespace SQ_Email_Tools
                 _txtContent.Width = Math.Max(100, w - 100);
                 _sendBtn.Width    = w;
                 _statusLbl.Width  = w;
+                histHdr.Width     = w;
                 _histDgv.Width    = w;
+                btnMailFull.Left  = Math.Max(200, w - 84);
             };
         }
 
@@ -950,6 +979,119 @@ namespace SQ_Email_Tools
                 else MessageBox.Show("刪除失敗");
             }
             catch (Exception ex) { MessageBox.Show("錯誤：" + ex.Message); }
+        }
+
+        private void HistDgv_DoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            if (_histDgv.Rows[e.RowIndex].Tag is not MailRecord rec) return;
+            ShowMailFullDialog(_recipients.Count > 0 ? _recipients[0].OnlineName : "—", new System.Collections.Generic.List<MailRecord> { rec });
+        }
+
+        private void ShowMailFullDialog(string playerName, System.Collections.Generic.List<MailRecord> records)
+        {
+            var dlg = new Form
+            {
+                Text = $"🧬 maildata 完整欄位 — {playerName}（最新 {records.Count} 筆）",
+                Size = new Size(560, 600),
+                MinimumSize = new Size(440, 400),
+                BackColor = Theme.BgPage,
+                ForeColor = Theme.TextPrimary,
+                Font = Theme.FontSmall,
+                StartPosition = FormStartPosition.CenterParent
+            };
+
+            var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(10) };
+            dlg.Controls.Add(scroll);
+
+            int y = 0;
+            foreach (var r in records)
+            {
+                // 記錄卡片
+                var card = new Panel
+                {
+                    Location  = new Point(8, y),
+                    Width     = 510,
+                    BackColor = Theme.BgCard,
+                    Padding   = new Padding(10),
+                    Anchor    = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+                };
+
+                var fields = new (string key, string val, bool highlight)[]
+                {
+                    ("id",        r.Id.ToString(),       false),
+                    ("type",      r.Type.ToString(),     r.Type > 0),
+                    ("cdkey",     r.Cdkey,               false),
+                    ("buff1",     r.Buff1,               false),
+                    ("buff2",     r.Buff2,               false),
+                    ("data",      r.RawData.Length > 0 ? r.RawData : r.Data.ToString(), r.Data > 0),
+                    ("sendtime",  r.SendTimeStr,         false),
+                    ("endtime",   r.EndTimeStr,          false),
+                    ("check",     r.CheckFlag.ToString(), false),
+                    ("deleamill", r.Deleamill.ToString(), false),
+                    ("buff3",     r.Buff3,               false),
+                };
+
+                string status  = r.CheckFlag == 1 ? "✓ 已領取" : "○ 未領取";
+                Color  statClr = r.CheckFlag == 1 ? Color.FromArgb(86, 196, 118) : Color.FromArgb(255, 159, 10);
+
+                var hdr = new Label
+                {
+                    Text      = $"記錄 #{r.Id} — check={r.CheckFlag} deleamill={r.Deleamill}",
+                    ForeColor = Color.FromArgb(139, 92, 246),
+                    Font      = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                    AutoSize  = true, Location = new Point(0, 0)
+                };
+                var statLbl = new Label
+                {
+                    Text      = status,
+                    ForeColor = statClr,
+                    Font      = Theme.FontSmall,
+                    AutoSize  = true, Location = new Point(350, 0)
+                };
+                card.Controls.Add(hdr);
+                card.Controls.Add(statLbl);
+
+                // 欄位格 2-column grid
+                int cy = 22;
+                bool left = true;
+                foreach (var (k, v, hi) in fields)
+                {
+                    int cx = left ? 0 : 260;
+                    string display = string.IsNullOrEmpty(v) ? "(空)" : v;
+                    var lbl = new Label
+                    {
+                        Text      = $"{k}: {display}",
+                        ForeColor = hi ? Theme.TextPrimary : (string.IsNullOrEmpty(v) ? Theme.TextMuted : Theme.TextSecondary),
+                        Font      = hi ? new Font(Theme.FontFamily, 8.5f, FontStyle.Bold) : Theme.FontSmall,
+                        AutoSize  = false, Size = new Size(250, 18),
+                        Location  = new Point(cx, cy)
+                    };
+                    card.Controls.Add(lbl);
+                    if (!left) cy += 18;
+                    left = !left;
+                }
+                if (!left) cy += 18; // 奇數時補一行
+
+                card.Height = cy + 12;
+                scroll.Controls.Add(card);
+                y += card.Height + 8;
+            }
+
+            if (records.Count == 0)
+                scroll.Controls.Add(new Label { Text = "無郵件記錄", ForeColor = Theme.TextMuted, AutoSize = true, Location = new Point(10, 10) });
+
+            // 底部提示
+            var hint = new Label
+            {
+                Text      = "Type: 1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  6=公會資金  7=寵物糖果  8=VIP點",
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                Dock = DockStyle.Bottom, Height = 22, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0), BackColor = Theme.BgDark
+            };
+            dlg.Controls.Add(hint);
+
+            dlg.ShowDialog(this);
         }
     }
 

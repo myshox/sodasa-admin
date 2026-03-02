@@ -147,10 +147,16 @@ namespace SQ_Email_Tools
             Controls.Add(split);
             split.HandleCreated += (_, __) =>
             {
-                split.Panel1MinSize = 240;
-                split.Panel2MinSize = 480;
-                int d = Math.Max(270, Math.Min(split.Width - 500, (int)(split.Width * 0.27)));
-                try { split.SplitterDistance = d; } catch { }
+                try
+                {
+                    split.Panel1MinSize = 240;
+                    // Panel2MinSize 必須在寬度足夠時才設定，否則會拋 InvalidOperationException
+                    if (split.Width > 240 + 480 + split.SplitterWidth)
+                        split.Panel2MinSize = 480;
+                    int d = Math.Max(270, Math.Min(split.Width - 500, (int)(split.Width * 0.27)));
+                    if (d > split.Panel1MinSize) split.SplitterDistance = d;
+                }
+                catch { }
             };
 
             BuildLeftPanel(split.Panel1);

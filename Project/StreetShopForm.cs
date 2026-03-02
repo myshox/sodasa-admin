@@ -159,9 +159,11 @@ namespace SQ_Email_Tools
                 try
                 {
                     split.Panel1MinSize = 180;
-                    split.Panel2MinSize = 400;
                     if (split.Width > 180 + 400 + split.SplitterWidth)
+                    {
+                        split.Panel2MinSize = 400;
                         split.SplitterDistance = 240;
+                    }
                 }
                 catch { }
             };
