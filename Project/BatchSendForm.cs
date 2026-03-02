@@ -154,10 +154,10 @@ namespace SQ_Email_Tools
             {
                 try
                 {
-                    split.Panel1MinSize    = 320;
-                    split.Panel2MinSize    = 320;
-                    if (split.Width >= 640)
-                        split.SplitterDistance = Math.Max(320, Math.Min(split.Width - 320, 480));
+                    split.Panel1MinSize    = 260;
+                    split.Panel2MinSize    = 260;
+                    if (split.Width >= 520)
+                        split.SplitterDistance = Math.Max(260, Math.Min(split.Width - 260, 580));
                 }
                 catch { }
             };
@@ -217,19 +217,20 @@ namespace SQ_Email_Tools
             });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colName", HeaderText = "道具名稱", Width = 160,
+                Name = "colName", HeaderText = "道具名稱",
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 100,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
             });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "colId", HeaderText = "編號", Width = 70,
+                Name = "colId", HeaderText = "編號", Width = 70, MinimumWidth = 55,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter }
             });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colDesc", HeaderText = "說明",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 80,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
             });
 
