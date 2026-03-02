@@ -29,9 +29,10 @@ namespace SQ_Email_Tools
         private NumericUpDown _nudAdd;
         private Button        _btnAdd, _btnReset;
 
-        private string _currentAccount = "";
-        private long   _currentPoint   = 0;
-        private int    _currentCheck   = -1;
+        private string _currentAccount    = "";
+        private string _currentOnlineName = "";
+        private long   _currentPoint      = 0;
+        private int    _currentCheck      = -1;
 
         public CostMilestoneForm()
         {
@@ -206,10 +207,11 @@ namespace SQ_Email_Tools
             _lblStatus.Text    = "查詢中…";
             try
             {
-                var (pt, ck) = await DatabaseManager.Instance.GetCostDataAsync(acc);
-                _currentAccount = acc;
+                var (pt, ck, uid, onlineName) = await DatabaseManager.Instance.GetCostDataAsync(acc);
+                _currentAccount = uid;
                 _currentPoint   = pt;
                 _currentCheck   = ck;
+                _currentOnlineName = onlineName;
                 UpdateUI();
             }
             catch (Exception ex) { _lblStatus.Text = "✗ " + ex.Message; }
@@ -218,7 +220,10 @@ namespace SQ_Email_Tools
 
         private void UpdateUI()
         {
-            _lblName.Text  = $"玩家：{_currentAccount}";
+            string display = string.IsNullOrEmpty(_currentOnlineName)
+                ? _currentAccount
+                : $"{_currentOnlineName}（{_currentAccount}）";
+            _lblName.Text  = $"玩家：{display}";
             int claimedCount = _currentCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)_currentCheck);
             _lblCheck.Text = _currentCheck < 0
                 ? "（無 costdata 記錄）"

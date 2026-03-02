@@ -3291,22 +3291,48 @@ namespace SQ_Email_Tools
         /// </summary>
         public static readonly long[] CostMilestones = { 3_000, 5_000, 10_000, 50_000, 100_000 };
 
-        /// <summary>讀取玩家的消費達成進度（costdata）</summary>
-        public async Task<(long point, int check)> GetCostDataAsync(string account)
+        /// <summary>
+        /// 將任意輸入（主帳號名/角色名/csalogin.Name UID）解析為 csalogin.Name（12位UID）。
+        /// costdata/paydata 的 cdkey 即為此值。
+        /// </summary>
+        private async Task<(string uid, string onlineName)> ResolveCsaloginUidAsync(MySqlConnection conn, string input)
+        {
+            try
+            {
+                using var cmd = new MySqlCommand(
+                    @"SELECT c.`Name`, IFNULL(c.OnlineName,'') n
+                      FROM csalogin c
+                      LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                      WHERE c.`Name`=@inp OR c.OnlineName=@inp OR m.`Name`=@inp
+                      ORDER BY c.Online DESC, c.LoginTime DESC LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@inp", input);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                    return (r.GetString(0), r.GetString(1));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/ResolveCsalogin] " + ex.Message); }
+            return (input, "");
+        }
+
+        /// <summary>讀取玩家的消費達成進度（costdata），支援主帳號名/角色名/UID</summary>
+        public async Task<(long point, int check, string uid, string onlineName)> GetCostDataAsync(string account)
         {
             try
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
+                var (uid, onlineName) = await ResolveCsaloginUidAsync(conn, account);
                 using var cmd = new MySqlCommand(
                     "SELECT point, IFNULL(`check`,0) AS ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", conn);
-                cmd.Parameters.AddWithValue("@acc", account);
+                cmd.Parameters.AddWithValue("@acc", uid);
                 using var r = await cmd.ExecuteReaderAsync();
                 if (await r.ReadAsync())
                     return (r["point"] == DBNull.Value ? 0 : Convert.ToInt64(r["point"]),
-                            r["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ck"]));
+                            r["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ck"]),
+                            uid, onlineName);
+                return (0, 0, uid, onlineName);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/GetCostData] " + ex.Message); }
-            return (0, 0);
+            return (0, 0, account, "");
         }
 
         /// <summary>
@@ -3318,17 +3344,18 @@ namespace SQ_Email_Tools
             try
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
+                var (uid, resolvedName) = await ResolveCsaloginUidAsync(conn, account);
                 using var cmd = new MySqlCommand(
                     @"INSERT INTO costdata (cdkey, name, point, `check`, time)
                       VALUES (@cdkey, @name, @pt, 0, NOW())
                       ON DUPLICATE KEY UPDATE
                           point = point + @pt,
                           time  = NOW()", conn);
-                cmd.Parameters.AddWithValue("@cdkey", account);
-                cmd.Parameters.AddWithValue("@name",  charName);
+                cmd.Parameters.AddWithValue("@cdkey", uid);
+                cmd.Parameters.AddWithValue("@name",  string.IsNullOrEmpty(charName) ? resolvedName : charName);
                 cmd.Parameters.AddWithValue("@pt",    addPoint);
                 await cmd.ExecuteNonQueryAsync();
-                await GmLogger.Instance.LogAsync("調整消費進度", account, $"+{addPoint:N0} 金幣消費點數", true);
+                await GmLogger.Instance.LogAsync("調整消費進度", uid, $"+{addPoint:N0} 金幣消費點數", true);
                 return true;
             }
             catch (Exception ex)
@@ -3338,18 +3365,19 @@ namespace SQ_Email_Tools
             }
         }
 
-        /// <summary>重置消費達成進度（point 歸零，check 歸零）</summary>
+        /// <summary>重置消費達成進度（只清 check，point 保留）</summary>
         public async Task<bool> ResetCostDataAsync(string account)
         {
             try
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
+                var (uid, _) = await ResolveCsaloginUidAsync(conn, account);
                 using var cmd = new MySqlCommand(
                     "UPDATE costdata SET `check`=0, time=NOW() WHERE cdkey=@acc", conn);
-                cmd.Parameters.AddWithValue("@acc", account);
+                cmd.Parameters.AddWithValue("@acc", uid);
                 int rows = await cmd.ExecuteNonQueryAsync();
                 if (rows > 0)
-                    await GmLogger.Instance.LogAsync("重置消費進度", account, "costdata.check 歸零（已領狀態清除，point 保留）", true);
+                    await GmLogger.Instance.LogAsync("重置消費進度", uid, "costdata.check 歸零（已領狀態清除，point 保留）", true);
                 return rows > 0;
             }
             catch (Exception ex)
@@ -3379,15 +3407,15 @@ namespace SQ_Email_Tools
             try
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
+                var (uid, _) = await ResolveCsaloginUidAsync(conn, account);
                 int bit = 1 << milestoneIdx;
-                // check & ~bit = 清除第 milestoneIdx 位，遊戲看到 point>=milestone 且 bit=0 時自動補發
                 using var cmd = new MySqlCommand(
                     "UPDATE costdata SET `check`=(`check` & ~@bit), time=NOW() WHERE cdkey=@acc", conn);
                 cmd.Parameters.AddWithValue("@bit", bit);
-                cmd.Parameters.AddWithValue("@acc", account);
+                cmd.Parameters.AddWithValue("@acc", uid);
                 int rows = await cmd.ExecuteNonQueryAsync();
                 if (rows > 0)
-                    await GmLogger.Instance.LogAsync("補發消費獎勵(同步遊戲)", account,
+                    await GmLogger.Instance.LogAsync("補發消費獎勵(同步遊戲)", uid,
                         $"里程碑 {CostMilestones[milestoneIdx]:N0} 金幣（清除 bit{milestoneIdx}，等待遊戲自動發放）", true);
                 return rows > 0;
             }
@@ -3407,19 +3435,22 @@ namespace SQ_Email_Tools
             if (milestoneIdx < 0 || milestoneIdx >= CostMilestones.Length) return false;
             try
             {
-                bool mailOk = await GiveItemDirectAsync(account, playerName, itemId, itemName, quantity);
+                using var connR = GetConnection(); await connR.OpenAsync();
+                var (uid, resolvedName) = await ResolveCsaloginUidAsync(connR, account);
+                string name = string.IsNullOrEmpty(playerName) ? resolvedName : playerName;
 
-                // 設定 bit = 1（標記已發送）
+                bool mailOk = await GiveItemDirectAsync(uid, name, itemId, itemName, quantity);
+
                 int bit = 1 << milestoneIdx;
                 using var conn = GetConnection(); await conn.OpenAsync();
                 using var cmd = new MySqlCommand(
                     "UPDATE costdata SET `check`=(`check` | @bit), time=NOW() WHERE cdkey=@acc", conn);
                 cmd.Parameters.AddWithValue("@bit", bit);
-                cmd.Parameters.AddWithValue("@acc", account);
+                cmd.Parameters.AddWithValue("@acc", uid);
                 await cmd.ExecuteNonQueryAsync();
 
                 if (mailOk)
-                    await GmLogger.Instance.LogAsync("補發消費獎勵(郵件)", account,
+                    await GmLogger.Instance.LogAsync("補發消費獎勵(郵件)", uid,
                         $"里程碑 {CostMilestones[milestoneIdx]:N0} 金幣 → 道具 ID:{itemId} x{quantity:N0}（設 bit{milestoneIdx}）", true);
                 return mailOk;
             }
