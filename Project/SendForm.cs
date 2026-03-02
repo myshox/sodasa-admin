@@ -91,7 +91,7 @@ namespace SQ_Email_Tools
             StartPosition = FormStartPosition.CenterParent;
 
             // ── ① 多收件人 Header ──────────────────────────────
-            _recipientsHdr = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Theme.BgDark };
+            _recipientsHdr = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.BgDark };
             _recipientsHdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
             // 第一行：提示文字
@@ -126,36 +126,54 @@ namespace SQ_Email_Tools
             };
             _recipientsHdr.Controls.Add(_recipientFlow);
 
-            // "＋ 新增" 按鈕（動態加在 Flow 最右）
-            var btnAdd = Theme.MakeButton("＋ 新增", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 72, 28);
-            btnAdd.Font   = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
-            btnAdd.Margin = new Padding(4, 4, 0, 0);
-            btnAdd.Click += async (s, e) =>
+            // ── 搜尋輸入框（內嵌，不用再另開彈窗）──
+            var txtAddSearch = new TextBox
             {
-                using var input = new Form
-                {
-                    Text = "新增收件人", Size = new Size(360, 130),
-                    BackColor = Theme.BgPage, ForeColor = Theme.TextPrimary,
-                    Font = Theme.FontBody, FormBorderStyle = FormBorderStyle.FixedDialog,
-                    StartPosition = FormStartPosition.CenterParent,
-                    MaximizeBox = false, MinimizeBox = false
-                };
-                var txt = new TextBox { Location = new Point(12, 14), Width = 310, PlaceholderText = "主帳號 / 角色名 / UID" };
-                var ok  = Theme.MakeButton("確定", Theme.AccentBlue, Color.White, 80, 28);
-                ok.Location = new Point(12, 50);
-                ok.Click += (_, _2) => input.DialogResult = DialogResult.OK;
-                input.Controls.AddRange(new Control[] { txt, ok });
-                input.AcceptButton = ok;
-                if (input.ShowDialog(this) != DialogResult.OK) return;
-
-                var picked = await PlayerPickerHelper.PickAsync(this, txt.Text);
-                if (picked == null) return;
-                if (_recipients.Any(r => r.Account == picked.Account))
-                { MessageBox.Show("此玩家已在收件人列表中", "重複", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-                _recipients.Add(picked);
-                RefreshRecipientChips(btnAdd);
-                Text = $"✉ 道具發送 — {_recipients.Count} 位玩家";
+                PlaceholderText = "輸入主帳號 / 角色名 / UID，按 Enter 搜尋",
+                BackColor  = Theme.BgLight,
+                ForeColor  = Theme.TextPrimary,
+                Font       = Theme.FontSmall,
+                Width      = 260,
+                Height     = 28,
+                BorderStyle= BorderStyle.FixedSingle,
+                Margin     = new Padding(4, 6, 0, 0)
             };
+            _recipientsHdr.Controls.Add(txtAddSearch);
+            txtAddSearch.Location = new Point(68, 42);
+
+            // "🔍 搜尋加入" 按鈕
+            var btnAdd = Theme.MakeButton("🔍 搜尋加入", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 100, 28);
+            btnAdd.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+            btnAdd.Location = new Point(336, 42);
+
+            Func<Task> doSearch = async () =>
+            {
+                string q = txtAddSearch.Text.Trim();
+                if (string.IsNullOrEmpty(q)) return;
+                // ★ 多選模式：主帳號下多個角色可以一次全選
+                var picked = await PlayerPickerHelper.PickMultiAsync(this, q, multiMode: true);
+                if (picked == null || picked.Count == 0) return;
+                int added = 0;
+                foreach (var p in picked)
+                {
+                    if (_recipients.Any(r => r.Account == p.Account)) continue;
+                    _recipients.Add(p);
+                    added++;
+                }
+                if (added > 0)
+                {
+                    txtAddSearch.Clear();
+                    RefreshRecipientChips(btnAdd);
+                    Text = $"✉ 道具發送 — {_recipients.Count} 位玩家";
+                    _ = LoadHistoryAsync();
+                }
+                else
+                    MessageBox.Show("選取的角色已全部在收件人列表中", "重複", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+
+            btnAdd.Click           += async (s, e) => await doSearch();
+            txtAddSearch.KeyDown   += async (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await doSearch(); } };
+            _recipientsHdr.Controls.Add(btnAdd);
 
             // 初始化 Chip
             RefreshRecipientChips(btnAdd);
