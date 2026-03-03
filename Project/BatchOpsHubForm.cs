@@ -5,11 +5,14 @@ using System.Windows.Forms;
 namespace SQ_Email_Tools
 {
     /// <summary>
-    /// 郵件操作整合頁 — 對應網頁版 BatchOpsPage
-    /// Tab 1: 個別發送  Tab 2: 批量發送  Tab 3: 維護工具
+    /// 郵件操作整合頁
+    /// 頁面 1: 個別發送  頁面 2: 批量發送  頁面 3: 維護工具
     /// </summary>
     public class BatchOpsHubForm : Form
     {
+        private Panel _contentPanel;
+        private Button[] _navBtns;
+
         public BatchOpsHubForm()
         {
             BackColor        = Theme.BgPage;
@@ -24,102 +27,110 @@ namespace SQ_Email_Tools
 
         private void BuildUI()
         {
-            // ── 頁面標題 ──
+            // ── 頁面標題列 ──
             var hdr = new Panel
             {
                 Dock      = DockStyle.Top,
-                Height    = 52,
+                Height    = 46,
                 BackColor = Theme.BgDark,
-                Padding   = new Padding(20, 0, 0, 0)
             };
             hdr.Controls.Add(new Label
             {
                 Text      = "  📨  郵件操作",
                 ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 14, FontStyle.Bold),
+                Font      = new Font(Theme.FontFamily, 13, FontStyle.Bold),
                 Dock      = DockStyle.Fill,
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(16, 0, 0, 0)
             });
-            Controls.Add(hdr);
 
-            // ── TabControl ──
-            var tabs = new TabControl
+            // ── 頁籤按鈕列 ──
+            var tabBar = new Panel
             {
-                Dock         = DockStyle.Fill,
-                DrawMode     = TabDrawMode.OwnerDrawFixed,
-                ItemSize     = new Size(140, 34),
-                SizeMode     = TabSizeMode.Fixed,
-                Padding      = new Point(0, 0),
-                Font         = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                Appearance   = TabAppearance.FlatButtons
+                Dock      = DockStyle.Top,
+                Height    = 42,
+                BackColor = Color.FromArgb(18, 20, 30),
             };
-            tabs.DrawItem += Tabs_DrawItem;
+            tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(80, 90, 130) });
 
-            // ── Tab 1: 個別發送 ──
-            var tabSingle = new TabPage("  📬  個別發送  ")
+            string[] labels = { "  📬  個別發送  ", "  📢  批量全服發送  ", "  🔧  維護工具  " };
+            _navBtns = new Button[labels.Length];
+            int bx = 8;
+            for (int i = 0; i < labels.Length; i++)
             {
-                BackColor = Theme.BgPage,
-                Padding   = new Padding(0)
-            };
-            EmbedForm(tabSingle, new SendForm());
-            tabs.TabPages.Add(tabSingle);
-
-            // ── Tab 2: 批量發送 ──
-            var tabBatch = new TabPage("  📢  批量發送  ")
-            {
-                BackColor = Theme.BgPage,
-                Padding   = new Padding(0)
-            };
-            EmbedForm(tabBatch, new BatchSendForm());
-            tabs.TabPages.Add(tabBatch);
-
-            // ── Tab 3: 維護工具 ──
-            var tabMaint = new TabPage("  🔧  維護工具  ")
-            {
-                BackColor = Theme.BgPage,
-                Padding   = new Padding(0)
-            };
-            EmbedForm(tabMaint, new MailClearForm());
-            tabs.TabPages.Add(tabMaint);
-
-            Controls.Add(tabs);
-        }
-
-        /// <summary>把一個 Form 嵌入到 TabPage 內（WinForms 標準做法）</summary>
-        private static void EmbedForm(TabPage page, Form form)
-        {
-            form.TopLevel        = false;
-            form.FormBorderStyle = FormBorderStyle.None;
-            form.Dock            = DockStyle.Fill;
-            form.BackColor       = Theme.BgPage;
-            page.Controls.Add(form);
-            form.Show();
-        }
-
-        // ── 自訂 Tab 樣式 ──
-        private void Tabs_DrawItem(object sender, DrawItemEventArgs e)
-        {
-            var tabs = (TabControl)sender;
-            var tab  = tabs.TabPages[e.Index];
-            bool sel = e.Index == tabs.SelectedIndex;
-
-            var bg = sel ? Color.FromArgb(139, 92, 246) : Theme.BgDark;
-            using var br = new SolidBrush(bg);
-            e.Graphics.FillRectangle(br, e.Bounds);
-
-            // 底部邊線
-            if (!sel)
-            {
-                using var pen = new Pen(Color.FromArgb(50, 50, 60), 1);
-                e.Graphics.DrawLine(pen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+                var btn = new Button
+                {
+                    Text      = labels[i],
+                    Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(18, 20, 30),
+                    ForeColor = Color.FromArgb(160, 170, 200),
+                    Height    = 36,
+                    Width     = 150,
+                    Left      = bx,
+                    Top       = 3,
+                    Cursor    = Cursors.Hand,
+                    TabStop   = false,
+                };
+                btn.FlatAppearance.BorderSize      = 0;
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(40, 50, 80);
+                int idx = i;
+                btn.Click += (s, e) => SwitchPage(idx);
+                tabBar.Controls.Add(btn);
+                _navBtns[i] = btn;
+                bx += 155;
             }
 
-            var fg   = sel ? Color.White : Theme.TextSecondary;
-            var font = new Font(Theme.FontFamily, 9.5f, sel ? FontStyle.Bold : FontStyle.Regular);
-            var rect = new RectangleF(e.Bounds.X, e.Bounds.Y + 6, e.Bounds.Width, e.Bounds.Height - 6);
-            using var sfg = new SolidBrush(fg);
-            e.Graphics.DrawString(tab.Text, font, sfg, rect, new StringFormat { Alignment = StringAlignment.Center });
-            font.Dispose();
+            // ── 內容區 ──
+            _contentPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
+
+            // 加入順序：Fill 先加，Top 後加（WinForms docking 規則）
+            Controls.Add(_contentPanel);
+            Controls.Add(tabBar);
+            Controls.Add(hdr);
+
+            // 預設顯示第 1 頁
+            SwitchPage(0);
+        }
+
+        private Form _currentPage;
+
+        private void SwitchPage(int idx)
+        {
+            // 更新按鈕樣式
+            for (int i = 0; i < _navBtns.Length; i++)
+            {
+                bool sel = i == idx;
+                _navBtns[i].BackColor = sel ? Color.FromArgb(88, 56, 200) : Color.FromArgb(18, 20, 30);
+                _navBtns[i].ForeColor = sel ? Color.White : Color.FromArgb(160, 170, 200);
+            }
+
+            // 清除舊頁面
+            if (_currentPage != null)
+            {
+                _contentPanel.Controls.Remove(_currentPage);
+                _currentPage.Dispose();
+                _currentPage = null;
+            }
+
+            // 建立新頁面
+            Form page = idx switch
+            {
+                0 => new SendForm(),
+                1 => new BatchSendForm(),
+                2 => new MailClearForm(),
+                _ => new SendForm()
+            };
+
+            page.TopLevel        = false;
+            page.FormBorderStyle = FormBorderStyle.None;
+            page.Dock            = DockStyle.Fill;
+            page.BackColor       = Theme.BgPage;
+            page.MinimumSize     = Size.Empty;
+
+            _contentPanel.Controls.Add(page);
+            page.Show();
+            _currentPage = page;
         }
     }
 }
