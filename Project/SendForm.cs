@@ -496,7 +496,7 @@ namespace SQ_Email_Tools
                 var col = _cartDgv.Columns[e.ColumnIndex].Name;
                 var raw = _cartDgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "1";
                 if (col == "cQty"  && int.TryParse(raw, out int q)) _cart[e.RowIndex].Qty  = Math.Max(1, q);
-                if (col == "cType" && int.TryParse(raw, out int t)) _cart[e.RowIndex].Type = Math.Max(1, t);
+                if (col == "cType" && int.TryParse(raw, out int t)) _cart[e.RowIndex].Type = Math.Max(0, t);
                 RefreshCartDgv();
             };
             // 移除按鈕
@@ -573,7 +573,7 @@ namespace SQ_Email_Tools
             };
             // 數量/type 改為在購物車欄直接編輯
             _nudQty  = new NumericUpDown { Minimum = 1, Maximum = 99, Value = 1, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
-            _nudType = new NumericUpDown { Minimum = 1, Maximum = 9,  Value = 1, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
+            _nudType = new NumericUpDown { Minimum = 0, Maximum = 9,  Value = 0, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
 
             // 預約發送
             _chkSchedule = new CheckBox

@@ -593,13 +593,13 @@ namespace SQ_Email_Tools
             var req = new SendMailRequest
             {
                 Cdkey     = account,
-                Type      = 1,
+                Type      = 0,   // 此遊戲用 type=0+data=itemId 格式
                 Buff1     = $"[GM] {itemName}",
                 Buff2     = "GM 直接發放道具",
                 Data      = itemId,
                 StartTime = (int)now,
-                EndTime   = (int)(now + 30L * 24 * 3600), // 30 天後到期
-                Buff3     = "",
+                EndTime   = (int)(now + 30L * 24 * 3600),
+                Buff3     = itemName,   // buff3 = 道具名稱（遊戲判斷用）
                 Quantity  = quantity
             };
             bool ok = await SendMailAsync(req);

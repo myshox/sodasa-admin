@@ -861,7 +861,7 @@ namespace SQ_Email_Tools
 
                     var req = new SendMailRequest
                     {
-                        Type      = 1,
+                        Type      = 0,   // 此遊戲用 type=0+data=itemId 格式
                         Operator  = GmLogger.Instance.OperatorName,
                         Buff1     = itemTitle,
                         Buff2     = itemContent,
