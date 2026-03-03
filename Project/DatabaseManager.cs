@@ -593,7 +593,7 @@ namespace SQ_Email_Tools
             var req = new SendMailRequest
             {
                 Cdkey     = account,
-                Type      = 0,   // 此遊戲用 type=0+data=itemId 格式
+                Type      = 1,
                 Buff1     = $"[GM] {itemName}",
                 Buff2     = "GM 直接發放道具",
                 Data      = itemId,
