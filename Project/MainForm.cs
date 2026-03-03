@@ -197,6 +197,14 @@ namespace SQ_Email_Tools
                 SwitchToHub(new BatchOpsHubForm());
             };
 
+            var btnBatchSend = MakeNavBtn("📢", "批量全服發送", ref y);
+            btnBatchSend.Click += (s, e) =>
+            {
+                SetActiveNav(btnBatchSend);
+                if (!CheckConnected()) return;
+                SwitchToHub(new BatchSendForm());
+            };
+
             var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
             btnBatchGold.Click += (s, e) =>
             {
