@@ -76,16 +76,23 @@ export default function Layout() {
   // 切換頁面時關閉 drawer
   useEffect(() => { setDrawerOpen(false) }, [location.pathname])
 
-  // 點擊 overlay 關閉
+  // 點擊 / 觸控 overlay 關閉（同時支援 mousedown 與 touchstart）
   useEffect(() => {
     if (!drawerOpen) return
-    const handler = (e: MouseEvent) => {
-      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+    const handler = (e: Event) => {
+      const target = e instanceof TouchEvent
+        ? e.targetTouches[0]?.target
+        : (e as MouseEvent).target
+      if (drawerRef.current && !drawerRef.current.contains(target as Node)) {
         setDrawerOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
   }, [drawerOpen])
 
   const navLinkStyle = (isActive: boolean): React.CSSProperties => ({
@@ -177,7 +184,7 @@ export default function Layout() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 200, backdropFilter: 'blur(2px)' }} />
         )}
 
-        {/* 側拉抽屜 */}
+        {/* 側拉抽屜 — 關閉時加 pointerEvents:none 防止攔截觸控 */}
         <div ref={drawerRef} style={{
           position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
           background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)',
@@ -186,6 +193,7 @@ export default function Layout() {
           transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
           boxShadow: drawerOpen ? '4px 0 24px rgba(0,0,0,.5)' : 'none',
+          pointerEvents: drawerOpen ? undefined : 'none',
         }}>
           {/* 關閉按鈕 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
