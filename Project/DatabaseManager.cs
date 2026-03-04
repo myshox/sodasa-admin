@@ -1964,7 +1964,9 @@ namespace SQ_Email_Tools
             var list = new List<RechargeRecord>();
             using var conn = GetConnection();
             await conn.OpenAsync();
-            // LEFT JOIN csalogin 取角色名稱；role_name 欄位存的是帳號(cdkey)
+
+            // ── Part 1：recharge_orders（官方訂單）──────────────────────
+            DateTime latestOrderTime = DateTime.MinValue;
             string sql = string.IsNullOrWhiteSpace(filter)
                 ? $@"SELECT o.*, IFNULL(c.OnlineName,'') AS charName
                      FROM recharge_orders o
@@ -1975,22 +1977,77 @@ namespace SQ_Email_Tools
                      LEFT JOIN csalogin c ON c.`Name` = o.role_name
                      WHERE o.role_name LIKE @q OR o.product_name LIKE @q OR c.OnlineName LIKE @q
                      ORDER BY o.created_at DESC LIMIT {limit}";
-            using var cmd = new MySqlCommand(sql, conn);
-            if (!string.IsNullOrWhiteSpace(filter))
-                cmd.Parameters.AddWithValue("@q", $"%{filter}%");
-            using var r = await cmd.ExecuteReaderAsync();
-            while (await r.ReadAsync())
-                list.Add(new RechargeRecord
+            using (var cmd = new MySqlCommand(sql, conn))
+            {
+                if (!string.IsNullOrWhiteSpace(filter))
+                    cmd.Parameters.AddWithValue("@q", $"%{filter}%");
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
                 {
-                    Id          = r.GetInt32("id"),
-                    OrderNo     = r["order_no"]?.ToString() ?? "",
-                    RoleName    = r["role_name"]?.ToString() ?? "",
-                    CharName    = r["charName"]?.ToString() ?? "",
-                    ProductName = r["product_name"]?.ToString() ?? "",
-                    Amount      = r["amount"] == DBNull.Value ? 0 : Convert.ToDecimal(r["amount"]),
-                    Status      = r["status"]?.ToString() ?? "",
-                    CreatedAt   = r["created_at"]?.ToString() ?? ""
-                });
+                    if (r["created_at"] != DBNull.Value)
+                    {
+                        var t = Convert.ToDateTime(r["created_at"]);
+                        if (t > latestOrderTime) latestOrderTime = t;
+                    }
+                    list.Add(new RechargeRecord
+                    {
+                        Id          = r.GetInt32("id"),
+                        OrderNo     = r["order_no"]?.ToString() ?? "",
+                        RoleName    = r["role_name"]?.ToString() ?? "",
+                        CharName    = r["charName"]?.ToString() ?? "",
+                        ProductName = r["product_name"]?.ToString() ?? "",
+                        Amount      = r["amount"] == DBNull.Value ? 0 : Convert.ToDecimal(r["amount"]),
+                        Status      = r["status"]?.ToString() ?? "",
+                        CreatedAt   = r["created_at"]?.ToString() ?? "",
+                        Source      = "orders"
+                    });
+                }
+            }
+
+            // ── Part 2：paydata 補充（付費系統直接寫 DB 的充值）────────────
+            try
+            {
+                bool hasFilter = !string.IsNullOrWhiteSpace(filter);
+                string timeWhere = (!hasFilter && latestOrderTime != DateTime.MinValue)
+                    ? "AND p.time > @lat"
+                    : "";
+                string paySql = $@"
+                    SELECT p.cdkey, IFNULL(c.OnlineName,'') AS charName,
+                           IFNULL(p.lifetime_total, p.point) AS lifetimeTotal,
+                           p.time
+                    FROM paydata p
+                    LEFT JOIN csalogin c ON c.`Name` = p.cdkey
+                    WHERE p.time IS NOT NULL AND IFNULL(p.lifetime_total, p.point) > 0
+                    AND (@q='' OR p.cdkey LIKE @q OR c.OnlineName LIKE @q)
+                    {timeWhere}
+                    ORDER BY p.time DESC LIMIT 200";
+                using var cmdP = new MySqlCommand(paySql, conn);
+                cmdP.Parameters.AddWithValue("@q", string.IsNullOrWhiteSpace(filter) ? "" : $"%{filter}%");
+                if (!hasFilter && latestOrderTime != DateTime.MinValue)
+                    cmdP.Parameters.AddWithValue("@lat", latestOrderTime);
+                using var rP = await cmdP.ExecuteReaderAsync();
+                while (await rP.ReadAsync())
+                {
+                    decimal lt = rP["lifetimeTotal"] == DBNull.Value ? 0 : Convert.ToDecimal(rP["lifetimeTotal"]);
+                    list.Add(new RechargeRecord
+                    {
+                        Id          = 0,
+                        OrderNo     = "",
+                        RoleName    = rP["cdkey"]?.ToString() ?? "",
+                        CharName    = rP["charName"]?.ToString() ?? "",
+                        ProductName = "充值（付費系統記錄）",
+                        Amount      = lt,   // lifetime_total 為台幣，直接存（顯示時用 TwdAmount）
+                        Status      = "paydata",
+                        CreatedAt   = rP["time"]?.ToString() ?? "",
+                        Source      = "paydata"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/Paydata supplement] " + ex.Message);
+            }
+
             return list;
         }
 

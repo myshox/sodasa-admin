@@ -359,14 +359,16 @@ namespace SQ_Email_Tools
         public decimal Amount      { get; set; }
         public string  Status      { get; set; }
         public string  CreatedAt   { get; set; }
+        /// <summary>資料來源：orders = recharge_orders, paydata = paydata 補充</summary>
+        public string  Source      { get; set; } = "orders";
 
-        public string StatusText  => Status == "completed" ? "✓ 完成" : Status == "failed" ? "✗ 失敗" : "⏳ 待處理";
+        public string StatusText  => Source == "paydata" ? "付費記錄" : (Status == "completed" ? "✓ 完成" : Status == "failed" ? "✗ 失敗" : "⏳ 待處理");
         /// <summary>顯示格式：角色名稱 (帳號)</summary>
         public string DisplayName => string.IsNullOrEmpty(CharName) ? RoleName : $"{CharName}\n({RoleName})";
         /// <summary>元寶顯示（遊戲幣）</summary>
-        public string YuanbaoText => $"{Amount:N0} 元寶";
+        public string YuanbaoText => Source == "paydata" ? $"累計 {Amount:N0} 元寶" : $"{Amount:N0} 元寶";
         /// <summary>台幣換算（元寶 ÷ 100）</summary>
-        public decimal TwdAmount  => Amount / 100m;
+        public decimal TwdAmount  => Source == "paydata" ? Amount : Amount / 100m;
         public string  TwdText    => $"NT$ {TwdAmount:N0}";
     }
 

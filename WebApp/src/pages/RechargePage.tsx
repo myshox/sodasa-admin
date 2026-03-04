@@ -540,49 +540,63 @@ function CalcBox({ label, value, color, large }: { label: string; value: string;
 }
 
 function RechargeTable({ rows }: { rows: RechargeOrder[] }) {
-  const isOrders = rows[0]?.source === 'orders'
-  const totalTwd  = rows.filter(r => r.status === 'completed' || r.source === 'paydata').reduce((s, r) => s + (r.twd || 0), 0)
-  const totalGold = rows.filter(r => r.status === 'completed' || r.source === 'paydata').reduce((s, r) => s + (r.yuanbao || 0), 0)
+  const orderRows   = rows.filter(r => r.source === 'orders')
+  const paydataRows = rows.filter(r => r.source === 'paydata')
+  const totalTwd    = orderRows.filter(r => r.status === 'completed').reduce((s, r) => s + (r.twd || 0), 0)
+  const totalGold   = orderRows.filter(r => r.status === 'completed').reduce((s, r) => s + (r.yuanbao || 0), 0)
   return (
     <>
-      <div style={{ fontSize: 13, color: '#4ade80', marginBottom: 10, fontWeight: 600 }}>
-        共 {rows.length} 筆 {isOrders && `｜元寶：${totalGold.toLocaleString()} ｜台幣：NT$${totalTwd.toLocaleString()}`}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 600 }}>
+          訂單 {orderRows.length} 筆 ｜元寶：{totalGold.toLocaleString()} ｜台幣：NT${totalTwd.toLocaleString()}
+        </span>
+        {paydataRows.length > 0 && (
+          <span style={{ fontSize: 12, color: '#fb923c', fontWeight: 600, padding: '2px 10px', background: 'rgba(251,146,60,.1)', borderRadius: 6, border: '1px solid rgba(251,146,60,.3)' }}>
+            🔶 付費系統記錄 {paydataRows.length} 筆（無訂單）
+          </span>
+        )}
       </div>
-      <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 400 }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 500 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--bg-sidebar)', position: 'sticky', top: 0 }}>
               <th style={TH}>時間</th><th style={TH}>角色</th><th style={TH}>帳號</th>
-              {isOrders && <th style={TH}>商品</th>}
+              <th style={TH}>商品 / 說明</th>
               <th style={{ ...TH, textAlign: 'right' }}>元寶</th>
               <th style={{ ...TH, textAlign: 'right' }}>台幣 NT$</th>
-              {isOrders && <><th style={TH}>狀態</th><th style={TH}>訂單號</th></>}
-              {!isOrders && <><th style={{ ...TH, textAlign: 'right' }}>歷史總計</th><th style={{ ...TH, textAlign: 'right' }}>完成輪數</th></>}
+              <th style={TH}>狀態</th>
+              <th style={TH}>訂單號</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: r.status === 'failed' ? 'rgba(248,113,113,.05)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.02)' }}>
-                <td style={TD}>{r.time}</td>
-                <td style={{ ...TD, fontWeight: 600 }}>{r.charName || '—'}</td>
-                <td style={{ ...TD, color: '#60a5fa' }}>{r.account}</td>
-                {isOrders && <td style={TD}>{r.productName}</td>}
-                <td style={{ ...TD, textAlign: 'right', color: '#60a5fa', fontWeight: 700 }}>{r.yuanbao.toLocaleString()}</td>
-                <td style={{ ...TD, textAlign: 'right', color: '#fb923c', fontWeight: 700 }}>{r.twd.toLocaleString()}</td>
-                {isOrders && (
+            {rows.map((r, i) => {
+              const isPay = r.source === 'paydata'
+              return (
+                <tr key={i} style={{
+                  borderBottom: '1px solid var(--border)',
+                  background: isPay ? 'rgba(251,146,60,.06)' : r.status === 'failed' ? 'rgba(248,113,113,.05)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.02)'
+                }}>
+                  <td style={TD}>{r.time}</td>
+                  <td style={{ ...TD, fontWeight: 600, color: isPay ? '#fb923c' : undefined }}>{r.charName || '—'}</td>
+                  <td style={{ ...TD, color: isPay ? '#fb923c' : '#60a5fa' }}>{r.account}</td>
+                  <td style={{ ...TD, color: isPay ? '#fb923c' : undefined }}>{r.productName}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: isPay ? '#fb923c' : '#60a5fa', fontWeight: 700 }}>
+                    {isPay ? `累計 ${r.yuanbao.toLocaleString()}` : r.yuanbao.toLocaleString()}
+                  </td>
+                  <td style={{ ...TD, textAlign: 'right', color: '#fb923c', fontWeight: 700 }}>
+                    {isPay ? `累計 NT$${r.twd.toLocaleString()}` : r.twd.toLocaleString()}
+                  </td>
                   <td style={TD}>
                     <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                      background: r.status === 'completed' ? 'rgba(74,222,128,.15)' : r.status === 'failed' ? 'rgba(248,113,113,.15)' : 'var(--bg-input)',
-                      color: r.status === 'completed' ? '#4ade80' : r.status === 'failed' ? '#f87171' : 'var(--text-muted)' }}>
-                      {r.status === 'completed' ? '✓ 成功' : r.status === 'failed' ? '✗ 失敗' : r.status}
+                      background: isPay ? 'rgba(251,146,60,.15)' : r.status === 'completed' ? 'rgba(74,222,128,.15)' : r.status === 'failed' ? 'rgba(248,113,113,.15)' : 'var(--bg-input)',
+                      color: isPay ? '#fb923c' : r.status === 'completed' ? '#4ade80' : r.status === 'failed' ? '#f87171' : 'var(--text-muted)' }}>
+                      {isPay ? '付費記錄' : r.status === 'completed' ? '✓ 成功' : r.status === 'failed' ? '✗ 失敗' : r.status}
                     </span>
                   </td>
-                )}
-                {isOrders && <td style={{ ...TD, color: 'var(--text-muted)', fontSize: 11 }}>{r.orderNo}</td>}
-                {!isOrders && <td style={{ ...TD, textAlign: 'right', color: 'var(--text-muted)' }}>{r.lifetimeTotal?.toLocaleString() ?? '—'}</td>}
-                {!isOrders && <td style={{ ...TD, textAlign: 'right', color: 'var(--text-muted)' }}>{r.totalCheck?.toLocaleString() ?? '—'}</td>}
-              </tr>
-            ))}
+                  <td style={{ ...TD, color: 'var(--text-muted)', fontSize: 11 }}>{r.orderNo || (isPay ? '—（付費系統）' : '—')}</td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

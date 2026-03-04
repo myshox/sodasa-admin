@@ -491,7 +491,9 @@ public class DbService
     {
         var list = new List<object>();
         await using var db = Open(); await db.OpenAsync();
-        // 先嘗試 recharge_orders 表（與 EXE 一致）
+
+        // ── Part 1：recharge_orders（官方訂單）────────────────────────
+        DateTime latestOrderTime = DateTime.MinValue;
         try
         {
             await using var cmd = new MySqlCommand(
@@ -500,8 +502,9 @@ public class DbService
                          IFNULL(o.role_name,'') account,
                          IFNULL(o.product_name,'') productName,
                          IFNULL(o.amount,0) yuanbao,
-                         IFNULL(o.twd_amount, ROUND(o.amount/100)) twd,
+                         ROUND(o.amount/100) twd,
                          IFNULL(o.status,'') status,
+                         o.created_at,
                          IFNULL(DATE_FORMAT(o.created_at,'%Y-%m-%d %H:%i'),'') time
                   FROM recharge_orders o
                   LEFT JOIN csalogin c ON c.`Name`=o.role_name
@@ -510,6 +513,12 @@ public class DbService
             cmd.Parameters.AddWithValue("@q", string.IsNullOrEmpty(kw) ? "" : $"%{kw}%");
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
+            {
+                if (!r.IsDBNull(r.GetOrdinal("created_at")))
+                {
+                    var t = r.GetDateTime("created_at");
+                    if (t > latestOrderTime) latestOrderTime = t;
+                }
                 list.Add(new {
                     orderNo     = TryGetString(r, "order_no"),
                     account     = r.GetString("account"),
@@ -521,39 +530,54 @@ public class DbService
                     time        = r.GetString("time"),
                     source      = "orders"
                 });
-            return list;
+            }
         }
-        catch { list.Clear(); }
-        // 降級：paydata 表（顯示累積進度，非訂單）
+        catch { list.Clear(); latestOrderTime = DateTime.MinValue; }
+
+        // ── Part 2：paydata 補充（付費系統直接寫 DB、未進 recharge_orders 的充值）──
+        // 顯示比 recharge_orders 最新記錄更近的 paydata 更新
+        // 或查詢特定玩家時一律顯示
         try
         {
+            bool hasFilter = !string.IsNullOrEmpty(kw);
+            // 無過濾條件時：只補充比最新訂單更新的 paydata；
+            // 有過濾條件時：直接顯示該玩家所有 paydata（順便比對）
+            string timeWhere = (!hasFilter && latestOrderTime != DateTime.MinValue)
+                ? "AND p.time > @lat"
+                : "";
             await using var cmd = new MySqlCommand(
-                @"SELECT p.cdkey account, IFNULL(c.OnlineName,'') charName,
-                         IFNULL(p.point,0) twd, IFNULL(p.lifetime_total, p.point) lifetimeTotal,
-                         IFNULL(p.totalcheck,0) totalCheck,
-                         IFNULL(DATE_FORMAT(p.time,'%Y-%m-%d %H:%i'),'') time
-                  FROM paydata p
-                  LEFT JOIN csalogin c ON c.`Name`=p.cdkey
-                  WHERE (@q='' OR p.cdkey LIKE @q OR IFNULL(c.OnlineName,'') LIKE @q)
-                  ORDER BY p.point DESC LIMIT 200", db);
+                $@"SELECT p.cdkey account, IFNULL(c.OnlineName,'') charName,
+                          IFNULL(p.lifetime_total, p.point) lifetimeTotal,
+                          IFNULL(DATE_FORMAT(p.time,'%Y-%m-%d %H:%i'),'') time
+                   FROM paydata p
+                   LEFT JOIN csalogin c ON c.`Name`=p.cdkey
+                   WHERE p.time IS NOT NULL AND p.lifetime_total > 0
+                   AND (@q='' OR p.cdkey LIKE @q OR IFNULL(c.OnlineName,'') LIKE @q)
+                   {timeWhere}
+                   ORDER BY p.time DESC LIMIT 200", db);
             cmd.Parameters.AddWithValue("@q", string.IsNullOrEmpty(kw) ? "" : $"%{kw}%");
+            if (!hasFilter && latestOrderTime != DateTime.MinValue)
+                cmd.Parameters.AddWithValue("@lat", latestOrderTime);
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
+            {
+                long lt = TryGetInt64(r, "lifetimeTotal");
                 list.Add(new {
                     orderNo     = "",
                     account     = r.GetString("account"),
                     charName    = r.GetString("charName"),
-                    productName = "累積充值進度",
-                    yuanbao     = TryGetInt64(r, "twd") * 100,
-                    twd         = TryGetInt64(r, "twd"),
-                    lifetimeTotal = TryGetInt64(r, "lifetimeTotal"),
-                    totalCheck  = TryGetInt64(r, "totalCheck"),
+                    productName = "充值（付費系統記錄）",
+                    yuanbao     = lt * 100,   // lifetime_total 為台幣，×100 估算元寶
+                    twd         = lt,
                     status      = "paydata",
                     time        = r.GetString("time"),
                     source      = "paydata"
                 });
+            }
         }
         catch { }
+
+        // 按時間排序（orders 在前，paydata 補充緊接在後）
         return list;
     }
 

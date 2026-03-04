@@ -110,7 +110,13 @@ namespace SQ_Email_Tools
                 if (e.RowIndex < 0) return;
                 if (_dgv.Rows[e.RowIndex].Tag is not RechargeRecord rec) return;
                 var col = _dgv.Columns[e.ColumnIndex].Name;
-                if (col == "colYuanbao") { e.CellStyle.ForeColor = Color.FromArgb(80, 200, 255); e.CellStyle.Font = new Font(Theme.FontBody, FontStyle.Bold); e.FormattingApplied = true; }
+                // paydata 補充記錄用橘色標示整列
+                if (rec.Source == "paydata")
+                {
+                    e.CellStyle.ForeColor = Color.FromArgb(255, 170, 60);
+                    e.FormattingApplied = true;
+                }
+                else if (col == "colYuanbao") { e.CellStyle.ForeColor = Color.FromArgb(80, 200, 255); e.CellStyle.Font = new Font(Theme.FontBody, FontStyle.Bold); e.FormattingApplied = true; }
                 else if (col == "colTwd") { e.CellStyle.ForeColor = Color.FromArgb(255, 200, 80); e.CellStyle.Font = new Font(Theme.FontBody, FontStyle.Bold); e.FormattingApplied = true; }
             };
 
@@ -134,13 +140,16 @@ namespace SQ_Email_Tools
             {
                 _records = await DatabaseManager.Instance.GetRechargeOrdersAsync(filter);
                 decimal totalYuanbao = 0, totalTwd = 0;
+                int orderCount = 0, paydataCount = 0;
                 foreach (var rec in _records)
                 {
-                    if (rec.Status == "completed")
+                    if (rec.Source == "orders" && rec.Status == "completed")
                     {
                         totalYuanbao += rec.Amount;
                         totalTwd     += rec.TwdAmount;
+                        orderCount++;
                     }
+                    else if (rec.Source == "paydata") paydataCount++;
                     int i = _dgv.Rows.Add(
                         rec.CreatedAt,
                         string.IsNullOrEmpty(rec.CharName) ? "—" : rec.CharName,
@@ -151,10 +160,12 @@ namespace SQ_Email_Tools
                     if (rec.Status == "failed")
                         _dgv.Rows[i].DefaultCellStyle.ForeColor = Theme.TextMuted;
                 }
+                string paydataNote = paydataCount > 0 ? $"  |  🔶 付費系統記錄：{paydataCount} 筆（橘色）" : "";
                 _lblStatus.Text =
-                    $"共 {_records.Count} 筆  |  " +
+                    $"訂單 {orderCount} 筆  |  " +
                     $"合計元寶：{totalYuanbao:N0}  |  " +
-                    $"換算台幣：NT$ {totalTwd:N0}（÷100）";
+                    $"換算台幣：NT$ {totalTwd:N0}（÷100）" +
+                    paydataNote;
             }
             catch (Exception ex) { _lblStatus.Text = "✗ " + ex.Message; }
             finally { _btnSearch.Enabled = true; }
