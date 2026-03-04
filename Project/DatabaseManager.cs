@@ -336,14 +336,18 @@ namespace SQ_Email_Tools
             IProgress<(int done, int total, string account, bool ok)> progress,
             CancellationToken ct,
             int batchSize = 100,
-            HashSet<string>? excludeSet = null)
+            HashSet<string>? excludeSet = null,
+            bool onlineOnly = false)
         {
-            // 取全部帳號（不用 SearchPlayersAsync，避免 LIMIT 300 限制）
+            // 取帳號清單（onlineOnly=true 時只取 Online=1 的角色）
+            string sql = onlineOnly
+                ? "SELECT `Name` FROM csalogin WHERE `Online`=1 ORDER BY `Name`"
+                : "SELECT `Name` FROM csalogin ORDER BY `Name`";
             var allAccounts = new List<string>();
             using (var connA = GetConnection())
             {
                 await connA.OpenAsync();
-                using var cmdA = new MySqlCommand("SELECT `Name` FROM csalogin ORDER BY `Name`", connA);
+                using var cmdA = new MySqlCommand(sql, connA);
                 using var rA   = await cmdA.ExecuteReaderAsync();
                 while (await rA.ReadAsync()) allAccounts.Add(rA.GetString(0));
             }
@@ -872,6 +876,27 @@ namespace SQ_Email_Tools
                 : $"輪次進度 NT${rawTotal:N0}/25,000";
             string detail = $"台幣 +NT${twdAmount:N0}，{cycleInfo}"
                           + (giveGold ? $"，金幣 +{goldAmount:N0}" : "，不發金幣");
+
+            // ★ 寫入充值記錄（讓充值記錄查詢可見 GM 補單）
+            try
+            {
+                string productName = giveGold
+                    ? $"GM補單（+NT${twdAmount:N0} / +{goldAmount:N0}金幣）"
+                    : $"GM補單（僅累儲 +NT${twdAmount:N0}）";
+                string orderNo = $"GM-{DateTime.Now:yyyyMMddHHmmss}-{account[..Math.Min(account.Length,8)]}";
+                using var cmdOrder = new MySqlCommand(@"
+                    INSERT INTO recharge_orders
+                        (order_no, role_name, product_name, amount, twd_amount, status, created_at)
+                    VALUES (@ord, @role, @prod, @gold, @twd, 'completed', NOW())", conn);
+                cmdOrder.Parameters.AddWithValue("@ord",  orderNo);
+                cmdOrder.Parameters.AddWithValue("@role", account);
+                cmdOrder.Parameters.AddWithValue("@prod", productName);
+                cmdOrder.Parameters.AddWithValue("@gold", giveGold ? goldAmount : 0L);
+                cmdOrder.Parameters.AddWithValue("@twd",  twdAmount);
+                await cmdOrder.ExecuteNonQueryAsync();
+            }
+            catch { /* recharge_orders 表不存在時靜默忽略 */ }
+
             await GmLogger.Instance.LogAsync("給予儲值", account, detail, ok);
             return ok;
         }

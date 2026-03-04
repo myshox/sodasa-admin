@@ -140,7 +140,19 @@ export default function PlayerAutocomplete({
             const isChecked = checked.has(p.account)
             return (
               <div key={p.account}
-                onMouseDown={e => { e.preventDefault(); multiMode ? toggleCheck(p.account) : selectOne(p) }}
+                onMouseDown={e => {
+                  e.preventDefault()
+                  if (!multiMode) { selectOne(p); return }
+                  // multiMode：若目前沒有任何勾選 → 直接點擊即立即加入（單選快捷）
+                  // 若已有勾選 → 切換此列的勾選狀態，讓使用者組合後確認
+                  if (checked.size === 0) {
+                    onSelectMulti!([p])
+                    onChange(p.onlineName || p.account)
+                    setOpen(false); setSuggestions([]); setChecked(new Set())
+                  } else {
+                    toggleCheck(p.account)
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '8px 12px', cursor: 'pointer', fontSize: 13,
@@ -150,14 +162,16 @@ export default function PlayerAutocomplete({
                   borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
                   transition: 'background .1s'
                 }}>
-                {/* 多選模式：顯示勾選框 */}
+                {/* 多選模式：勾選框（點勾選框時永遠 toggle，不受 checked.size 限制）*/}
                 {multiMode && (
-                  <div style={{
-                    width: 16, height: 16, border: `2px solid ${isChecked ? 'var(--accent-blue)' : 'var(--border)'}`,
-                    borderRadius: 4, background: isChecked ? 'var(--accent-blue)' : 'transparent',
-                    flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 10, color: 'white', transition: 'all .1s'
-                  }}>
+                  <div
+                    onMouseDown={e => { e.stopPropagation(); e.preventDefault(); toggleCheck(p.account) }}
+                    style={{
+                      width: 16, height: 16, border: `2px solid ${isChecked ? 'var(--accent-blue)' : 'var(--border)'}`,
+                      borderRadius: 4, background: isChecked ? 'var(--accent-blue)' : 'transparent',
+                      flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, color: 'white', transition: 'all .1s', cursor: 'pointer'
+                    }}>
                     {isChecked && '✓'}
                   </div>
                 )}

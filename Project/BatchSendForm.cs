@@ -36,6 +36,9 @@ namespace SQ_Email_Tools
         private Label         _progressLbl, _statusLbl;
         private RichTextBox   _logBox;
 
+        // ── 發送對象 ──
+        private CheckBox _chkOnlineOnly;
+
         // ── 排除名單 ──
         private readonly HashSet<string> _excludeSet = new(StringComparer.OrdinalIgnoreCase);
         private ListBox  _excludeListBox;
@@ -498,6 +501,33 @@ namespace SQ_Email_Tools
                 sy += 36;
             }
 
+            // ── 發送對象 ──
+            {
+                settingPanel.Controls.Add(new Label
+                {
+                    Text = "發送對象：", ForeColor = Theme.TextSecondary, Font = Theme.FontBody,
+                    Width = 72, Location = new Point(8, sy + 3), TextAlign = ContentAlignment.MiddleRight
+                });
+                _chkOnlineOnly = new CheckBox
+                {
+                    Text      = "🟢  僅發送線上玩家",
+                    ForeColor = Color.FromArgb(80, 220, 140),
+                    Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.Transparent,
+                    AutoSize  = true,
+                    Checked   = false,
+                    Location  = new Point(84, sy + 2)
+                };
+                settingPanel.Controls.Add(_chkOnlineOnly);
+                settingPanel.Controls.Add(new Label
+                {
+                    Text = "（不勾 = 全服所有角色）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                    AutoSize = true, Location = new Point(84 + _chkOnlineOnly.PreferredSize.Width + 8, sy + 6)
+                });
+                sy += 30;
+            }
+
             settingPanel.Height = sy + 10;
             scroll.Controls.Add(settingPanel);
             y += settingPanel.Height + 10;
@@ -819,13 +849,18 @@ namespace SQ_Email_Tools
             string itemsSummary = string.Join("\n", _cart.Select(c =>
                 $"  • {c.Item.Name}（#{c.Item.Id}）× {c.Qty} 份"));
 
+            bool onlineOnly = _chkOnlineOnly.Checked;
+
             string excludeNote = _excludeSet.Count > 0
                 ? $"  ⛔ 排除 {_excludeSet.Count} 人：{string.Join("、", _excludeSet.Take(5))}{(_excludeSet.Count > 5 ? "…" : "")}\n"
                 : "";
 
+            string targetNote = onlineOnly ? "  🟢 發送對象：僅線上玩家\n" : "  🌐 發送對象：全服所有角色\n";
+
             if (MessageBox.Show(
-                $"確定要批量發送給所有角色？\n\n" +
+                $"確定要批量發送？\n\n" +
                 $"【道具清單】（共 {_cart.Count} 種）\n{itemsSummary}\n\n" +
+                targetNote +
                 scheduleNote +
                 excludeNote +
                 $"  到期日期：{_dtEnd.Value:yyyy/MM/dd}\n\n" +
@@ -857,7 +892,8 @@ namespace SQ_Email_Tools
                     string itemTitle   = string.IsNullOrEmpty(title)   ? entry.Item.Name : title;
                     string itemContent = string.IsNullOrEmpty(content) ? entry.Item.Name : content;
 
-                    AppendLog($"▶ [{itemIdx}/{_cart.Count}] 開始發送：{entry.Item.Name} × {entry.Qty}", Color.FromArgb(100, 180, 255));
+                    string targetStr = onlineOnly ? "線上玩家" : "全服";
+                    AppendLog($"▶ [{itemIdx}/{_cart.Count}] 開始發送（{targetStr}）：{entry.Item.Name} × {entry.Qty}", Color.FromArgb(100, 180, 255));
 
                     var req = new SendMailRequest
                     {
@@ -883,7 +919,7 @@ namespace SQ_Email_Tools
                                   rep.ok ? Theme.AccentGreen : Theme.AccentRed);
                     });
 
-                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(req, progress, _cts.Token, batchSize, _excludeSet.Count > 0 ? _excludeSet : null);
+                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(req, progress, _cts.Token, batchSize, _excludeSet.Count > 0 ? _excludeSet : null, onlineOnly);
                     totalSuccess += success;
                     totalFail    += fail;
 
