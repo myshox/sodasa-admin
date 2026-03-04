@@ -2650,6 +2650,7 @@ public class DbService
         catch { return false; }
     }
 
+    /// <summary>僅清除已領取狀態（check=0），消費點數 point 保留 → 玩家可立即重領</summary>
     public async Task<bool> ResetCostdataAsync(string account)
     {
         try
@@ -2658,6 +2659,21 @@ public class DbService
             var (uid, _) = await ResolveCsaloginAsync(db, account);
             await using var cmd = new MySqlCommand(
                 "UPDATE costdata SET `check`=0, time=NOW() WHERE cdkey=@acc", db);
+            cmd.Parameters.AddWithValue("@acc", uid);
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>完全重置（point=0 且 check=0）→ 玩家必須重新消費才能領取</summary>
+    public async Task<bool> FullResetCostdataAsync(string account)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            var (uid, _) = await ResolveCsaloginAsync(db, account);
+            await using var cmd = new MySqlCommand(
+                "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", db);
             cmd.Parameters.AddWithValue("@acc", uid);
             return await cmd.ExecuteNonQueryAsync() > 0;
         }

@@ -27,7 +27,7 @@ namespace SQ_Email_Tools
 
         // ── 操作區 ────────────────────────────────────────────────
         private NumericUpDown _nudAdd;
-        private Button        _btnAdd, _btnReset;
+        private Button        _btnAdd, _btnReset, _btnFullReset;
 
         private string _currentAccount    = "";
         private string _currentOnlineName = "";
@@ -158,11 +158,12 @@ namespace SQ_Email_Tools
 
             var opGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+                Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1,
                 BackColor = Color.Transparent
             };
             opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130f));
+            opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             opGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -188,10 +189,19 @@ namespace SQ_Email_Tools
             _btnAdd.Click += async (s, e) => await DoAdjustAsync();
             opGrid.Controls.Add(_btnAdd, 2, 0);
 
-            _btnReset = Theme.MakeButton("🗑 重置進度", Color.FromArgb(120, 30, 30), Color.FromArgb(255, 140, 140), 100, 32);
-            _btnReset.Margin = new Padding(0, 4, 0, 4);
+            // 🔄 僅重置已領狀態（check=0，point 保留 → 玩家可立即重領）
+            _btnReset = Theme.MakeButton("🔄 重置已領", Color.FromArgb(60, 50, 20), Color.FromArgb(255, 200, 80), 110, 32);
+            _btnReset.Margin = new Padding(0, 4, 6, 4);
             _btnReset.Click += async (s, e) => await DoResetAsync();
+            new ToolTip().SetToolTip(_btnReset, "僅清除已領狀態，消費點數保留 → 玩家可立即重領所有里程碑");
             opGrid.Controls.Add(_btnReset, 3, 0);
+
+            // 🗑 完全重置（point=0 + check=0 → 玩家必須重新消費才能領取）
+            _btnFullReset = Theme.MakeButton("🗑 完全重置", Color.FromArgb(120, 30, 30), Color.FromArgb(255, 140, 140), 110, 32);
+            _btnFullReset.Margin = new Padding(0, 4, 0, 4);
+            _btnFullReset.Click += async (s, e) => await DoFullResetAsync();
+            new ToolTip().SetToolTip(_btnFullReset, "消費進度 + 已領狀態全部歸零 → 玩家必須重新消費才能領取");
+            opGrid.Controls.Add(_btnFullReset, 4, 0);
 
             opPanel.Controls.Add(opGrid);
             root.Controls.Add(opPanel, 0, 4);
@@ -348,16 +358,38 @@ namespace SQ_Email_Tools
         private async Task DoResetAsync()
         {
             if (string.IsNullOrEmpty(_currentAccount)) return;
-            if (MessageBox.Show($"確定重置「{_currentAccount}」消費達成進度？\n此操作無法復原！",
-                "確認重置", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            if (MessageBox.Show(
+                $"重置「{_currentOnlineName}（{_currentAccount}）」已領取狀態？\n\n" +
+                "⚠ 消費進度（點數）保留，玩家重置後可立即重新領取所有里程碑！\n" +
+                "如要讓玩家必須重新消費，請使用「🗑 完全重置」。",
+                "確認重置已領狀態", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             _btnReset.Enabled = false;
             try
             {
                 bool ok = await DatabaseManager.Instance.ResetCostDataAsync(_currentAccount);
-                if (ok) { MessageBox.Show("✅ 消費進度已歸零。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); await SearchAsync(); }
+                if (ok) { MessageBox.Show("✅ 已領狀態已清除（消費進度保留，玩家可立即重領）。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); await SearchAsync(); }
                 else     MessageBox.Show("⚠ 重置失敗（可能無 costdata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             finally { _btnReset.Enabled = true; }
+        }
+
+        private async Task DoFullResetAsync()
+        {
+            if (string.IsNullOrEmpty(_currentAccount)) return;
+            if (MessageBox.Show(
+                $"完全重置「{_currentOnlineName}（{_currentAccount}）」消費達成進度？\n\n" +
+                "⚠ 消費點數（point）和已領狀態（check）全部歸零！\n" +
+                "玩家必須重新消費達到里程碑才能再領取獎勵。\n\n" +
+                "此操作無法復原！",
+                "確認完全重置", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            _btnFullReset.Enabled = false;
+            try
+            {
+                bool ok = await DatabaseManager.Instance.FullResetCostDataAsync(_currentAccount);
+                if (ok) { MessageBox.Show("✅ 完全重置完成（point=0, check=0），玩家須重新消費才能再領取。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information); await SearchAsync(); }
+                else     MessageBox.Show("⚠ 重置失敗（可能無 costdata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally { _btnFullReset.Enabled = true; }
         }
 
         private async Task DoClaimAsync(int milestoneIdx)

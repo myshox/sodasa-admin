@@ -187,13 +187,29 @@ export default function CostMilestonePage() {
 
   const handleReset = async () => {
     if (!info) return
-    if (!window.confirm(`確定清除「${info.onlineName}」已領取狀態？\n消費點數不會歸零，補發按鈕將可再次點擊。`)) return
+    if (!window.confirm(
+      `🔄 重置「${info.onlineName}」已領取狀態？\n\n消費點數保留 → 玩家可立即重新領取所有里程碑！\n如要讓玩家必須重新消費，請用「完全重置」。`
+    )) return
     setLoading(true)
     try {
       const r = await api.post(`/players/${info.account}/costdata/reset`)
       setMsg(r.data.message); setMsgOk(true)
       await loadPlayer(info.account)
     } catch (e: any) { setMsg(e.response?.data?.message || '重置失敗'); setMsgOk(false) }
+    finally { setLoading(false) }
+  }
+
+  const handleFullReset = async () => {
+    if (!info) return
+    if (!window.confirm(
+      `🗑 完全重置「${info.onlineName}」消費達成進度？\n\n消費點數（point）和已領狀態（check）全部歸零！\n玩家必須重新消費達到里程碑才能再領取獎勵。\n\n⚠ 此操作無法復原！`
+    )) return
+    setLoading(true)
+    try {
+      const r = await api.post(`/players/${info.account}/costdata/full-reset`)
+      setMsg(r.data.message); setMsgOk(true)
+      await loadPlayer(info.account)
+    } catch (e: any) { setMsg(e.response?.data?.message || '完全重置失敗'); setMsgOk(false) }
     finally { setLoading(false) }
   }
 
@@ -394,13 +410,23 @@ export default function CostMilestonePage() {
                   }}>➕ 確認</button>
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <button onClick={handleReset} disabled={loading} style={{
-                  padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                  background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)',
-                  color: '#f87171', opacity: loading ? 0.5 : 1,
-                }}>🔄 重置已領狀態</button>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>清除 check，讓補發按鈕可再次點擊</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <button onClick={handleReset} disabled={loading} style={{
+                    padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                    background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.4)',
+                    color: '#fbbf24', opacity: loading ? 0.5 : 1,
+                  }}>🔄 重置已領狀態</button>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>點數保留，玩家可立即重領</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <button onClick={handleFullReset} disabled={loading} style={{
+                    padding: '7px 18px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                    background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)',
+                    color: '#f87171', opacity: loading ? 0.5 : 1,
+                  }}>🗑 完全重置</button>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>point+check 歸零，須重新消費</span>
+                </div>
               </div>
             </div>
           </div>

@@ -3563,6 +3563,7 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>重置消費達成進度（只清 check，point 保留）</summary>
+        /// <summary>僅清除已領取狀態（check=0），消費進度 point 不變 → 玩家可立即重領</summary>
         public async Task<bool> ResetCostDataAsync(string account)
         {
             try
@@ -3574,12 +3575,34 @@ namespace SQ_Email_Tools
                 cmd.Parameters.AddWithValue("@acc", uid);
                 int rows = await cmd.ExecuteNonQueryAsync();
                 if (rows > 0)
-                    await GmLogger.Instance.LogAsync("重置消費進度", uid, "costdata.check 歸零（已領狀態清除，point 保留）", true);
+                    await GmLogger.Instance.LogAsync("重置領取狀態", uid, "costdata.check 歸零（已領狀態清除，point 保留，玩家可立即重領）", true);
                 return rows > 0;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("[DB/ResetCostData] " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>完全重置（point=0 且 check=0）→ 玩家必須重新消費才能領取</summary>
+        public async Task<bool> FullResetCostDataAsync(string account)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                var (uid, _) = await ResolveCsaloginUidAsync(conn, account);
+                using var cmd = new MySqlCommand(
+                    "UPDATE costdata SET point=0, `check`=0, time=NOW() WHERE cdkey=@acc", conn);
+                cmd.Parameters.AddWithValue("@acc", uid);
+                int rows = await cmd.ExecuteNonQueryAsync();
+                if (rows > 0)
+                    await GmLogger.Instance.LogAsync("完全重置消費", uid, "costdata.point=0, check=0（玩家須重新消費才能領取）", true);
+                return rows > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[DB/FullResetCostData] " + ex.Message);
                 return false;
             }
         }
