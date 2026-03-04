@@ -54,28 +54,36 @@ public class ExternalController : ControllerBase
         if (req.GiveGold && req.GoldAmount < 0)
             return BadRequest(new { message = "goldAmount 不可為負" });
 
+        var account = req.Account.Trim();
         var ok = await _db.AdjustPayDataPointAsync(
-            req.Account.Trim(),
-            req.TwdAmount,
-            req.GoldAmount,
-            req.GiveGold,
-            req.UpdatePaydata);
+            account, req.TwdAmount, req.GoldAmount, req.GiveGold, req.UpdatePaydata);
 
         if (!ok)
             return NotFound(new
             {
-                message = $"找不到玩家「{req.Account}」，請確認帳號是否正確"
+                message = $"找不到玩家「{account}」，請確認帳號是否正確"
             });
+
+        // ★ 寫入充值訂單記錄（讓充值記錄查詢可見）
+        string orderNo = string.IsNullOrWhiteSpace(req.OrderNo)
+            ? $"EXT-{DateTime.UtcNow:yyyyMMddHHmmss}-{(account.Length > 8 ? account[..8] : account)}"
+            : req.OrderNo;
+        string remark = string.IsNullOrWhiteSpace(req.Remark) ? "" : $"（{req.Remark}）";
+        string prodName = req.GiveGold
+            ? $"官網充值 NT${req.TwdAmount:N0} / {req.GoldAmount:N0}元寶{remark}"
+            : $"官網累儲 NT${req.TwdAmount:N0}{remark}";
+        long yuanbao = req.GiveGold ? req.GoldAmount : req.TwdAmount * 100;
+        await _db.WriteRechargeOrderAsync(account, orderNo, prodName, yuanbao);
 
         return Ok(new
         {
             success = true,
-            message = $"✓ 已為玩家「{req.Account}」入帳 NT${req.TwdAmount:0}" +
+            message = $"✓ 已為玩家「{account}」入帳 NT${req.TwdAmount:0}" +
                       (req.GiveGold ? $"，發放 {req.GoldAmount:N0} 元寶" : "（僅更新累積進度）"),
-            account    = req.Account,
+            account    = account,
             twdAmount  = req.TwdAmount,
             goldAmount = req.GiveGold ? req.GoldAmount : 0,
-            orderNo    = req.OrderNo,
+            orderNo    = orderNo,
         });
     }
 
@@ -159,9 +167,17 @@ public class ExternalController : ControllerBase
                 results.Add(new { account = item.Account ?? "", ok = false, msg = "台幣金額須 > 0" });
                 continue;
             }
-            var ok = await _db.AdjustPayDataPointAsync(
-                item.Account.Trim(), item.TwdAmount, item.GoldAmount, item.GiveGold);
-            if (ok) done++;
+            var acc2 = item.Account.Trim();
+            var ok = await _db.AdjustPayDataPointAsync(acc2, item.TwdAmount, item.GoldAmount, item.GiveGold);
+            if (ok)
+            {
+                done++;
+                string ord2  = $"EXT-{DateTime.UtcNow:yyyyMMddHHmmss}-{(acc2.Length > 8 ? acc2[..8] : acc2)}";
+                string prod2 = item.GiveGold
+                    ? $"官網分配 NT${item.TwdAmount:N0} / {item.GoldAmount:N0}元寶"
+                    : $"官網分配累儲 NT${item.TwdAmount:N0}";
+                await _db.WriteRechargeOrderAsync(acc2, ord2, prod2, item.GiveGold ? item.GoldAmount : item.TwdAmount * 100);
+            }
             results.Add(new { account = item.Account, ok, msg = ok ? "✓ 成功" : "✗ 失敗" });
         }
         return Ok(new { done, total = items.Count, results });

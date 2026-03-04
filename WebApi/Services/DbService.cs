@@ -770,27 +770,33 @@ public class DbService
         }
         catch { /* paydata 表不存在時靜默忽略 */ }
 
-        // ★ 寫入充值記錄（讓充值記錄查詢可見 GM 補單）
+        return ok;
+    }
+
+    /// <summary>
+    /// 寫入充值記錄到 recharge_orders（供 GM 補單 / 外部付款回調使用）。
+    /// amount 欄位存元寶（yuanbao）；twd 台幣只在 productName 中備註。
+    /// </summary>
+    public async Task WriteRechargeOrderAsync(string account, string orderNo, string productName, long yuanbaoAmt)
+    {
         try
         {
-            string productName = giveGold
-                ? $"GM補單（+NT${twdAmount:N0} / +{goldAmount:N0}金幣）"
-                : $"GM補單（僅累儲 +NT${twdAmount:N0}）";
-            string orderNo = $"GM-{DateTime.UtcNow:yyyyMMddHHmmss}-{(account.Length > 8 ? account[..8] : account)}";
-            await using var cmdOrder = new MySqlCommand(@"
-                INSERT INTO recharge_orders
-                    (order_no, role_name, product_name, amount, twd_amount, status, created_at)
-                VALUES (@ord, @role, @prod, @gold, @twd, 'completed', NOW())", db);
-            cmdOrder.Parameters.AddWithValue("@ord",  orderNo);
-            cmdOrder.Parameters.AddWithValue("@role", account);
-            cmdOrder.Parameters.AddWithValue("@prod", productName);
-            cmdOrder.Parameters.AddWithValue("@gold", giveGold ? goldAmount : 0L);
-            cmdOrder.Parameters.AddWithValue("@twd",  twdAmount);
-            await cmdOrder.ExecuteNonQueryAsync();
+            await using var db = Open(); await db.OpenAsync();
+            // 限制 order_no 在 32 字元內（VARCHAR(32) UNIQUE）
+            if (orderNo.Length > 32) orderNo = orderNo[..32];
+            await using var cmd = new MySqlCommand(@"
+                INSERT IGNORE INTO recharge_orders
+                    (order_no, user_id, role_name, product_name, amount, status, created_at)
+                VALUES (@ord,
+                        IFNULL((SELECT id FROM game_users WHERE username=@role LIMIT 1), 0),
+                        @role, @prod, @amt, 'completed', NOW())", db);
+            cmd.Parameters.AddWithValue("@ord",  orderNo);
+            cmd.Parameters.AddWithValue("@role", account);
+            cmd.Parameters.AddWithValue("@prod", productName);
+            cmd.Parameters.AddWithValue("@amt",  yuanbaoAmt);
+            await cmd.ExecuteNonQueryAsync();
         }
-        catch { /* recharge_orders 表不存在時靜默忽略 */ }
-
-        return ok;
+        catch { /* recharge_orders 表結構不符時靜默忽略 */ }
     }
 
     // ── 郵件記錄 ─────────────────────────────────────────────

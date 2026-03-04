@@ -884,18 +884,21 @@ namespace SQ_Email_Tools
                     ? $"GM補單（+NT${twdAmount:N0} / +{goldAmount:N0}金幣）"
                     : $"GM補單（僅累儲 +NT${twdAmount:N0}）";
                 string orderNo = $"GM-{DateTime.Now:yyyyMMddHHmmss}-{account[..Math.Min(account.Length,8)]}";
+                // amount 欄位存元寶；user_id 查 game_users，找不到用 0
+                long yuanbaoAmt = giveGold ? goldAmount : twdAmount * 100;
                 using var cmdOrder = new MySqlCommand(@"
                     INSERT INTO recharge_orders
-                        (order_no, role_name, product_name, amount, twd_amount, status, created_at)
-                    VALUES (@ord, @role, @prod, @gold, @twd, 'completed', NOW())", conn);
+                        (order_no, user_id, role_name, product_name, amount, status, created_at)
+                    VALUES (@ord,
+                            IFNULL((SELECT id FROM game_users WHERE username=@role LIMIT 1), 0),
+                            @role, @prod, @amt, 'completed', NOW())", conn);
                 cmdOrder.Parameters.AddWithValue("@ord",  orderNo);
                 cmdOrder.Parameters.AddWithValue("@role", account);
                 cmdOrder.Parameters.AddWithValue("@prod", productName);
-                cmdOrder.Parameters.AddWithValue("@gold", giveGold ? goldAmount : 0L);
-                cmdOrder.Parameters.AddWithValue("@twd",  twdAmount);
+                cmdOrder.Parameters.AddWithValue("@amt",  yuanbaoAmt);
                 await cmdOrder.ExecuteNonQueryAsync();
             }
-            catch { /* recharge_orders 表不存在時靜默忽略 */ }
+            catch { /* recharge_orders 表結構不符時靜默忽略 */ }
 
             await GmLogger.Instance.LogAsync("給予儲值", account, detail, ok);
             return ok;

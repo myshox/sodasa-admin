@@ -131,7 +131,16 @@ public class PlayersController : ControllerBase
         if (req.GiveGold && req.GoldAmount < 0)
             return BadRequest(new { message = "金幣數量不可為負" });
         var ok = await _db.AdjustPayDataPointAsync(account, req.TwdAmount, req.GoldAmount, req.GiveGold, req.UpdatePaydata);
-        return ok ? Ok(new { message = "\u2713 \u5DF2\u7D66\u4E88\u5132\u503C" }) : BadRequest(new { message = "\u4FEE\u6539\u5931\u6557" });
+        if (ok)
+        {
+            string orderNo  = $"GM-{DateTime.UtcNow:yyyyMMddHHmmss}-{(account.Length > 8 ? account[..8] : account)}";
+            string prodName = req.GiveGold
+                ? $"GM補單（+NT${req.TwdAmount:N0} / +{req.GoldAmount:N0}金幣）"
+                : $"GM補單（僅累儲 +NT${req.TwdAmount:N0}）";
+            long yuanbao = req.GiveGold ? req.GoldAmount : req.TwdAmount * 100;
+            await _db.WriteRechargeOrderAsync(account, orderNo, prodName, yuanbao);
+        }
+        return ok ? Ok(new { message = "✓ 已給予儲值" }) : BadRequest(new { message = "修改失敗" });
     }
 
     /// <summary>主帳號分配儲值：為旗下多個 CDKEY 各別執行儲值</summary>
@@ -151,7 +160,15 @@ public class PlayersController : ControllerBase
             }
             var ok = await _db.AdjustPayDataPointAsync(
                 item.Account.Trim(), item.TwdAmount, item.GoldAmount, item.GiveGold);
-            if (ok) done++;
+            if (ok)
+            {
+                done++;
+                string ord  = $"GM-{DateTime.UtcNow:yyyyMMddHHmmss}-{(item.Account.Length > 8 ? item.Account[..8] : item.Account)}";
+                string prod = item.GiveGold
+                    ? $"GM分配補單（+NT${item.TwdAmount:N0} / +{item.GoldAmount:N0}金幣）"
+                    : $"GM分配補單（僅累儲 +NT${item.TwdAmount:N0}）";
+                await _db.WriteRechargeOrderAsync(item.Account.Trim(), ord, prod, item.GiveGold ? item.GoldAmount : item.TwdAmount * 100);
+            }
             results.Add(new { account = item.Account, ok, msg = ok ? "✓ 成功" : "✗ 失敗" });
         }
         return Ok(new { done, total = items.Count, results });
