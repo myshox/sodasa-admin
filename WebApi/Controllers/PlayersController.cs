@@ -238,6 +238,22 @@ public class PlayersController : ControllerBase
 
     // ── 消費達成獎勵（costdata）────────────────────────────────────
 
+    /// <summary>全服（或線上）玩家 costdata 列表，用於批量操作</summary>
+    [HttpGet("costdata/list")]
+    public async Task<IActionResult> GetAllCostData([FromQuery] bool online = false)
+        => Ok(await _db.GetAllCostDataAsync(online));
+
+    /// <summary>批量重置多個玩家的 costdata</summary>
+    [HttpPost("costdata/batch-reset")]
+    public async Task<IActionResult> BatchResetCostdata([FromBody] BatchCostResetRequest req)
+    {
+        if (req.Accounts == null || req.Accounts.Count == 0)
+            return BadRequest(new { message = "請提供帳號列表" });
+        var (success, fail) = await _db.BatchResetCostDataAsync(req.Accounts, req.FullReset);
+        string kind = req.FullReset ? "完全重置" : "重置已領狀態";
+        return Ok(new { message = $"✓ 批量{kind}完成：成功 {success} 筆，失敗 {fail} 筆", success, fail });
+    }
+
     [HttpGet("{account}/costdata")]
     public async Task<IActionResult> GetCostdata(string account)
         => Ok(await _db.GetCostdataSummaryAsync(account));

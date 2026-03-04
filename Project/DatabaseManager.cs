@@ -3520,6 +3520,58 @@ namespace SQ_Email_Tools
             return (input, "");
         }
 
+        private async Task<(string uid, string onlineName, string masterAccount)> ResolveCsaloginWithMasterAsync(MySqlConnection conn, string input)
+        {
+            try
+            {
+                using var cmd = new MySqlCommand(
+                    @"SELECT c.`Name`, IFNULL(c.OnlineName,'') n, IFNULL(m.`Name`,'') master
+                      FROM csalogin c
+                      LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                      WHERE c.`Name`=@inp OR c.OnlineName=@inp OR m.`Name`=@inp
+                      ORDER BY c.Online DESC, c.LoginTime DESC LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@inp", input);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                    return (r.GetString(0), r.GetString(1), r.GetString(2));
+            }
+            catch { }
+            return (input, "", "");
+        }
+
+        /// <summary>取得全服（或線上）所有有 costdata 記錄的玩家列表，用於批量操作</summary>
+        public async Task<List<(string uid, string onlineName, string masterAccount, bool isOnline, long point, int check)>> GetAllCostDataListAsync(bool onlineOnly)
+        {
+            var list = new List<(string, string, string, bool, long, int)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                string where = onlineOnly ? "AND c.Online=1" : "";
+                using var cmd = new MySqlCommand($@"
+                    SELECT c.`Name` cdkey, IFNULL(c.OnlineName,'') charName,
+                           IFNULL(m.`Name`,'') masterName,
+                           (c.Online=1) isOnline,
+                           IFNULL(d.point,0) point, IFNULL(d.`check`,0) ck
+                    FROM csalogin c
+                    INNER JOIN costdata d ON d.cdkey=c.`Name`
+                    LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                    WHERE 1=1 {where}
+                    ORDER BY d.point DESC LIMIT 2000", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["cdkey"]?.ToString()      ?? "",
+                        r["charName"]?.ToString()   ?? "",
+                        r["masterName"]?.ToString() ?? "",
+                        Convert.ToInt32(r["isOnline"]) == 1,
+                        r["point"] == DBNull.Value ? 0 : Convert.ToInt64(r["point"]),
+                        r["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ck"])
+                    ));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/GetAllCostDataList] " + ex.Message); }
+            return list;
+        }
+
         /// <summary>
         /// 取主帳號下所有角色的 costdata（用於 CostMilestoneForm 列出多角色）。
         /// 回傳空列表代表輸入不是主帳號名。
@@ -3569,12 +3621,12 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>讀取玩家的消費達成進度（costdata），支援主帳號名/角色名/UID</summary>
-        public async Task<(long point, int check, string uid, string onlineName)> GetCostDataAsync(string account)
+        public async Task<(long point, int check, string uid, string onlineName, string masterAccount)> GetCostDataAsync(string account)
         {
             try
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
-                var (uid, onlineName) = await ResolveCsaloginUidAsync(conn, account);
+                var (uid, onlineName, masterAccount) = await ResolveCsaloginWithMasterAsync(conn, account);
                 using var cmd = new MySqlCommand(
                     "SELECT point, IFNULL(`check`,0) AS ck FROM costdata WHERE cdkey=@acc ORDER BY time DESC LIMIT 1", conn);
                 cmd.Parameters.AddWithValue("@acc", uid);
@@ -3582,11 +3634,11 @@ namespace SQ_Email_Tools
                 if (await r.ReadAsync())
                     return (r["point"] == DBNull.Value ? 0 : Convert.ToInt64(r["point"]),
                             r["ck"]    == DBNull.Value ? 0 : Convert.ToInt32(r["ck"]),
-                            uid, onlineName);
-                return (0, 0, uid, onlineName);
+                            uid, onlineName, masterAccount);
+                return (0, 0, uid, onlineName, masterAccount);
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/GetCostData] " + ex.Message); }
-            return (0, 0, account, "");
+            return (0, 0, account, "", "");
         }
 
         /// <summary>

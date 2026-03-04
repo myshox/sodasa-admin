@@ -2559,6 +2559,26 @@ public class DbService
         return (input, "");
     }
 
+    /// <summary>同 ResolveCsaloginAsync，但額外回傳主帳號名稱 masterAccount</summary>
+    private async Task<(string uid, string onlineName, string masterAccount)> ResolveCsaloginWithMasterAsync(MySqlConnection db, string input)
+    {
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT c.`Name`, IFNULL(c.OnlineName,'') n, IFNULL(m.`Name`,'') master
+                  FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE c.`Name`=@inp OR c.OnlineName=@inp OR m.`Name`=@inp
+                  ORDER BY c.Online DESC, c.LoginTime DESC LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@inp", input);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+                return (r.GetString(0), r.GetString(1), r.GetString(2));
+        }
+        catch { }
+        return (input, "", "");
+    }
+
     /// <summary>
     /// 查詢主帳號下所有角色的 costdata（用於主帳號搜尋顯示角色列表）。
     /// 若輸入不是主帳號名，則退化為單角色查詢。
@@ -2580,7 +2600,17 @@ public class DbService
 
             if (masterId == 0) return result; // 不是主帳號
 
-            // 取主帳號下所有角色
+            // 取主帳號下所有角色（含主帳號名）
+            string masterAccountName = masterName;
+            try
+            {
+                await using var cmdMn = new MySqlCommand("SELECT `Name` FROM csaloginmaster WHERE Id=@mid LIMIT 1", db);
+                cmdMn.Parameters.AddWithValue("@mid", masterId);
+                await using var rMn = await cmdMn.ExecuteReaderAsync();
+                if (await rMn.ReadAsync()) masterAccountName = rMn.GetString(0);
+            }
+            catch { }
+
             await using var cmdC = new MySqlCommand(
                 @"SELECT c.`Name`, IFNULL(c.OnlineName,'') onlineName, (c.Online=1) isOnline
                   FROM csalogin c WHERE c.MasterId=@mid ORDER BY c.Online DESC, c.LoginTime DESC", db);
@@ -2617,7 +2647,7 @@ public class DbService
                     claimed = costCheck >= 0 && (costCheck & (1 << i)) != 0
                 }).ToArray();
                 int claimedCount = costCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)costCheck);
-                result.Add(new { account = uid, onlineName, isOnline, costPoint, costCheck, claimedCount, milestones });
+                result.Add(new { account = uid, onlineName, isOnline, masterAccount = masterAccountName, costPoint, costCheck, claimedCount, milestones });
             }
         }
         catch { }
@@ -2629,7 +2659,7 @@ public class DbService
         long costPoint = 0; int costCheck = -1;
         await using var db = Open(); await db.OpenAsync();
 
-        var (uid, onlineName) = await ResolveCsaloginAsync(db, account);
+        var (uid, onlineName, masterAccount) = await ResolveCsaloginWithMasterAsync(db, account);
 
         try
         {
@@ -2653,7 +2683,69 @@ public class DbService
             claimed  = costCheck >= 0 && (costCheck & (1 << i)) != 0
         }).ToArray();
         int claimedCount = costCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)costCheck);
-        return new { account = uid, onlineName, costPoint, costCheck, claimedCount, milestones };
+        return new { account = uid, onlineName, masterAccount, costPoint, costCheck, claimedCount, milestones };
+    }
+
+    /// <summary>取得全服（或線上）玩家的 costdata 列表，用於批量操作頁面</summary>
+    public async Task<List<object>> GetAllCostDataAsync(bool onlineOnly)
+    {
+        var list = new List<object>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            string where = onlineOnly ? "AND c.Online=1" : "";
+            await using var cmd = new MySqlCommand($@"
+                SELECT c.`Name` cdkey, IFNULL(c.OnlineName,'') charName,
+                       IFNULL(m.`Name`,'') masterName,
+                       (c.Online=1) isOnline,
+                       IFNULL(d.point,0) point, IFNULL(d.`check`,0) ck,
+                       IFNULL(DATE_FORMAT(d.time,'%Y-%m-%d %H:%i'),'') lastTime
+                FROM csalogin c
+                INNER JOIN costdata d ON d.cdkey=c.`Name`
+                LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                WHERE 1=1 {where}
+                ORDER BY d.point DESC LIMIT 2000", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                long point = r.GetInt64("point");
+                int  check = r.GetInt32("ck");
+                var milestones = CostMilestones.Select((req, idx) => new
+                {
+                    index = idx, required = req,
+                    reached = point >= req,
+                    claimed = (check & (1 << idx)) != 0
+                }).ToList();
+                int claimedCount = System.Numerics.BitOperations.PopCount((uint)(check >= 0 ? check : 0));
+                list.Add(new {
+                    account       = r.GetString("cdkey"),
+                    onlineName    = r.GetString("charName"),
+                    masterAccount = r.GetString("masterName"),
+                    isOnline      = r.GetBoolean("isOnline"),
+                    costPoint     = point,
+                    costCheck     = check,
+                    claimedCount,
+                    milestones,
+                    lastTime      = r.GetString("lastTime")
+                });
+            }
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[GetAllCostData] " + ex.Message); }
+        return list;
+    }
+
+    /// <summary>批量重置多個帳號的 costdata（check-only 或 full-reset）</summary>
+    public async Task<(int success, int fail)> BatchResetCostDataAsync(List<string> accounts, bool fullReset)
+    {
+        int success = 0, fail = 0;
+        foreach (var acc in accounts)
+        {
+            bool ok = fullReset
+                ? await FullResetCostdataAsync(acc)
+                : await ResetCostdataAsync(acc);
+            if (ok) success++; else fail++;
+        }
+        return (success, fail);
     }
 
     public async Task<bool> AdjustCostdataPointAsync(string account, string charName, long addPoint)

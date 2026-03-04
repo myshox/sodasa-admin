@@ -420,3 +420,9 @@ public class AdjustCostRequest
     public string? CharName { get; set; }
     public int    Quantity  { get; set; } = 1;
 }
+
+public class BatchCostResetRequest
+{
+    public List<string> Accounts  { get; set; } = new();
+    public bool         FullReset { get; set; } = false;
+}

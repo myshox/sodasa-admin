@@ -19,7 +19,7 @@ namespace SQ_Email_Tools
 
         // ── 玩家資訊 ─────────────────────────────────────────────
         private Panel  _infoPanel;
-        private Label  _lblName, _lblProgress, _lblCheck;
+        private Label  _lblName, _lblMaster, _lblProgress, _lblCheck;
         private Panel  _progressBarFill;
 
         // ── 里程碑卡片 ────────────────────────────────────────────
@@ -29,10 +29,11 @@ namespace SQ_Email_Tools
         private NumericUpDown _nudAdd;
         private Button        _btnAdd, _btnReset, _btnFullReset;
 
-        private string _currentAccount    = "";
-        private string _currentOnlineName = "";
-        private long   _currentPoint      = 0;
-        private int    _currentCheck      = -1;
+        private string _currentAccount       = "";
+        private string _currentOnlineName    = "";
+        private string _currentMasterAccount = "";
+        private long   _currentPoint         = 0;
+        private int    _currentCheck         = -1;
 
         public CostMilestoneForm()
         {
@@ -45,16 +46,16 @@ namespace SQ_Email_Tools
             BackColor   = Theme.BgPage;
             ForeColor   = Theme.TextPrimary;
             Font        = Theme.FontBody;
-            MinimumSize = new Size(820, 560);
+            MinimumSize = new Size(880, 600);
 
             var root = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1,
+                Dock = DockStyle.Fill, RowCount = 6, ColumnCount = 1,
                 BackColor = Color.Transparent, Padding = new Padding(16, 10, 16, 10)
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));  // 標題
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));  // 搜尋列
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90f));  // 玩家資訊 + 進度條
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 100f)); // 玩家資訊 + 進度條
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 160f)); // 里程碑卡片
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));  // 操作區
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
@@ -62,10 +63,11 @@ namespace SQ_Email_Tools
             // ── Row 0：標題 ──────────────────────────────────────
             var titleRow = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
                 BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, 6)
             };
             titleRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            titleRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             titleRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             titleRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
@@ -76,13 +78,19 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft
             }, 0, 0);
 
+            // 全服批量按鈕
+            var btnBatch = Theme.MakeButton("👥 全服批量管理", Color.FromArgb(20, 40, 80), Color.FromArgb(100, 180, 255), 130, 34);
+            btnBatch.Margin = new Padding(0, 5, 6, 5);
+            btnBatch.Click += (s, e) => new CostBatchForm().ShowDialog(this);
+            titleRow.Controls.Add(btnBatch, 1, 0);
+
             _lblStatus = new Label
             {
                 Text = "里程碑：3,000 / 5,000 / 10,000 / 50,000 / 100,000 金幣",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight
             };
-            titleRow.Controls.Add(_lblStatus, 1, 0);
+            titleRow.Controls.Add(_lblStatus, 2, 0);
             root.Controls.Add(titleRow, 0, 0);
 
             // ── Row 1：搜尋列 ────────────────────────────────────
@@ -119,24 +127,27 @@ namespace SQ_Email_Tools
 
             var infoGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
                 BackColor = Color.Transparent
             };
-            infoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
-            infoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));
+            infoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));
+            infoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 18f));
+            infoGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 18f));
             infoGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             infoGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
             _lblName = new Label { Dock = DockStyle.Fill, ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 11f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft };
+            _lblMaster = new Label { Dock = DockStyle.Fill, ForeColor = Theme.TextMuted, Font = Theme.FontSmall, TextAlign = ContentAlignment.MiddleLeft };
             _lblCheck = new Label { Dock = DockStyle.Fill, ForeColor = Theme.TextMuted, Font = Theme.FontSmall, TextAlign = ContentAlignment.MiddleLeft };
-            infoGrid.Controls.Add(_lblName,  0, 0);
-            infoGrid.Controls.Add(_lblCheck, 0, 1);
+            infoGrid.Controls.Add(_lblName,   0, 0);
+            infoGrid.Controls.Add(_lblMaster, 0, 1);
+            infoGrid.Controls.Add(_lblCheck,  0, 2);
 
             // 進度條
             var barWrap = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgMid, Margin = new Padding(0, 2, 0, 0) };
             _progressBarFill = new Panel { BackColor = Color.FromArgb(150, 80, 255), Dock = DockStyle.Left, Width = 0 };
             barWrap.Controls.Add(_progressBarFill);
-            infoGrid.Controls.Add(barWrap, 0, 2);
+            infoGrid.Controls.Add(barWrap, 0, 3);
 
             _infoPanel.Controls.Add(infoGrid);
             root.Controls.Add(_infoPanel, 0, 2);
@@ -189,14 +200,14 @@ namespace SQ_Email_Tools
             _btnAdd.Click += async (s, e) => await DoAdjustAsync();
             opGrid.Controls.Add(_btnAdd, 2, 0);
 
-            // 🔄 僅重置已領狀態（check=0，point 保留 → 玩家可立即重領）
+            // 🔄 僅重置已領狀態
             _btnReset = Theme.MakeButton("🔄 重置已領", Color.FromArgb(60, 50, 20), Color.FromArgb(255, 200, 80), 110, 32);
             _btnReset.Margin = new Padding(0, 4, 6, 4);
             _btnReset.Click += async (s, e) => await DoResetAsync();
             new ToolTip().SetToolTip(_btnReset, "僅清除已領狀態，消費點數保留 → 玩家可立即重領所有里程碑");
             opGrid.Controls.Add(_btnReset, 3, 0);
 
-            // 🗑 完全重置（point=0 + check=0 → 玩家必須重新消費才能領取）
+            // 🗑 完全重置
             _btnFullReset = Theme.MakeButton("🗑 完全重置", Color.FromArgb(120, 30, 30), Color.FromArgb(255, 140, 140), 110, 32);
             _btnFullReset.Margin = new Padding(0, 4, 0, 4);
             _btnFullReset.Click += async (s, e) => await DoFullResetAsync();
@@ -217,23 +228,23 @@ namespace SQ_Email_Tools
             _lblStatus.Text    = "查詢中…";
             try
             {
-                // 統一使用 PlayerPickerHelper：自動處理「主帳號帶出多角色 → 選擇對話框」
                 var picked = await PlayerPickerHelper.PickAsync(this, q);
                 if (picked == null) { _lblStatus.Text = ""; return; }
                 _txtSearch.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
-                var (pt, ck, uid, onlineName) = await DatabaseManager.Instance.GetCostDataAsync(picked.Account);
-                LoadChar(uid, onlineName, pt, ck);
+                var (pt, ck, uid, onlineName, masterAccount) = await DatabaseManager.Instance.GetCostDataAsync(picked.Account);
+                LoadChar(uid, onlineName, masterAccount, pt, ck);
             }
             catch (Exception ex) { _lblStatus.Text = "✗ " + ex.Message; }
             finally { _btnSearch.Enabled = true; }
         }
 
-        private void LoadChar(string uid, string onlineName, long pt, int ck)
+        private void LoadChar(string uid, string onlineName, string masterAccount, long pt, int ck)
         {
-            _currentAccount    = uid;
-            _currentPoint      = pt;
-            _currentCheck      = ck;
-            _currentOnlineName = onlineName;
+            _currentAccount       = uid;
+            _currentPoint         = pt;
+            _currentCheck         = ck;
+            _currentOnlineName    = onlineName;
+            _currentMasterAccount = masterAccount;
             UpdateUI();
         }
 
@@ -243,10 +254,13 @@ namespace SQ_Email_Tools
                 ? _currentAccount
                 : $"{_currentOnlineName}（{_currentAccount}）";
             _lblName.Text  = $"玩家：{display}";
+            _lblMaster.Text = string.IsNullOrEmpty(_currentMasterAccount)
+                ? ""
+                : $"主帳號：{_currentMasterAccount}";
             int claimedCount = _currentCheck < 0 ? 0 : System.Numerics.BitOperations.PopCount((uint)_currentCheck);
             _lblCheck.Text = _currentCheck < 0
                 ? "（無 costdata 記錄）"
-                : $"累計消費：{_currentPoint:N0} 金幣　已領取：{claimedCount}/5 個里程碑獎勵（check bitmask={_currentCheck}）";
+                : $"累計消費：{_currentPoint:N0} 金幣　已領取：{claimedCount}/5 個里程碑獎勵（check={_currentCheck}）";
 
             // 進度條
             float pct = (float)Math.Min(_currentPoint, 100_000L) / 100_000L;
@@ -259,7 +273,6 @@ namespace SQ_Email_Tools
             _infoPanel.Visible  = true;
             _milestonesPanel.Visible = true;
 
-            // 找到 opPanel
             foreach (Control c in Controls[0].Controls)
                 if (c.Tag?.ToString() == "opPanel") c.Visible = true;
 
@@ -296,13 +309,12 @@ namespace SQ_Email_Tools
                     CellBorderStyle = TableLayoutPanelCellBorderStyle.None
                 };
                 if (canClaim)
-                    card.BackColor = Color.FromArgb(40, 35, 15); // 金黃色調背景
+                    card.BackColor = Color.FromArgb(40, 35, 15);
                 card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f));
                 card.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));
                 card.RowStyles.Add(new RowStyle(SizeType.Absolute, claimed ? 0f : canClaim ? 30f : 0f));
                 card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-                // 狀態文字
                 string stateText = claimed ? "✅ 已領取" : canClaim ? "🎁 可領取" : "🔒 未達成";
                 card.Controls.Add(new Label
                 {
@@ -311,7 +323,6 @@ namespace SQ_Email_Tools
                     TextAlign = ContentAlignment.BottomLeft
                 }, 0, 0);
 
-                // 數字
                 card.Controls.Add(new Label
                 {
                     Text = $"{Milestones[i]:N0}\n金幣",
@@ -319,7 +330,6 @@ namespace SQ_Email_Tools
                     Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft
                 }, 0, 1);
 
-                // 補發按鈕
                 if (canClaim)
                 {
                     int idx = i;
