@@ -48,8 +48,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Guard><Layout /></Guard>}>
-        {/* 預設首頁 → 數據分析 */}
-        <Route index element={<Navigate to="/analytics" replace />} />
+        {/* 預設首頁 → Dashboard */}
+        <Route index element={<Dashboard />} />
 
         {/* ── 整合頁面 ── */}
         <Route path="players"   element={<PlayerHubPage />} />

@@ -35,6 +35,38 @@ function twdToGold(twd: number): { baseGold: number; rate: number; tierLabel: st
   return { baseGold: Math.floor(twd * rate), rate, tierLabel: best.label }
 }
 
+/** 金幣反推台幣：找出為取得 targetGold（含 bonusPct 加成後）所需最少台幣 */
+function goldToTwd(targetGold: number, bonusPct: number): Array<{ twd: number; actualGold: number; tierLabel: string; rate: number }> {
+  if (targetGold <= 0) return []
+  const divisor = 1 + bonusPct / 100
+  const candidates: Array<{ twd: number; actualGold: number; tierLabel: string; rate: number }> = []
+
+  for (const t of TIERS) {
+    const tierRate = t.gold / t.twd
+    // 反推：需要多少台幣（基礎金幣）才能讓 base * divisor >= targetGold
+    let needed = Math.ceil(targetGold / divisor / tierRate)
+    needed = Math.max(needed, t.twd) // 至少達到此套餐門檻
+
+    // 用 twdToGold 確認 needed 台幣時的實際匯率
+    const { baseGold, rate, tierLabel } = twdToGold(needed)
+    const actualGold = Math.floor(baseGold * divisor)
+    if (actualGold >= targetGold) {
+      candidates.push({ twd: needed, actualGold, tierLabel, rate })
+    }
+  }
+
+  if (candidates.length === 0) {
+    const needed = Math.ceil(targetGold / divisor / 100)
+    candidates.push({ twd: needed, actualGold: Math.floor(needed * 100 * divisor), tierLabel: '基礎', rate: 100 })
+  }
+
+  // 去重 + 排序（最少台幣優先）
+  const seen = new Set<number>()
+  return candidates
+    .filter(c => { if (seen.has(c.twd)) return false; seen.add(c.twd); return true })
+    .sort((a, b) => a.twd - b.twd)
+}
+
 interface PaydataInfo {
   account: string; onlineName: string; isOnline: boolean
   gold: number; crystal: number; payTotal: number
@@ -66,6 +98,9 @@ export default function RechargePage() {
   const [histLoading, setHistLoading] = useState(false)
   const [calcTwd, setCalcTwd] = useState('')
   const [calcBonus, setCalcBonus] = useState(0)
+  const [calcGold, setCalcGold] = useState('')
+  const [calcRevBonus, setCalcRevBonus] = useState(0)
+  const [calcTab, setCalcTab] = useState<'twd' | 'gold'>('twd')
 
   const finalTwd  = selectedTier ? selectedTier.twd : parseInt(customTwd, 10) || 0
   const baseGoldAuto = selectedTier ? selectedTier.gold : (parseInt(customTwd, 10) || 0) * 100
@@ -236,7 +271,7 @@ export default function RechargePage() {
               <div style={{ padding: '0 18px 16px' }}>
                 <div style={{ background: 'var(--bg-input)', borderRadius: 10, padding: '12px 14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 6 }}>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>累積進度（循環 #{(info.totalCheck || 0) + 1}）</span>
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>累積儲值進度（第 {(info.totalCheck || 0) + 1} 輪）</span>
                     <span style={{ color: '#fb923c', fontWeight: 700 }}>{cycPct}%</span>
                   </div>
                   <div style={{ height: 8, background: 'var(--bg-card)', borderRadius: 4, overflow: 'hidden' }}>
@@ -246,7 +281,9 @@ export default function RechargePage() {
                     <span>NT${info.paydataPoint.toLocaleString()}</span>
                     <span>目標 NT$25,000</span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>已完成 {info.totalCheck} 輪</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+                    每累積儲值 NT$25,000 完成一輪 → 可領取累積大獎 ｜ 已完成 {info.totalCheck} 輪
+                  </div>
                 </div>
 
                 {info.claimReady && (
@@ -254,7 +291,7 @@ export default function RechargePage() {
                     style={{ width: '100%', marginTop: 10, padding: '9px 0', fontSize: 13, fontWeight: 700,
                       background: 'linear-gradient(135deg,rgba(251,191,36,.2),rgba(251,191,36,.1))',
                       border: '1px solid rgba(251,191,36,.5)', borderRadius: 8, color: '#fbbf24', cursor: 'pointer' }}>
-                    🎁 發放第 {info.totalCheck} 輪獎勵
+                    🎁 發放第 {info.totalCheck} 輪累積大獎
                   </button>
                 )}
                 {!info.claimReady && info.totalCheck > 0 && (
@@ -264,11 +301,11 @@ export default function RechargePage() {
                 )}
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button onClick={doFix} disabled={loading}
+                  <button onClick={doFix} disabled={loading} title="進度條顯示異常時點此修復（不會更動儲值金額）"
                     style={{ flex: 1, fontSize: 11, padding: '6px 0', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)' }}>
-                    🔧 修復循環
+                    🔧 修復進度顯示
                   </button>
-                  <button onClick={doReset} disabled={loading}
+                  <button onClick={doReset} disabled={loading} title="將此玩家的累積儲值進度歸零（無法復原）"
                     style={{ flex: 1, fontSize: 11, padding: '6px 0', background: 'rgba(248,113,113,.1)', border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, cursor: 'pointer', color: '#f87171' }}>
                     🗑 清零進度
                   </button>
@@ -322,10 +359,14 @@ export default function RechargePage() {
 
           {/* STEP 3：加成 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
-            <StepLabel n={3} text="回饋加成%" sub="贈金不計入累儲進度" />
+            <StepLabel n={3} text="額外贈金加成" sub="選填・一般補單請選「無」" />
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-input)', borderRadius: 6, padding: '7px 10px', lineHeight: 1.6 }}>
+              💡 贈金是「活動獎勵」，不計入累積儲值進度。<br />
+              如果是一般補單，選「無」即可。VIP 玩家的加成已自動套用。
+            </div>
             {info && info.vipLevel > 0 && (
-              <div style={{ marginTop: 8, fontSize: 12, color: vipColor(info.vipLevel) }}>
-                {vipLabel(info.vipLevel)} 已自動套用加成
+              <div style={{ marginTop: 8, fontSize: 12, color: vipColor(info.vipLevel), display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>✓</span><span>{vipLabel(info.vipLevel)} — 已自動套用加成</span>
               </div>
             )}
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BONUSES.length}, 1fr)`, gap: isMobile ? 6 : 8, marginTop: 12 }}>
@@ -350,19 +391,20 @@ export default function RechargePage() {
 
           {/* STEP 4：操作類型 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
-            <StepLabel n={4} text="操作類型" sub="必填，請明確選擇" warn />
+            <StepLabel n={4} text="這次要做什麼？" sub="必填" warn />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 10, marginTop: 14 }}>
-              <OpCard
-                selected={opType === 'only'} onClick={() => setOpType('only')}
-                icon="📦" color="#60a5fa"
-                title="僅累儲進度"
-                desc="不發放金幣"
-              />
               <OpCard
                 selected={opType === 'gold'} onClick={() => setOpType('gold')}
                 icon="💰" color="#4ade80"
-                title="累儲＋發金幣"
-                desc={finalGold > 0 ? `+${finalGold.toLocaleString()} 元寶` : '正常補單使用'}
+                title="記錄＋發金幣"
+                desc={finalGold > 0 ? `+${finalGold.toLocaleString()} 元寶入帳` : '儲值紀錄 + 金幣一起到位'}
+                badge="一般使用"
+              />
+              <OpCard
+                selected={opType === 'only'} onClick={() => setOpType('only')}
+                icon="📝" color="#60a5fa"
+                title="只記錄，不給金幣"
+                desc="適合金幣已另外處理、只需補儲值紀錄的情況"
               />
             </div>
           </div>
@@ -414,49 +456,135 @@ export default function RechargePage() {
         </div>
       </div>
 
-      {/* ── 台幣計算機 ── */}
+      {/* ── 匯率計算機（合併 Tab）── */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20, marginTop: isMobile ? 14 : 24 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>💱 台幣換算計算機</div>
-        <div style={{ display: 'flex', gap: isMobile ? 10 : 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <label style={{ minWidth: isMobile ? '100%' : 160 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>台幣金額 (NT$)</span>
-            <input type="number" inputMode="numeric" value={calcTwd} onChange={e => setCalcTwd(e.target.value)}
-              placeholder="例如 1500" min={1} style={{ width: '100%', marginTop: 4, fontSize: 13 }} />
-          </label>
-          <div style={{ flex: isMobile ? '1 0 100%' : 'none' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>優惠加成</div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BONUSES.length}, 1fr)`, gap: 6 }}>
-              {BONUSES.map(b => (
-                <button key={b} onClick={() => setCalcBonus(b)}
-                  style={{
-                    padding: isMobile ? '10px 6px' : '6px 12px',
-                    cursor: 'pointer', borderRadius: 6, fontSize: 12, fontWeight: calcBonus === b ? 700 : 400,
-                    background: calcBonus === b ? (b > 0 ? 'rgba(74,222,128,.2)' : 'var(--bg-card)') : 'var(--bg-input)',
-                    border: `1px solid ${calcBonus === b ? (b > 0 ? '#4ade80' : 'var(--border)') : 'var(--border)'}`,
-                    color: b > 0 ? '#4ade80' : 'var(--text-secondary)',
-                    WebkitTapHighlightColor: 'transparent',
-                  }}>
-                  {b === 0 ? (isMobile ? '無' : '無加成') : `+${b}%`}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>💱 匯率試算工具</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>不影響實際操作，純粹試算用</div>
+
+        {/* Tab 切換 */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--bg-input)', borderRadius: 8, padding: 4 }}>
+          {([['twd', '台幣 → 金幣', '我輸入台幣，想知道能拿多少金幣'], ['gold', '金幣 → 台幣（反推）', '玩家要 X 金幣，需要充多少台幣？']] as const).map(([tab, label, hint]) => (
+            <button key={tab} onClick={() => setCalcTab(tab as 'twd' | 'gold')}
+              title={hint}
+              style={{
+                flex: 1, padding: isMobile ? '10px 6px' : '8px 12px', borderRadius: 6, cursor: 'pointer', transition: 'all .15s',
+                background: calcTab === tab ? 'var(--bg-card)' : 'transparent',
+                border: calcTab === tab ? '1px solid var(--border)' : '1px solid transparent',
+                color: calcTab === tab ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontWeight: calcTab === tab ? 700 : 400, fontSize: isMobile ? 12 : 13,
+                WebkitTapHighlightColor: 'transparent',
+              }}>
+              {label}
+            </button>
+          ))}
         </div>
-        {(() => {
-          const n = parseInt(calcTwd) || 0
-          if (n <= 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 12 }}>請輸入台幣金額…</div>
-          const { baseGold, rate, tierLabel } = twdToGold(n)
-          const bonusGold = Math.floor(baseGold * calcBonus / 100)
-          const totalGold = baseGold + bonusGold
-          return (
-            <div style={{ marginTop: 14, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <CalcBox label="適用匯率" value={`${tierLabel}（${rate.toFixed(1)}/NT$）`} />
-              <CalcBox label="基礎金幣" value={`${baseGold.toLocaleString()} 元寶`} color="#fb923c" />
-              {calcBonus > 0 && <CalcBox label={`+${calcBonus}% 贈金`} value={`+${bonusGold.toLocaleString()} 元寶`} color="#4ade80" />}
-              {calcBonus > 0 && <CalcBox label="合計" value={`${totalGold.toLocaleString()} 元寶`} color="#fbbf24" large />}
+
+        {calcTab === 'twd' ? (
+          /* 台幣 → 金幣 */
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>❓ 想知道充 X 元台幣，玩家能拿多少金幣（元寶）？</div>
+            <div style={{ display: 'flex', gap: isMobile ? 10 : 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label style={{ minWidth: isMobile ? '100%' : 160 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>台幣金額 (NT$)</span>
+                <input type="number" inputMode="numeric" value={calcTwd} onChange={e => setCalcTwd(e.target.value)}
+                  placeholder="例如 1500" min={1} style={{ width: '100%', marginTop: 4, fontSize: 13 }} />
+              </label>
+              <div style={{ flex: isMobile ? '1 0 100%' : 'none' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>若有額外贈金加成</div>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BONUSES.length}, 1fr)`, gap: 6 }}>
+                  {BONUSES.map(b => (
+                    <button key={b} onClick={() => setCalcBonus(b)}
+                      style={{
+                        padding: isMobile ? '10px 6px' : '6px 12px',
+                        cursor: 'pointer', borderRadius: 6, fontSize: 12, fontWeight: calcBonus === b ? 700 : 400,
+                        background: calcBonus === b ? (b > 0 ? 'rgba(74,222,128,.2)' : 'var(--bg-card)') : 'var(--bg-input)',
+                        border: `1px solid ${calcBonus === b ? (b > 0 ? '#4ade80' : 'var(--border)') : 'var(--border)'}`,
+                        color: b > 0 ? '#4ade80' : 'var(--text-secondary)',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}>
+                      {b === 0 ? (isMobile ? '無' : '無加成') : `+${b}%`}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          )
-        })()}
+            {(() => {
+              const n = parseInt(calcTwd) || 0
+              if (n <= 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 12 }}>請輸入台幣金額…</div>
+              const { baseGold, rate, tierLabel } = twdToGold(n)
+              const bonusGold = Math.floor(baseGold * calcBonus / 100)
+              const totalGold = baseGold + bonusGold
+              return (
+                <div style={{ marginTop: 14, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <CalcBox label="套用匯率" value={`${tierLabel}（${rate.toFixed(1)}金/NT$）`} />
+                  <CalcBox label="基礎金幣" value={`${baseGold.toLocaleString()} 元寶`} color="#fb923c" />
+                  {calcBonus > 0 && <CalcBox label={`+${calcBonus}% 贈金`} value={`+${bonusGold.toLocaleString()} 元寶`} color="#4ade80" />}
+                  {calcBonus > 0 && <CalcBox label="實際合計" value={`${totalGold.toLocaleString()} 元寶`} color="#fbbf24" large />}
+                </div>
+              )
+            })()}
+          </>
+        ) : (
+          /* 金幣 → 台幣（反推）*/
+          <>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>❓ 玩家需要 X 金幣（元寶），最少需要充多少台幣？</div>
+            <div style={{ display: 'flex', gap: isMobile ? 10 : 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label style={{ minWidth: isMobile ? '100%' : 170 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>目標金幣（元寶）</span>
+                <input type="number" inputMode="numeric" value={calcGold} onChange={e => setCalcGold(e.target.value)}
+                  placeholder="例如 200000" min={1}
+                  style={{ width: '100%', marginTop: 4, fontSize: 13, color: '#fb923c' }} />
+              </label>
+              <div style={{ flex: isMobile ? '1 0 100%' : 'none' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>若有額外贈金加成</div>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BONUSES.length}, 1fr)`, gap: 6 }}>
+                  {BONUSES.map(b => (
+                    <button key={b} onClick={() => setCalcRevBonus(b)}
+                      style={{
+                        padding: isMobile ? '10px 6px' : '6px 12px',
+                        cursor: 'pointer', borderRadius: 6, fontSize: 12, fontWeight: calcRevBonus === b ? 700 : 400,
+                        background: calcRevBonus === b ? (b > 0 ? 'rgba(74,222,128,.2)' : 'var(--bg-card)') : 'var(--bg-input)',
+                        border: `1px solid ${calcRevBonus === b ? (b > 0 ? '#4ade80' : 'var(--border)') : 'var(--border)'}`,
+                        color: b > 0 ? '#4ade80' : 'var(--text-secondary)',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}>
+                      {b === 0 ? (isMobile ? '無' : '無加成') : `+${b}%`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {(() => {
+              const g = parseInt(calcGold) || 0
+              if (g <= 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 12 }}>請輸入金幣數量…</div>
+              const options = goldToTwd(g, calcRevBonus)
+              if (options.length === 0) return <div style={{ color: '#f87171', fontSize: 12, marginTop: 12 }}>無法計算</div>
+              const best = options[0]
+              const bonusNote = calcRevBonus > 0
+                ? `（含 +${calcRevBonus}% 加成，基礎金幣需求 ${Math.ceil(g / (1 + calcRevBonus / 100)).toLocaleString()} 元寶）`
+                : ''
+              return (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <CalcBox label="最少需充台幣" value={`NT$ ${best.twd.toLocaleString()}`} color="#fb923c" large />
+                    <CalcBox label="套用匯率" value={`${best.tierLabel}（${best.rate.toFixed(1)}金/NT$）`} />
+                    <CalcBox label="實際可得金幣" value={`${best.actualGold.toLocaleString()} 元寶`} color="#4ade80" />
+                  </div>
+                  {bonusNote && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{bonusNote}</div>}
+                  {options.length > 1 && (
+                    <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+                      其他方案：{options.slice(1, 3).map(o =>
+                        <span key={o.twd} style={{ marginRight: 16, color: 'var(--text-muted)' }}>
+                          NT${o.twd.toLocaleString()}（{o.tierLabel}）→ {o.actualGold.toLocaleString()} 金幣
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </>
+        )}
       </div>
 
       {/* ── 充值記錄 ── */}
@@ -514,8 +642,8 @@ function StatBox({ label, value, color }: { label: string; value: string; color:
   )
 }
 
-function OpCard({ selected, onClick, icon, color, title, desc }: {
-  selected: boolean; onClick: () => void; icon: string; color: string; title: string; desc: string
+function OpCard({ selected, onClick, icon, color, title, desc, badge }: {
+  selected: boolean; onClick: () => void; icon: string; color: string; title: string; desc: string; badge?: string
 }) {
   return (
     <button onClick={onClick} style={{
@@ -524,11 +652,17 @@ function OpCard({ selected, onClick, icon, color, title, desc }: {
       border: `2px solid ${selected ? color : 'transparent'}`,
       boxShadow: selected ? `0 0 12px ${color}30` : 'none',
       WebkitTapHighlightColor: 'transparent',
-      minHeight: 72,
+      minHeight: 80, position: 'relative',
     }}>
+      {badge && (
+        <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 10,
+          background: `${color}30`, color, border: `1px solid ${color}60` }}>
+          {badge}
+        </div>
+      )}
       <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
       <div style={{ fontSize: 13, fontWeight: 700, color: selected ? color : 'var(--text-primary)', lineHeight: 1.3 }}>{title}</div>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.3 }}>{desc}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>{desc}</div>
     </button>
   )
 }

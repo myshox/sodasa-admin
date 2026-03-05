@@ -14,8 +14,15 @@ export default function MarketPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* 標題列 */}
+      <div style={{ padding: '14px 20px 0', background: 'var(--bg-sidebar)', flexShrink: 0 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 2px', color: 'var(--text-primary)' }}>🏪 市場查詢</h1>
+        <p style={{ margin: '0 0 10px', fontSize: 11, color: 'var(--text-muted)' }}>
+          攤位 & 商城上架物品查詢 · 輸入道具 ID 反查持有者
+        </p>
+      </div>
       <div style={{
-        display: 'flex', gap: 2, padding: '12px 20px 0',
+        display: 'flex', gap: 2, padding: '0 20px',
         background: 'var(--bg-sidebar)', borderBottom: '2px solid var(--border)',
         flexShrink: 0,
       }}>

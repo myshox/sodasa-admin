@@ -38,7 +38,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "  📨  郵件操作",
                 ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 13, FontStyle.Bold),
+                Font      = Theme.FontPageTitle,
                 Dock      = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Padding   = new Padding(16, 0, 0, 0)
@@ -61,7 +61,7 @@ namespace SQ_Email_Tools
                 var btn = new Button
                 {
                     Text      = labels[i],
-                    Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                    Font      = Theme.FontSmall,
                     FlatStyle = FlatStyle.Flat,
                     BackColor = Color.FromArgb(18, 20, 30),
                     ForeColor = Color.FromArgb(160, 170, 200),

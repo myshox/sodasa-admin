@@ -545,20 +545,29 @@ export default function BatchOpsPage() {
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<MainTab>('single')
 
-  const tabs: { key: MainTab; label: string }[] = [
-    { key: 'single', label: '📬 道具給予（單人）' },
-    { key: 'batch',  label: '📢 批量發送（多人）' },
-    { key: 'gold',   label: '💰 批量金幣' },
+  const tabs: { key: MainTab; label: string; desc: string }[] = [
+    { key: 'single', label: '📬 道具給予',   desc: '搜尋玩家，加入道具後以郵件發送' },
+    { key: 'batch',  label: '📢 批量發送',   desc: '一次發送給全服、在線玩家或指定多人' },
+    { key: 'gold',   label: '💰 批量金幣',   desc: '對多位玩家同時加減金幣' },
   ]
 
   return (
     <div style={{ padding: isMobile ? 12 : 24 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>⚙️ 批量操作</h1>
+      {/* 標題 */}
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, margin: 0,
+          background: 'linear-gradient(135deg,#fb923c,#fbbf24)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          📦 批量工具
+        </h1>
+        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+          道具給予單人 · 批量發送全服 · 批量調整金幣 — 請先選擇下方 Tab
+        </p>
+      </div>
 
       {/* Tab 列 */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
+          <button key={t.key} onClick={() => setTab(t.key)} title={t.desc} style={{
             padding: isMobile ? '9px 14px' : '9px 20px', fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
             background: tab === t.key ? 'var(--accent-blue)' : 'transparent',
             color: tab === t.key ? '#fff' : 'var(--text-muted)',

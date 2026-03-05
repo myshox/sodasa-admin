@@ -79,7 +79,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "🍅  蘇打石器 GM",
                 ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 12f, FontStyle.Bold),
+                Font      = Theme.FontLogo,
                 AutoSize  = true,
                 Location  = new Point(16, 14)
             });
@@ -87,7 +87,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "私服後台管理系統",
                 ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 9f),
+                Font      = Theme.FontSmall,
                 AutoSize  = true,
                 Location  = new Point(18, 40)
             });
@@ -108,11 +108,15 @@ namespace SQ_Email_Tools
 
             // ── 導覽項目（加入 _navPanel）────────────────────────
             int y = 8;
+            // 每個按鈕共用一個 ToolTip，跟導覽 Panel 生命週期一致
+            var navTip = new ToolTip { InitialDelay = 400, ReshowDelay = 200, AutoPopDelay = 5000 };
+            _navPanel.Disposed += (_, __) => { try { navTip.Dispose(); } catch { } };
 
-            // ══ 玩家帳號 ══
+            // ══ 玩家帳號（含線上監控）══
             AddSectionLabel("玩家帳號", ref y);
 
             _btnPlayerNav = MakeNavBtn("👥", "玩家管理", ref y, isDefault: true);
+            navTip.SetToolTip(_btnPlayerNav, "搜尋玩家 · 查看詳情 · 調金幣水晶 · 封禁 · 改名");
             _btnPlayerNav.Click += (s, e) =>
             {
                 SetActiveNav(_btnPlayerNav);
@@ -120,6 +124,7 @@ namespace SQ_Email_Tools
             };
 
             var btnMaster = MakeNavBtn("👑", "主帳號查詢", ref y);
+            navTip.SetToolTip(btnMaster, "以主帳號查詢旗下所有子角色，可分帳充值");
             btnMaster.Click += (s, e) =>
             {
                 SetActiveNav(btnMaster);
@@ -132,6 +137,7 @@ namespace SQ_Email_Tools
             _btnRecharge.BackColor = Color.FromArgb(0, 80, 40);
             _btnRecharge.ForeColor = Color.FromArgb(100, 230, 140);
             _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
+            navTip.SetToolTip(_btnRecharge, "手動補單 · 套餐選擇 · 累積儲值進度 · 匯率試算 · 充值記錄");
             _btnRecharge.Click += (s, e) =>
             {
                 SetActiveNav(_btnRecharge);
@@ -140,6 +146,7 @@ namespace SQ_Email_Tools
             };
 
             var btnVip = MakeNavBtn("💎", "VIP 管理", ref y);
+            navTip.SetToolTip(btnVip, "查看黃金 VIP / 鑽石 VIP 玩家名單（NT$5,000 / NT$15,000 門檻）");
             btnVip.Click += (s, e) =>
             {
                 SetActiveNav(btnVip);
@@ -147,7 +154,8 @@ namespace SQ_Email_Tools
                 SwitchToHub(new VipForm());
             };
 
-            var btnCostMilestone2 = MakeNavBtn("💸", "消費達成獎勵", ref y);
+            var btnCostMilestone2 = MakeNavBtn("🏆", "消費里程碑", ref y);
+            navTip.SetToolTip(btnCostMilestone2, "查詢玩家累積金幣消費進度，手動發放里程碑獎勵");
             btnCostMilestone2.Click += (s, e) =>
             {
                 SetActiveNav(btnCostMilestone2);
@@ -156,6 +164,7 @@ namespace SQ_Email_Tools
             };
 
             var btnBan = MakeNavBtn("🔒", "封號管理", ref y);
+            navTip.SetToolTip(btnBan, "搜尋玩家後快速封禁，或查看全服封禁名單、解封");
             btnBan.Click += (s, e) =>
             {
                 SetActiveNav(btnBan);
@@ -163,7 +172,17 @@ namespace SQ_Email_Tools
                 SwitchToHub(new BanForm());
             };
 
+            var btnOnline = MakeNavBtn("🟢", "線上玩家", ref y);
+            navTip.SetToolTip(btnOnline, "即時顯示目前在線玩家名單，每 30 秒自動刷新");
+            btnOnline.Click += (s, e) =>
+            {
+                SetActiveNav(btnOnline);
+                if (!CheckConnected()) return;
+                SwitchToHub(new OnlineMonitorForm());
+            };
+
             var btnPlayerHistNav = MakeNavBtn("🔍", "活動歷程", ref y);
+            navTip.SetToolTip(btnPlayerHistNav, "查詢單一玩家的交易、攤位、商店、加速、消費歷史記錄");
             btnPlayerHistNav.Click += (s, e) =>
             {
                 SetActiveNav(btnPlayerHistNav);
@@ -173,23 +192,11 @@ namespace SQ_Email_Tools
 
             AddSideGap(ref y);
 
-            // ══ 監控管理 ══
-            AddSectionLabel("監控管理", ref y);
+            // ══ GM 工具 ══
+            AddSectionLabel("GM 工具", ref y);
 
-            var btnOnline = MakeNavBtn("🟢", "線上玩家", ref y);
-            btnOnline.Click += (s, e) =>
-            {
-                SetActiveNav(btnOnline);
-                if (!CheckConnected()) return;
-                SwitchToHub(new OnlineMonitorForm());
-            };
-
-            AddSideGap(ref y);
-
-            // ══ GM 操作 ══
-            AddSectionLabel("GM 操作", ref y);
-
-            var btnBatchOps = MakeNavBtn("📨", "郵件操作", ref y);
+            var btnBatchOps = MakeNavBtn("📦", "批量工具", ref y);
+            navTip.SetToolTip(btnBatchOps, "道具給予（單人）/ 批量發送（全服）/ 維護工具 — 三個功能合一");
             btnBatchOps.Click += (s, e) =>
             {
                 SetActiveNav(btnBatchOps);
@@ -197,7 +204,8 @@ namespace SQ_Email_Tools
                 SwitchToHub(new BatchOpsHubForm());
             };
 
-            var btnBatchSend = MakeNavBtn("📢", "批量全服發送", ref y);
+            var btnBatchSend = MakeNavBtn("📢", "全服批量發送", ref y);
+            navTip.SetToolTip(btnBatchSend, "一次發送道具給全服所有玩家或僅在線玩家");
             btnBatchSend.Click += (s, e) =>
             {
                 SetActiveNav(btnBatchSend);
@@ -206,6 +214,7 @@ namespace SQ_Email_Tools
             };
 
             var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
+            navTip.SetToolTip(btnBatchGold, "對多位玩家同時加減金幣，支援全服、在線、自訂");
             btnBatchGold.Click += (s, e) =>
             {
                 SetActiveNav(btnBatchGold);
@@ -214,6 +223,7 @@ namespace SQ_Email_Tools
             };
 
             var btnGmPet = MakeNavBtn("🐾", "GM 寵物指令", ref y);
+            navTip.SetToolTip(btnGmPet, "產生 petmake / petmakeabi GM 指令，複製後貼到遊戲後台執行");
             btnGmPet.Click += (s, e) =>
             {
                 SetActiveNav(btnGmPet);
@@ -221,9 +231,8 @@ namespace SQ_Email_Tools
                 SwitchToHub(new GmPetForm());
             };
 
-            // 清除郵件已整合至「郵件操作」的「維護工具」Tab
-
             var btnSpeedHack = MakeNavBtn("⚡", "加速外掛封禁", ref y);
+            navTip.SetToolTip(btnSpeedHack, "分析移動速度異常玩家，批量封號");
             btnSpeedHack.Click += (s, e) =>
             {
                 SetActiveNav(btnSpeedHack);
@@ -233,55 +242,11 @@ namespace SQ_Email_Tools
 
             AddSideGap(ref y);
 
-            // ══ 紀錄查詢 ══
-            AddSectionLabel("紀錄查詢", ref y);
-
-            var btnRechargeHist = MakeNavBtn("💳", "充值記錄", ref y);
-            btnRechargeHist.Click += (s, e) =>
-            {
-                SetActiveNav(btnRechargeHist);
-                if (!CheckConnected()) return;
-                SwitchToHub(new RechargeHistoryForm());
-            };
-
-            var btnTradeLog = MakeNavBtn("📊", "交易記錄", ref y);
-            btnTradeLog.Click += (s, e) =>
-            {
-                SetActiveNav(btnTradeLog);
-                if (!CheckConnected()) return;
-                SwitchToHub(new TradeLogForm());
-            };
-
-            var btnGoldLog = MakeNavBtn("💎", "金幣日誌", ref y);
-            btnGoldLog.Click += (s, e) =>
-            {
-                SetActiveNav(btnGoldLog);
-                if (!CheckConnected()) return;
-                SwitchToHub(new GoldLogForm());
-            };
-
-            var btnMailHist = MakeNavBtn("📧", "郵件記錄", ref y);
-            btnMailHist.Click += (s, e) =>
-            {
-                SetActiveNav(btnMailHist);
-                if (!CheckConnected()) return;
-                SwitchToHub(new MailHistoryForm());
-            };
-
-            var btnStreetShop = MakeNavBtn("🏪", "攤位 & 市場", ref y);
-            btnStreetShop.Click += (s, e) =>
-            {
-                SetActiveNav(btnStreetShop);
-                if (!CheckConnected()) return;
-                SwitchToHub(new StreetShopForm());
-            };
-
-            AddSideGap(ref y);
-
-            // ══ 數據分析 ══
-            AddSectionLabel("數據分析", ref y);
+            // ══ 紀錄 / 分析（原「紀錄查詢」+ 原「數據分析」合併）══
+            AddSectionLabel("紀錄 / 分析", ref y);
 
             var btnServerStatus = MakeNavBtn("🖥", "伺服器狀態", ref y);
+            navTip.SetToolTip(btnServerStatus, "各分流在線人數、主帳號統計、最新註冊名單");
             btnServerStatus.Click += (s, e) =>
             {
                 SetActiveNav(btnServerStatus);
@@ -290,6 +255,7 @@ namespace SQ_Email_Tools
             };
 
             var btnDashboard = MakeNavBtn("📊", "統計面板", ref y);
+            navTip.SetToolTip(btnDashboard, "總玩家數、在線、封號、今日新增、全服金幣水晶等統計");
             btnDashboard.Click += (s, e) =>
             {
                 SetActiveNav(btnDashboard);
@@ -297,7 +263,53 @@ namespace SQ_Email_Tools
                 SwitchToHub(new DashboardForm());
             };
 
+            var btnRechargeHist = MakeNavBtn("💳", "充值記錄", ref y);
+            navTip.SetToolTip(btnRechargeHist, "查詢全服充值訂單記錄");
+            btnRechargeHist.Click += (s, e) =>
+            {
+                SetActiveNav(btnRechargeHist);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RechargeHistoryForm());
+            };
+
+            var btnTradeLog = MakeNavBtn("📊", "交易記錄", ref y);
+            navTip.SetToolTip(btnTradeLog, "查詢玩家間的物品交易歷史");
+            btnTradeLog.Click += (s, e) =>
+            {
+                SetActiveNav(btnTradeLog);
+                if (!CheckConnected()) return;
+                SwitchToHub(new TradeLogForm());
+            };
+
+            var btnGoldLog = MakeNavBtn("💎", "金幣日誌", ref y);
+            navTip.SetToolTip(btnGoldLog, "查詢金幣異動記錄（GM給予、消費、交易等）");
+            btnGoldLog.Click += (s, e) =>
+            {
+                SetActiveNav(btnGoldLog);
+                if (!CheckConnected()) return;
+                SwitchToHub(new GoldLogForm());
+            };
+
+            var btnMailHist = MakeNavBtn("📧", "郵件記錄", ref y);
+            navTip.SetToolTip(btnMailHist, "查詢郵件發送記錄");
+            btnMailHist.Click += (s, e) =>
+            {
+                SetActiveNav(btnMailHist);
+                if (!CheckConnected()) return;
+                SwitchToHub(new MailHistoryForm());
+            };
+
+            var btnStreetShop = MakeNavBtn("🏪", "攤位 & 市場", ref y);
+            navTip.SetToolTip(btnStreetShop, "查詢攤位商城上架物品，或根據道具 ID 反查持有者");
+            btnStreetShop.Click += (s, e) =>
+            {
+                SetActiveNav(btnStreetShop);
+                if (!CheckConnected()) return;
+                SwitchToHub(new StreetShopForm());
+            };
+
             var btnPlayerAnal = MakeNavBtn("👥", "玩家活躍分析", ref y);
+            navTip.SetToolTip(btnPlayerAnal, "每小時/每週在線分佈、人數成長趨勢圖");
             btnPlayerAnal.Click += (s, e) =>
             {
                 SetActiveNav(btnPlayerAnal);
@@ -306,6 +318,7 @@ namespace SQ_Email_Tools
             };
 
             var btnRechargeAnal = MakeNavBtn("💳", "儲值趨勢", ref y);
+            navTip.SetToolTip(btnRechargeAnal, "儲值日/月統計、套餐分佈、首充分析");
             btnRechargeAnal.Click += (s, e) =>
             {
                 SetActiveNav(btnRechargeAnal);
@@ -314,6 +327,7 @@ namespace SQ_Email_Tools
             };
 
             var btnTradeAudit = MakeNavBtn("🔍", "交易稽核", ref y);
+            navTip.SetToolTip(btnTradeAudit, "偵測可疑交易行為：同IP交易、大量金幣異動、交易對分析");
             btnTradeAudit.Click += (s, e) =>
             {
                 SetActiveNav(btnTradeAudit);
@@ -322,6 +336,7 @@ namespace SQ_Email_Tools
             };
 
             var btnShopStats = MakeNavBtn("🏪", "商城分析", ref y);
+            navTip.SetToolTip(btnShopStats, "商城銷售統計與道具購買排行");
             btnShopStats.Click += (s, e) =>
             {
                 SetActiveNav(btnShopStats);
@@ -335,6 +350,7 @@ namespace SQ_Email_Tools
             AddSectionLabel("系統管理", ref y);
 
             var btnGmLog = MakeNavBtn("📋", "GM 操作日誌", ref y);
+            navTip.SetToolTip(btnGmLog, "查看所有 GM 帳號的操作記錄");
             btnGmLog.Click += (s, e) =>
             {
                 SetActiveNav(btnGmLog);
@@ -342,6 +358,7 @@ namespace SQ_Email_Tools
             };
 
             var btnGmPerm = MakeNavBtn("🛡", "GM 權限管理", ref y);
+            navTip.SetToolTip(btnGmPerm, "設定各 GM 帳號的功能存取權限");
             btnGmPerm.Click += (s, e) =>
             {
                 SetActiveNav(btnGmPerm);
@@ -349,6 +366,7 @@ namespace SQ_Email_Tools
             };
 
             var btnSql = MakeNavBtn("💻", "SQL 查詢", ref y);
+            navTip.SetToolTip(btnSql, "執行唯讀 SQL（SELECT / SHOW / DESCRIBE），不能修改資料");
             btnSql.Click += (s, e) =>
             {
                 SetActiveNav(btnSql);
@@ -356,6 +374,7 @@ namespace SQ_Email_Tools
             };
 
             var btnGmAdmin = MakeNavBtn("🔑", "工具帳號", ref y);
+            navTip.SetToolTip(btnGmAdmin, "新增或停用 GM 工具帳號、重設密碼");
             btnGmAdmin.Click += (s, e) =>
             {
                 SetActiveNav(btnGmAdmin);
@@ -363,6 +382,7 @@ namespace SQ_Email_Tools
             };
 
             var btnRecycle = MakeNavBtn("🗑", "角色回收桶", ref y);
+            navTip.SetToolTip(btnRecycle, "查看被刪除的角色，可一鍵還原");
             btnRecycle.Click += (s, e) =>
             {
                 SetActiveNav(btnRecycle);
@@ -370,6 +390,7 @@ namespace SQ_Email_Tools
             };
 
             var btnBackup = MakeNavBtn("💾", "備份還原", ref y);
+            navTip.SetToolTip(btnBackup, "立即備份資料庫，或從備份檔案還原");
             btnBackup.Click += (s, e) =>
             {
                 SetActiveNav(btnBackup);
@@ -379,11 +400,11 @@ namespace SQ_Email_Tools
             // 明確告知 AutoScroll 可捲動總高度（避免捲軸範圍計算錯誤）
             _navPanel.AutoScrollMinSize = new Size(0, y + 16);
 
-            // ── 底部：連線狀態（固定底部，96px）────────────────────
+            // ── 底部：連線狀態（固定底部，106px）────────────────────
             var bottomPanel = new Panel
             {
                 Dock      = DockStyle.Bottom,
-                Height    = 96,
+                Height    = 106,
                 BackColor = Theme.BgSidebar
             };
             bottomPanel.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Theme.Border });
@@ -392,7 +413,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "●",
                 ForeColor = Theme.AccentOrange,
-                Font      = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
+                Font      = Theme.FontNavBold,
                 AutoSize  = true,
                 Location  = new Point(16, 14)
             };
@@ -415,8 +436,8 @@ namespace SQ_Email_Tools
 
             var btnConnect  = MakeBottomBtn("🔗  連接資料庫");
             var btnSettings = MakeBottomBtn("⚙  資料設定");
-            btnConnect.Location  = new Point(12, 56);
-            btnSettings.Location = new Point(12, 74);
+            btnConnect.Location  = new Point(12, 58);
+            btnSettings.Location = new Point(12, 82);
             btnConnect.Click  += BtnConnect_Click;
             btnSettings.Click += (s, e) => new SettingsDialog().ShowDialog(this);
 
@@ -450,7 +471,7 @@ namespace SQ_Email_Tools
             {
                 Text      = title.ToUpper(),
                 ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Font      = Theme.FontSection,
                 AutoSize  = true,
                 Location  = new Point(18, y)
             });
@@ -487,9 +508,7 @@ namespace SQ_Email_Tools
                 BackColor = isDefault ? bgAct : bgNorm,
                 ForeColor = isDefault ? fgAct : fgNorm,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Font      = isDefault
-                    ? new Font(Theme.FontFamily, 10f, FontStyle.Bold)
-                    : new Font(Theme.FontFamily, 10f),
+                Font      = isDefault ? Theme.FontNavBold : Theme.FontNav,
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
             };
@@ -521,7 +540,7 @@ namespace SQ_Email_Tools
             var btn = new Button
             {
                 Text      = text,
-                Size      = new Size(192, 17),
+                Size      = new Size(192, 22),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 ForeColor = Theme.TextSecondary,
@@ -531,7 +550,7 @@ namespace SQ_Email_Tools
                 UseVisualStyleBackColor = false
             };
             btn.FlatAppearance.BorderSize         = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb( 42,  44,  58);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(42, 44, 58);
             return btn;
         }
 
@@ -552,13 +571,13 @@ namespace SQ_Email_Tools
                     _activeNav.BackColor = Theme.BgSidebar;
                     _activeNav.ForeColor = Theme.TextSecondary;
                 }
-                _activeNav.Font = new Font(Theme.FontFamily, 10f);
+                _activeNav.Font = Theme.FontNav;
                 if (_activeNav.Tag is Panel oldInd) oldInd.BackColor = Color.Transparent;
             }
 
             btn.BackColor = Color.FromArgb( 0,  70, 140);
             btn.ForeColor = Color.FromArgb(140, 200, 255);
-            btn.Font      = new Font(Theme.FontFamily, 10f, FontStyle.Bold);
+            btn.Font      = Theme.FontNavBold;
             if (btn.Tag is Panel ind) ind.BackColor = Theme.AccentBlue;
 
             _activeNav = btn;
@@ -570,7 +589,8 @@ namespace SQ_Email_Tools
             var r = MessageBox.Show("尚未連接資料庫，是否立即連接？", "未連接",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (r == DialogResult.Yes) BtnConnect_Click(null, null);
-            return false;
+            // 連接後回傳最新狀態，避免使用者需要點兩次
+            return DatabaseManager.Instance.IsConnected;
         }
 
         // ══════════════════════════════════════════════════════════
@@ -641,7 +661,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "👥  玩家管理",
                 ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 14f, FontStyle.Bold),
+                Font      = Theme.FontPageTitle,
                 AutoSize  = true,
                 Location  = new Point(20, 14)
             });
@@ -864,17 +884,16 @@ namespace SQ_Email_Tools
                     e.CellStyle.ForeColor = p.IsOnline ? Theme.AccentGreen
                         : p.IsBanned ? Theme.AccentRed
                         : Theme.TextMuted;
-                    e.CellStyle.Font = new Font(Theme.FontFamily, 9f,
-                        p.IsOnline ? FontStyle.Bold : FontStyle.Regular);
-                    e.FormattingApplied = true;
+                    e.CellStyle.Font        = p.IsOnline ? Theme.FontCell9Bold : Theme.FontCell9;
+                    e.FormattingApplied     = true;
                 }
                 if (col == "colVip" && p.PayTotal >= VipHelper.GoldThreshold)
                 {
                     e.CellStyle.ForeColor = p.PayTotal >= VipHelper.DiamondThreshold
                         ? Color.FromArgb(100, 180, 255)   // 鑽石藍
                         : Color.FromArgb(255, 200, 60);   // 黃金黃
-                    e.CellStyle.Font = new Font(Theme.FontFamily, 11f);
-                    e.FormattingApplied = true;
+                    e.CellStyle.Font        = Theme.FontCell11;
+                    e.FormattingApplied     = true;
                 }
                 if (col == "colPay" && p.PayTotal > 0)
                 {
@@ -892,7 +911,7 @@ namespace SQ_Email_Tools
                     e.FormattingApplied   = true;
                 }
                 if (p.IsBanned)
-                    e.CellStyle.BackColor = Color.FromArgb(255, 235, 234); // Apple 淡紅底
+                    e.CellStyle.BackColor = Color.FromArgb(80, 18, 18); // 深色紅底（封禁警示）
             };
 
             _dgv.Paint += (s, e) =>
@@ -928,7 +947,7 @@ namespace SQ_Email_Tools
                     ForeColor           = Color.White,
                     SelectionBackColor  = bg,
                     SelectionForeColor  = Color.White,
-                    Font                = new Font(Theme.FontFamily, 9.5f),
+                    Font                = Theme.FontCell95,
                     Alignment           = DataGridViewContentAlignment.MiddleCenter
                 }
             });

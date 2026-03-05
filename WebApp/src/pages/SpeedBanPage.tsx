@@ -92,14 +92,18 @@ export default function SpeedBanPage() {
 
   return (
     <div style={{ padding: isMobile ? 12 : 28 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>⚡ 加速外掛偵測</h1>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.8 }}>
-        <p style={{ margin: 0 }}>根據遊戲引擎寫入的 <code style={{ background: 'var(--bg-input)', padding: '1px 5px', borderRadius: 3 }}>speedlog</code> 表統計各玩家資料，可一鍵批量封禁。</p>
-        <p style={{ margin: '4px 0 0', fontSize: 12 }}>
-          📌 <b>speedcnt</b>（異常總次數）= 引擎偵測到玩家移動速度超標的累計次數。
-          ｜ <b>speedtime</b>（異常持續量）= 每次異常持續的 Tick 數，越大代表加速外掛使用越久。
-          ｜ 紀錄筆數 = speedlog 中該玩家的資料列數（每次登入/移動可能產生多筆）。
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0,
+          background: 'linear-gradient(135deg,#f87171,#fb923c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          ⚡ 加速外掛封禁
+        </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '4px 0 8px' }}>
+          分析移動速度異常玩家，勾選後一鍵批量封號
         </p>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', lineHeight: 1.7 }}>
+          📌 <b style={{ color: 'var(--text-secondary)' }}>異常次數（speedcnt）</b>：引擎偵測到速度超標的累計次數，次數越高代表使用越頻繁。
+          ｜ <b style={{ color: 'var(--text-secondary)' }}>持續量（speedtime）</b>：每次超速持續的 Tick 數，越大代表使用時間越長。
+        </div>
       </div>
 
       {/* 搜尋列 */}
@@ -140,7 +144,7 @@ export default function SpeedBanPage() {
 
       {list.length > 0 && (
         <>
-          {/* 批量操作工具列 */}
+          {/* 批量封禁工具列 */}
           <div style={{
             display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
             padding: '10px 14px', background: 'var(--bg-card)', border: '1px solid var(--border)',

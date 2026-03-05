@@ -89,7 +89,7 @@ export default function ItemSearchPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {items.length === 0
             ? <div style={{ padding: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                請先至「批量操作」頁面<br />上傳 items.xlsx 建立清單
+                請先至「批量工具」頁面<br />上傳 items.xlsx 建立清單
               </div>
             : filteredItems.slice(0, 500).map(item => {
                 const isSel = selectedItem?.id === item.id && selectedItem?.isPet === item.isPet

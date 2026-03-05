@@ -49,11 +49,25 @@ namespace SQ_Email_Tools
         public static readonly Color TextMuted     = Color.FromArgb(130, 135, 158); // 提示文字
 
         // ── 字體 ────────────────────────────────────────────────
-        public static readonly Font FontTitle  = new Font(_ff, 15f,  FontStyle.Bold);
-        public static readonly Font FontHeader = new Font(_ff, 11f,  FontStyle.Bold);
-        public static readonly Font FontBody   = new Font(_ff, 10.5f);
-        public static readonly Font FontSmall  = new Font(_ff,  9.5f);
-        public static readonly Font FontMono   = new Font("Consolas", 10f);
+        public static readonly Font FontTitle      = new Font(_ff, 15f,  FontStyle.Bold);
+        public static readonly Font FontHeader     = new Font(_ff, 11f,  FontStyle.Bold);
+        public static readonly Font FontBody       = new Font(_ff, 10.5f);
+        public static readonly Font FontSmall      = new Font(_ff,  9.5f);
+        public static readonly Font FontMono       = new Font("Consolas", 10f);
+        // 側邊欄 & 頁面標題共享字體（節省 GDI Font handle）
+        public static readonly Font FontNav        = new Font(_ff, 10f);
+        public static readonly Font FontNavBold    = new Font(_ff, 10f, FontStyle.Bold);
+        public static readonly Font FontSection    = new Font(_ff, 8.5f, FontStyle.Bold);
+        public static readonly Font FontLogo       = new Font(_ff, 12f, FontStyle.Bold);
+        public static readonly Font FontPageTitle  = new Font(_ff, 14f, FontStyle.Bold);
+        // CellFormatting & 迴圈中的共享字體（頻繁呼叫，必須共享避免 GDI 洩漏）
+        public static readonly Font FontCell9Bold  = new Font(_ff,  9f, FontStyle.Bold);
+        public static readonly Font FontCell9      = new Font(_ff,  9f);
+        public static readonly Font FontCell95     = new Font(_ff,  9.5f);
+        public static readonly Font FontCell11     = new Font(_ff, 11f);
+        public static readonly Font FontSmallBold  = new Font(_ff,  8.5f, FontStyle.Bold);
+        public static readonly Font FontXSmall    = new Font(_ff,  8.5f);
+        public static readonly Font FontTiny       = new Font(_ff,  7.5f);
 
         // ── 基本控制項工廠 ──────────────────────────────────────
 
@@ -80,9 +94,9 @@ namespace SQ_Email_Tools
         public static Button MakePrimaryButton(string text, int w = 110, int h = 32)
             => MakeButton(text, AccentBlue, Color.White, w, h);
 
-        /// <summary>Apple 風格次要按鈕（淺灰底深字）</summary>
+        /// <summary>次要按鈕（深色背景白字，與深色主題一致）</summary>
         public static Button MakeSecondaryButton(string text, int w = 110, int h = 32)
-            => MakeButton(text, Color.FromArgb(218, 218, 223), TextPrimary, w, h);
+            => MakeButton(text, Color.FromArgb(55, 60, 85), TextPrimary, w, h);
 
         public static TextBox MakeTextBox(int w = 200)
         {
@@ -107,9 +121,14 @@ namespace SQ_Email_Tools
             };
         }
 
+        // 每個 DGV 對應一個 ToolTip（在 DGV Dispose 時同步 Dispose，避免 ObjectDisposedException）
+
         // ── DataGridView 深色樣式 ────────────────────────────────
         public static void StyleDataGridView(DataGridView dgv)
         {
+            // 每個 DGV 一個 ToolTip，跟 DGV 生命週期綁定，避免共享 ToolTip 在 DGV 已 Dispose 後仍嘗試 Hide()
+            var copyTip = new ToolTip { InitialDelay = 0, ReshowDelay = 0, AutoPopDelay = 1400 };
+            dgv.Disposed += (s, e) => { try { copyTip.Dispose(); } catch { } };
             // 欄位加入時自動啟用「點標題排序」（僅文字欄，按鈕欄不影響）
             dgv.ColumnAdded += (s, e) =>
             {
@@ -143,7 +162,7 @@ namespace SQ_Email_Tools
                 RenderMode = ToolStripRenderMode.System
             };
             var copyCell = new ToolStripMenuItem("📋  複製此格內容");
-            copyCell.Font = new Font(_ff, 9f);
+            copyCell.Font = FontSmall;
             copyCell.Click += (s, e) =>
             {
                 if (dgv.CurrentCell?.Value is string sv && sv.Length > 0)
@@ -152,7 +171,7 @@ namespace SQ_Email_Tools
                     Clipboard.SetText(dgv.CurrentCell.Value.ToString() ?? "");
             };
             var copyRow = new ToolStripMenuItem("📄  複製整列（Tab 分隔）");
-            copyRow.Font = new Font(_ff, 9f);
+            copyRow.Font = FontSmall;
             copyRow.Click += (s, e) =>
             {
                 if (dgv.CurrentRow == null) return;
@@ -186,11 +205,15 @@ namespace SQ_Email_Tools
                 string text = cell.Value?.ToString() ?? "";
                 if (string.IsNullOrEmpty(text)) return;
                 Clipboard.SetText(text);
-                // 短暫顯示複製提示
-                var tip = new ToolTip { InitialDelay = 0, ReshowDelay = 0, AutoPopDelay = 1400 };
-                var pt  = dgv.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true);
-                tip.Show($"✓ 已複製：{(text.Length > 30 ? text[..30] + "…" : text)}",
-                    dgv, pt.X, pt.Y - 22, 1400);
+                // 短暫顯示複製提示（使用與 DGV 生命週期綁定的 ToolTip）
+                if (dgv.IsDisposed) return;
+                try
+                {
+                    var pt = dgv.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true);
+                    copyTip.Show($"✓ 已複製：{(text.Length > 30 ? text[..30] + "…" : text)}",
+                        dgv, pt.X, pt.Y - 22, 1400);
+                }
+                catch (ObjectDisposedException) { }
             };
 
             // 資料列（偶數列用 BgCard）
@@ -209,7 +232,7 @@ namespace SQ_Email_Tools
             // 欄位標題列（更深，與資料列形成明顯邊界）
             dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(18, 20, 30);
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(200, 210, 240);
-            dgv.ColumnHeadersDefaultCellStyle.Font      = new Font(_ff, 9.5f, FontStyle.Bold);
+            dgv.ColumnHeadersDefaultCellStyle.Font      = FontSmall;
             dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
             dgv.ColumnHeadersHeight                     = 38;
             dgv.RowTemplate.Height                      = 36;
@@ -368,7 +391,7 @@ namespace SQ_Email_Tools
                 var hdr = new ToolStripLabel("  📋  郵件範本")
                 {
                     ForeColor = AccentBlue,
-                    Font      = new Font(FontFamily, 9f, FontStyle.Bold)
+                    Font      = FontSection
                 };
                 menu.Items.Add(hdr);
                 menu.Items.Add(new ToolStripSeparator());

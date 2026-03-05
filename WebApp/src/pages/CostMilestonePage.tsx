@@ -207,7 +207,7 @@ function BatchView() {
         }}>{msg}</div>
       )}
 
-      {/* 批量操作列 */}
+      {/* 批量重置列 */}
       <div style={{
         display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
         padding: '12px 16px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
@@ -432,12 +432,15 @@ export default function CostMilestonePage() {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
-        💸 消費達成獎勵
-      </h1>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
-        管理玩家的消費里程碑進度（costdata），里程碑：3,000 / 5,000 / 10,000 / 50,000 / 100,000 金幣
-      </p>
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0,
+          background: 'linear-gradient(135deg,#fbbf24,#fb923c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          🏆 消費里程碑獎勵
+        </h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '4px 0 0' }}>
+          查詢玩家累積金幣消費進度，手動發放里程碑獎勵 · 里程碑門檻：3,000 / 5,000 / 10,000 / 50,000 / 100,000 金幣
+        </p>
+      </div>
 
       {/* Tab 切換 */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 22, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>

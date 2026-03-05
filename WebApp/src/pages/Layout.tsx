@@ -2,59 +2,55 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { S } from '../strings'
 
-type NavItem = { to: string; icon: string; label: string }
+type NavItem = { to: string; icon: string; label: string; title?: string }
 type NavGroup = { label: string; items: NavItem[] }
 
 const navGroups: NavGroup[] = [
   {
     label: '玩家管理',
     items: [
-      { to: '/players', icon: '👥', label: '玩家管理' },
-      { to: '/master',  icon: '👑', label: S.navMaster },
-      { to: '/vip',     icon: '💎', label: S.navVip },
+      { to: '/players', icon: '👥', label: '玩家管理',       title: '搜尋玩家・查看詳情・封禁・改名・發道具・調金幣' },
+      { to: '/master',  icon: '👑', label: S.navMaster,      title: '以主帳號查詢旗下所有子角色，並可分帳充值' },
+      { to: '/vip',     icon: '💎', label: S.navVip,         title: '查看黃金 VIP / 鑽石 VIP 玩家名單' },
+      { to: '/cost-milestone', icon: '🏆', label: '消費里程碑', title: '查詢玩家累積消費進度，手動發放里程碑獎勵' },
     ]
   },
   {
     label: '紀錄查詢',
     items: [
-      { to: '/history', icon: '🔍', label: '玩家活動歷程' },
-      { to: '/market',  icon: '🏪', label: '市場查詢' },
-      { to: '/records', icon: '📋', label: '全服紀錄' },
+      { to: '/history', icon: '🔍', label: '玩家活動歷程', title: '查詢單一玩家的交易、攤位、商店、消費等歷史紀錄' },
+      { to: '/market',  icon: '🏪', label: '市場查詢',     title: '查詢攤位/商城上架商品，或根據道具 ID 反查持有者' },
+      { to: '/records', icon: '📋', label: '全服記錄',     title: '全伺服器充值、交易、金幣異動、郵件紀錄查詢' },
     ]
   },
   {
     label: 'GM 工具',
     items: [
-      { to: '/batchops', icon: '⚙️', label: '批量操作' },
-      { to: '/speedban', icon: '⚡', label: '加速外掛封禁' },
-      { to: '/petcmd',   icon: '🐾', label: S.navPetCmd },
-      { to: '/recycle',  icon: '🗑', label: S.navRecycle },
-      { to: '/sql',      icon: '💻', label: S.navSql },
-      { to: '/gmadmin',  icon: '🔑', label: S.navGmAdmin },
+      { to: '/batchops', icon: '📦', label: '批量工具',     title: '批量發送道具、金幣、或全服廣播郵件' },
+      { to: '/speedban', icon: '⚡', label: '加速外掛封禁', title: '分析加速行為異常玩家，批量封號' },
+      { to: '/petcmd',   icon: '🐾', label: S.navPetCmd,    title: '產生 GM 寵物製作指令（petmake / petmakeabi）' },
+      { to: '/recycle',  icon: '🗑', label: S.navRecycle,   title: '查看並還原被刪除的角色' },
+      { to: '/sql',      icon: '💻', label: S.navSql,       title: '執行唯讀 SQL 查詢（SELECT / SHOW / DESCRIBE）' },
     ]
   },
   {
-    label: '數據分析',
+    label: '監控 / 分析',
     items: [
-      { to: '/server-status',  icon: '🖥', label: '伺服器狀態'   },
-      { to: '/analytics',      icon: '📈', label: '數據分析'     },
+      { to: '/server-status', icon: '🖥', label: '伺服器狀態', title: '各分流在線人數、主帳號統計、最新註冊名單' },
+      { to: '/analytics',     icon: '📈', label: '數據分析',   title: '儀表板・商城分析・玩家活躍度・儲值趨勢・交易稽核' },
     ]
   },
   {
-    label: '獎勵管理',
+    label: '系統管理',
     items: [
-      { to: '/cost-milestone', icon: '💸', label: '消費達成獎勵' },
-    ]
-  },
-  {
-    label: '系統',
-    items: [
-      { to: '/system', icon: '⚙️', label: '系統管理' },
+      { to: '/gmadmin', icon: '🔑', label: S.navGmAdmin, title: '新增或停用 GM 工具帳號、重設密碼' },
+      { to: '/system',  icon: '⚙️', label: '系統設定',   title: 'GM 操作日誌・GM 權限管理・資料庫備份還原' },
     ]
   },
 ]
 
-const RECHARGE_NAV = { to: '/recharge', icon: '💳', label: '充值管理' }
+const HOME_NAV     = { to: '/',         icon: '🏠', label: '首頁',   title: '統計面板・伺服器概覽・常用快捷入口' }
+const RECHARGE_NAV = { to: '/recharge', icon: '💳', label: '充值管理', title: '手動補單・累積儲值進度・匯率試算・充值記錄' }
 
 export default function Layout() {
   const nav = useNavigate()
@@ -116,9 +112,18 @@ export default function Layout() {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-        {/* 充值 — 置頂醒目 */}
-        <div style={{ margin: '4px 0 12px' }}>
-          <NavLink to={RECHARGE_NAV.to} style={({ isActive }) => ({
+        {/* 首頁 + 充值 — 置頂醒目 */}
+        <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <NavLink to={HOME_NAV.to} end title={HOME_NAV.title} style={({ isActive }) => ({
+            ...navLinkStyle(isActive),
+            background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
+            color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            fontWeight: isActive ? 700 : 500,
+          })}>
+            <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>{HOME_NAV.icon}</span>
+            <span>{HOME_NAV.label}</span>
+          </NavLink>
+          <NavLink to={RECHARGE_NAV.to} title={RECHARGE_NAV.title} style={({ isActive }) => ({
             ...navLinkStyle(isActive),
             background: isActive
               ? 'linear-gradient(90deg,rgba(74,222,128,.35),rgba(74,222,128,.15))'
@@ -128,7 +133,7 @@ export default function Layout() {
             fontWeight: 700,
             boxShadow: isActive ? '0 0 10px rgba(74,222,128,.15)' : 'none',
           })}>
-            <span style={{ fontSize: 18 }}>{RECHARGE_NAV.icon}</span>
+            <span style={{ fontSize: 18, width: 20, textAlign: 'center', flexShrink: 0 }}>{RECHARGE_NAV.icon}</span>
             <span>{RECHARGE_NAV.label}</span>
           </NavLink>
         </div>
@@ -139,7 +144,7 @@ export default function Layout() {
               {g.label}
             </div>
             {g.items.map(n => (
-              <NavLink key={n.to} to={n.to} end={n.to === '/'} style={({ isActive }) => navLinkStyle(isActive)}>
+              <NavLink key={n.to} to={n.to} end={n.to === '/'} title={n.title} style={({ isActive }) => navLinkStyle(isActive)}>
                 <span style={{ width: 20, textAlign: 'center', fontSize: 16, flexShrink: 0 }}>{n.icon}</span>
                 <span>{n.label}</span>
               </NavLink>
@@ -205,10 +210,19 @@ export default function Layout() {
           </div>
 
           <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-            {/* 充值 */}
-            <div style={{ margin: '4px 0 12px' }}>
+            {/* 首頁 + 充值 */}
+            <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <NavLink to={HOME_NAV.to} end style={({ isActive }) => ({
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '13px 14px', borderRadius: 8, fontSize: 15, fontWeight: isActive ? 700 : 500, textDecoration: 'none',
+                background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
+                color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              })}>
+                <span style={{ fontSize: 20 }}>{HOME_NAV.icon}</span>
+                {HOME_NAV.label}
+              </NavLink>
               <NavLink to={RECHARGE_NAV.to} style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 10,
+                display: 'flex', alignItems: 'center', gap: 12,
                 padding: '13px 14px', borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: 'none',
                 background: isActive ? 'linear-gradient(90deg,rgba(74,222,128,.35),rgba(74,222,128,.15))' : 'linear-gradient(90deg,rgba(74,222,128,.18),rgba(74,222,128,.06))',
                 color: isActive ? '#4ade80' : '#86efac',

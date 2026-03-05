@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "QKXHPVAkoE2YPaoJFvFAtB9tqOaK52gKHSY+e7TYR8fLW8g5lyJZLMacAoEWRHQCjygObYy0gP++TcEv0r3mWg==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\mysho\\Downloads\\SODAGMTOOL\\TempCheck\\TempCheck.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mysho\\.nuget\\packages\\microsoft.extensions.logging.abstractions\\7.0.1\\microsoft.extensions.logging.abstractions.7.0.1.nupkg.sha512",
+    "C:\\Users\\mysho\\.nuget\\packages\\mysqlconnector\\2.3.7\\mysqlconnector.2.3.7.nupkg.sha512",
+    "C:\\Users\\mysho\\.nuget\\packages\\system.diagnostics.diagnosticsource\\7.0.2\\system.diagnostics.diagnosticsource.7.0.2.nupkg.sha512",
+    "C:\\Users\\mysho\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

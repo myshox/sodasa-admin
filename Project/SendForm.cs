@@ -106,7 +106,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "搜尋收件人：",
                 ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 8.5f),
+                Font      = Theme.FontXSmall,
                 Left = 12, Top = 18, AutoSize = true
             });
 
@@ -122,7 +122,7 @@ namespace SQ_Email_Tools
 
             // 搜尋按鈕
             var btnAdd = Theme.MakeButton("🔍 搜尋加入", Color.FromArgb(0, 60, 120), Color.FromArgb(100, 200, 255), 100, 28);
-            btnAdd.Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+            btnAdd.Font = Theme.FontSmallBold;
             btnAdd.Left = 428; btnAdd.Top = 13;
             _recipientsHdr.Controls.Add(btnAdd);
 
@@ -133,7 +133,7 @@ namespace SQ_Email_Tools
             _recipientsHdr.Controls.Add(new Label
             {
                 Text = "收件人：", ForeColor = Theme.TextMuted,
-                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Font = Theme.FontSmallBold,
                 Left = 548, Top = 18, AutoSize = true
             });
 
@@ -186,7 +186,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "STEP 1 — 輸入名稱、編號或說明關鍵字搜尋，或直接翻頁瀏覽",
                 ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 8.5f),
+                Font      = Theme.FontXSmall,
                 AutoSize  = true,
                 Location  = new Point(12, 4)
             });
@@ -205,7 +205,7 @@ namespace SQ_Email_Tools
                 BackColor       = Theme.BgPage,
                 ForeColor       = Theme.TextPrimary,
                 BorderStyle     = BorderStyle.FixedSingle,
-                Font            = new Font(Theme.FontFamily, 11f),
+                Font            = Theme.FontCell11,
                 PlaceholderText = "道具名稱 / 編號 / 說明關鍵字",
                 Location        = new Point(42, 22),
                 Height          = 28,
@@ -421,7 +421,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "  🛒  STEP 2 — 雙擊左側道具加入清單（可加多個不同道具）",
                 ForeColor = Color.FromArgb(100, 180, 255),
-                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                Font      = Theme.FontCell9Bold,
                 Dock      = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
             });
@@ -524,7 +524,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "T欄 Type: 1=道具  2=寵物  3=金幣  4=元寶  5=道具(不可轉)  6=公會資金  7=寵物糖果  8=VIP點",
                 ForeColor = Theme.TextMuted,
-                Font      = new Font(Theme.FontFamily, 7.5f),
+                Font      = Theme.FontTiny,
                 AutoSize  = false, Size = new Size(440, 18),
                 Location  = new Point(x, y),
                 BackColor = Color.FromArgb(20, 22, 34)
@@ -668,7 +668,7 @@ namespace SQ_Email_Tools
                 AutoSize = true, Location = new Point(0, 3)
             });
             var btnMailFull = Theme.MakeButton("🧬 完整欄位", Color.FromArgb(60, 30, 90), Color.FromArgb(139, 92, 246), 80, 22);
-            btnMailFull.Font     = new Font(Theme.FontFamily, 7.5f);
+            btnMailFull.Font     = Theme.FontTiny;
             btnMailFull.Location = new Point(320, 0);
             btnMailFull.Anchor   = AnchorStyles.Right | AnchorStyles.Top;
             btnMailFull.Click   += async (s, e) =>
@@ -847,7 +847,7 @@ namespace SQ_Email_Tools
                     ForeColor = Theme.TextMuted,
                     BackColor = Color.Transparent,
                     Size      = new Size(20, 20),
-                    Font      = new Font(Theme.FontFamily, 7.5f),
+                    Font      = Theme.FontTiny,
                     Cursor    = Cursors.Hand,
                     TabStop   = false,
                 };
@@ -1078,7 +1078,7 @@ namespace SQ_Email_Tools
                 {
                     Text      = hdrText,
                     ForeColor = warnings.Count > 0 ? Color.FromArgb(255, 159, 10) : Color.FromArgb(139, 92, 246),
-                    Font      = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                    Font      = Theme.FontSmallBold,
                     AutoSize  = true, Location = new Point(0, 0)
                 };
                 var statLbl = new Label
@@ -1105,7 +1105,7 @@ namespace SQ_Email_Tools
                     {
                         Text      = $"{k}: {display}",
                         ForeColor = fg,
-                        Font      = (hi || wn) ? new Font(Theme.FontFamily, 8.5f, FontStyle.Bold) : Theme.FontSmall,
+                        Font      = (hi || wn) ? Theme.FontSmallBold : Theme.FontSmall,
                         AutoSize  = false, Size = new Size(250, 18),
                         Location  = new Point(cx, cy)
                     };
@@ -1124,8 +1124,8 @@ namespace SQ_Email_Tools
                     {
                         Text      = warnText,
                         ForeColor = Color.FromArgb(255, 159, 10),
-                        Font      = new Font(Theme.FontFamily, 7.5f),
-                        AutoSize  = false, Size = new Size(490, 30),
+                    Font      = Theme.FontTiny,
+                    AutoSize  = false, Size = new Size(490, 30),
                         Location  = new Point(0, cy)
                     };
                     card.Controls.Add(warnLbl);

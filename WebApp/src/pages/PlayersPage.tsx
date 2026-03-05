@@ -233,7 +233,7 @@ export default function PlayersPage() {
   }
 
   const doResetPaydata = async () => {
-    if (!detail || !confirm('確定重置儲值循環進度為 0？')) return
+    if (!detail || !confirm('確定重置累積儲值進度為 0？（不影響歷史永久累計）')) return
     await api.post(`/players/${detail.account}/paydata/reset`)
     flash('已重置進度'); loadDetail(detail.account)
   }
@@ -524,7 +524,7 @@ export default function PlayersPage() {
             <SectionLabel label="💳 累積儲值進度" />
             <div style={{ marginBottom: 12, background: 'var(--bg-input)', borderRadius: 8, padding: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                <span style={{ color: 'var(--text-muted)' }}>本循環進度</span>
+                <span style={{ color: 'var(--text-muted)' }}>本輪進度（每 NT$25,000 一輪）</span>
                 <span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>
                   NT$ {(detail.paydataPoint ?? 0).toLocaleString()} / {CYCLE.toLocaleString()}
                 </span>
@@ -533,10 +533,10 @@ export default function PlayersPage() {
                 <div style={{ height: '100%', width: `${cycleProgress}%`, background: 'var(--accent-orange)', borderRadius: 4, transition: 'width .3s' }} />
               </div>
               <Row label="累計儲值(NT$)" value={`NT$ ${(detail.payTotal ?? 0).toLocaleString()}`} />
-              <Row label="完成循環次數" value={`${detail.totalCheck ?? 0} 次`} />
+              <Row label="已完成輪數" value={`${detail.totalCheck ?? 0} 輪`} />
               <Row label="歷史永久累計" value={`NT$ ${(detail.paydataTotal ?? 0).toLocaleString()}`} />
-              <button onClick={doResetPaydata} style={{ marginTop: 6, width: '100%', fontSize: 11, padding: '4px 0', background: 'rgba(245,101,101,.12)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)', borderRadius: 4 }}>
-                🔄 重置循環進度
+              <button onClick={doResetPaydata} title="將本輪累積進度歸零，不影響歷史紀錄" style={{ marginTop: 6, width: '100%', fontSize: 11, padding: '4px 0', background: 'rgba(245,101,101,.12)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)', borderRadius: 4 }}>
+                🔄 清零本輪進度
               </button>
             </div>
 
