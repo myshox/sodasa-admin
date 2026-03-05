@@ -12,7 +12,8 @@ namespace SQ_Email_Tools
     public class MainForm : Form
     {
         // ── 側邊欄 & 內容區 ──────────────────────────────────────
-        private Panel   _sidebar, _contentArea, _navPanel;
+        private Panel _sidebar, _contentArea, _navPanel, _navContent;
+        private int   _navScrollY = 0;
         private Panel   _playerPage;        // 玩家管理的所有控件放在此 Panel
         private Panel   _playerContent;     // 玩家管理右側內容區（DataGridView 等）
         private Panel   _currentHubPanel;   // 目前嵌入的 Hub 面板
@@ -73,15 +74,26 @@ namespace SQ_Email_Tools
                 BackColor = Theme.BgSidebar
             };
 
-            // ── Logo 區（固定頂部，73px）────────────────────────
-            var logoPanel = new Panel { Dock = DockStyle.Top, Height = 73, BackColor = Theme.BgSidebar };
+            const int LOGO_H     = 62;
+            const int RECHARGE_H = 50;
+            const int HEADER_H   = LOGO_H + RECHARGE_H; // 112
+            const int BOTTOM_H   = 106;
+            const int NAV_X      = 0;
+            int       NAV_W      = SW - 1; // 右側 1px border
+
+            // ── Logo（絕對定位，y=0，62px）──────────────────────
+            var logoPanel = new Panel
+            {
+                Bounds    = new Rectangle(0, 0, NAV_W, LOGO_H),
+                BackColor = Theme.BgSidebar
+            };
             logoPanel.Controls.Add(new Label
             {
                 Text      = "🍅  蘇打石器 GM",
                 ForeColor = Theme.TextPrimary,
                 Font      = Theme.FontLogo,
                 AutoSize  = true,
-                Location  = new Point(16, 14)
+                Location  = new Point(16, 10)
             });
             logoPanel.Controls.Add(new Label
             {
@@ -89,45 +101,74 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(18, 40)
+                Location  = new Point(18, 36)
             });
-            // 底部分隔線（Logo 內）
-            logoPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
-
-            // ── 可捲動導覽區（Fill，包住所有按鈕）────────────────
-            _navPanel = new Panel
+            logoPanel.Controls.Add(new Panel
             {
-                Dock       = DockStyle.Fill,
-                AutoScroll = true,
-                BackColor  = Theme.BgSidebar
+                Bounds    = new Rectangle(0, LOGO_H - 1, NAV_W, 1),
+                BackColor = Theme.Border
+            });
+
+            // ── 充值管理（絕對定位，y=62，50px，永遠可見）──────
+            var rechargePanel = new Panel
+            {
+                Bounds    = new Rectangle(0, LOGO_H, NAV_W, RECHARGE_H),
+                BackColor = Theme.BgSidebar
             };
-            // 阻止水平捲動（只需垂直）
-            _navPanel.HorizontalScroll.Maximum = 0;
-            _navPanel.HorizontalScroll.Enabled = false;
-            _navPanel.HorizontalScroll.Visible = false;
-
-            // ── 導覽項目（加入 _navPanel）────────────────────────
-            int y = 8;
-            // 每個按鈕共用一個 ToolTip，跟導覽 Panel 生命週期一致
-            var navTip = new ToolTip { InitialDelay = 400, ReshowDelay = 200, AutoPopDelay = 5000 };
-            _navPanel.Disposed += (_, __) => { try { navTip.Dispose(); } catch { } };
-
-            // ══ 置頂：充值管理（最重要功能，獨立醒目顯示）══
-            _btnRecharge = MakeNavBtn("💳", "充值管理", ref y);
-            _btnRecharge.Size      = new Size(196, 42);      // 稍大一點
-            _btnRecharge.BackColor = Color.FromArgb(0, 80, 40);
-            _btnRecharge.ForeColor = Color.FromArgb(100, 230, 140);
-            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
-            _btnRecharge.Font      = Theme.FontNavBold;
-            navTip.SetToolTip(_btnRecharge, "手動補單 · 套餐選擇 · 累積儲值進度 · 匯率試算 · 充值記錄");
+            _btnRecharge = new Button
+            {
+                Text      = "   💳  充值管理",
+                Location  = new Point(6, 6),
+                Size      = new Size(NAV_W - 12, 38),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(22, 101, 52),
+                ForeColor = Color.FromArgb(134, 239, 172),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font      = Theme.FontNavBold,
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false,
+                TabStop   = false
+            };
+            _btnRecharge.FlatAppearance.BorderSize         = 0;
+            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(21, 128, 61);
+            _btnRecharge.FlatAppearance.MouseDownBackColor = Color.FromArgb(20, 83, 45);
             _btnRecharge.Click += (s, e) =>
             {
                 SetActiveNav(_btnRecharge);
                 if (!CheckConnected()) return;
                 SwitchToHub(new RechargeForm());
             };
+            rechargePanel.Controls.Add(_btnRecharge);
+            rechargePanel.Controls.Add(new Panel
+            {
+                Bounds    = new Rectangle(0, RECHARGE_H - 1, NAV_W, 1),
+                BackColor = Theme.Border
+            });
 
-            AddSideGap(ref y);
+            // ── 導覽 viewport（絕對定位，y=112，高度動態）───────
+            _navPanel = new Panel
+            {
+                Bounds    = new Rectangle(NAV_X, HEADER_H, NAV_W, 400), // 高度由 Resize 更新
+                BackColor = Theme.BgSidebar
+            };
+            _navContent = new Panel
+            {
+                Location  = new Point(0, 0),
+                Width     = NAV_W,
+                BackColor = Theme.BgSidebar
+            };
+            _navPanel.Controls.Add(_navContent);
+            _navPanel.Resize += (s, e) =>
+            {
+                _navContent.Width = _navPanel.ClientSize.Width;
+                NavClampScroll();
+            };
+
+            // ── 導覽項目（加入 _navContent）─────────────────────
+            int y = 8;
+            var navTip = new ToolTip { InitialDelay = 400, ReshowDelay = 200, AutoPopDelay = 5000 };
+            _navPanel.Disposed += (_, __) => { try { navTip.Dispose(); } catch { } };
+            navTip.SetToolTip(_btnRecharge, "手動補單 · 套餐選擇 · 累積儲值進度 · 匯率試算 · 充值記錄");
 
             // ══ 玩家帳號（含線上監控）══
             AddSectionLabel("玩家帳號", ref y);
@@ -312,42 +353,6 @@ namespace SQ_Email_Tools
                 SwitchToHub(new StreetShopForm());
             };
 
-            var btnPlayerAnal = MakeNavBtn("👥", "玩家活躍分析", ref y);
-            navTip.SetToolTip(btnPlayerAnal, "每小時/每週在線分佈、人數成長趨勢圖");
-            btnPlayerAnal.Click += (s, e) =>
-            {
-                SetActiveNav(btnPlayerAnal);
-                if (!CheckConnected()) return;
-                SwitchToHub(new PlayerAnalyticsForm());
-            };
-
-            var btnRechargeAnal = MakeNavBtn("💳", "儲值趨勢", ref y);
-            navTip.SetToolTip(btnRechargeAnal, "儲值日/月統計、套餐分佈、首充分析");
-            btnRechargeAnal.Click += (s, e) =>
-            {
-                SetActiveNav(btnRechargeAnal);
-                if (!CheckConnected()) return;
-                SwitchToHub(new RechargeAnalyticsForm());
-            };
-
-            var btnTradeAudit = MakeNavBtn("🔍", "交易稽核", ref y);
-            navTip.SetToolTip(btnTradeAudit, "偵測可疑交易行為：同IP交易、大量金幣異動、交易對分析");
-            btnTradeAudit.Click += (s, e) =>
-            {
-                SetActiveNav(btnTradeAudit);
-                if (!CheckConnected()) return;
-                SwitchToHub(new TradeAuditForm());
-            };
-
-            var btnShopStats = MakeNavBtn("🏪", "商城分析", ref y);
-            navTip.SetToolTip(btnShopStats, "商城銷售統計與道具購買排行");
-            btnShopStats.Click += (s, e) =>
-            {
-                SetActiveNav(btnShopStats);
-                if (!CheckConnected()) return;
-                SwitchToHub(new ShopStatsForm());
-            };
-
             AddSideGap(ref y);
 
             // ══ 系統管理 ══
@@ -359,14 +364,6 @@ namespace SQ_Email_Tools
             {
                 SetActiveNav(btnGmLog);
                 SwitchToHub(new GmLogForm());
-            };
-
-            var btnGmPerm = MakeNavBtn("🛡", "GM 權限管理", ref y);
-            navTip.SetToolTip(btnGmPerm, "設定各 GM 帳號的功能存取權限");
-            btnGmPerm.Click += (s, e) =>
-            {
-                SetActiveNav(btnGmPerm);
-                SwitchToHub(new GmPermForm());
             };
 
             var btnSql = MakeNavBtn("💻", "SQL 查詢", ref y);
@@ -401,17 +398,19 @@ namespace SQ_Email_Tools
                 SwitchToHub(new BackupForm());
             };
 
-            // 明確告知 AutoScroll 可捲動總高度（避免捲軸範圍計算錯誤）
-            _navPanel.AutoScrollMinSize = new Size(0, y + 16);
+            _navContent.Height = y + 16;
 
-            // ── 底部：連線狀態（固定底部，106px）────────────────────
+            // ── 底部（絕對定位，高度固定 106px，y 由 Resize 更新）──
             var bottomPanel = new Panel
             {
-                Dock      = DockStyle.Bottom,
-                Height    = 106,
+                Bounds    = new Rectangle(0, 400, NAV_W, BOTTOM_H), // y 由 Resize 更新
                 BackColor = Theme.BgSidebar
             };
-            bottomPanel.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Theme.Border });
+            bottomPanel.Controls.Add(new Panel
+            {
+                Bounds    = new Rectangle(0, 0, NAV_W, 1),
+                BackColor = Theme.Border
+            });
 
             _lblDbDot = new Label
             {
@@ -448,30 +447,62 @@ namespace SQ_Email_Tools
             bottomPanel.Controls.AddRange(new Control[]
                 { _lblDbDot, _lblDbText, _lblGmName, btnConnect, btnSettings });
 
-            // ── 組合側邊欄（順序：非 Fill 先加，Fill 最後）────────
-            _sidebar.Controls.Add(new Panel { Dock = DockStyle.Right, Width = 1, BackColor = Theme.Border });
-            _sidebar.Controls.Add(bottomPanel);   // Bottom
-            _sidebar.Controls.Add(logoPanel);      // Top
-            _sidebar.Controls.Add(_navPanel);      // Fill（最後加，填滿剩餘空間）
+            // ── 組合側邊欄（全部絕對定位，右側 1px border 用 Dock.Right）──
+            var border = new Panel { Dock = DockStyle.Right, Width = 1, BackColor = Theme.Border };
 
-            // 滑鼠滾輪：側邊欄任何地方滾動都捲動導覽列
-            _sidebar.MouseWheel  += SidebarMouseWheel;
-            logoPanel.MouseWheel += SidebarMouseWheel;
+            _sidebar.Controls.AddRange(new Control[]
+                { border, logoPanel, rechargePanel, _navPanel, bottomPanel });
+
+            // Resize 時更新 navPanel 和 bottomPanel 的位置/大小
+            void UpdateLayout()
+            {
+                int h     = _sidebar.ClientSize.Height;
+                int navH  = Math.Max(0, h - HEADER_H - BOTTOM_H);
+                _navPanel.SetBounds(NAV_X, HEADER_H, NAV_W, navH);
+                bottomPanel.SetBounds(0, h - BOTTOM_H, NAV_W, BOTTOM_H);
+            }
+            _sidebar.Resize += (s, e) => UpdateLayout();
+            Shown += (_, __) => UpdateLayout();
 
             Controls.Add(_sidebar);
         }
 
+        private void NavClampScroll()
+        {
+            if (_navContent == null || _navPanel == null) return;
+            int maxScroll   = Math.Max(0, _navContent.Height - _navPanel.ClientSize.Height);
+            _navScrollY     = Math.Max(0, Math.Min(maxScroll, _navScrollY));
+            _navContent.Top = -_navScrollY;
+        }
+
         private void SidebarMouseWheel(object sender, MouseEventArgs e)
         {
-            int delta  = e.Delta > 0 ? -60 : 60;
-            int maxY   = Math.Max(0, _navPanel.AutoScrollMinSize.Height - _navPanel.ClientSize.Height);
-            int newY   = Math.Max(0, Math.Min(maxY, -_navPanel.AutoScrollPosition.Y + delta));
-            _navPanel.AutoScrollPosition = new Point(0, newY);
+            _navScrollY += e.Delta > 0 ? -60 : 60;
+            NavClampScroll();
+        }
+
+        // 攔截全 Form 的 WM_MOUSEWHEEL，游標在側邊欄上方就捲導覽列
+        private const int WM_MOUSEWHEEL = 0x020A;
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_MOUSEWHEEL && _sidebar != null)
+            {
+                var cursorPos = Cursor.Position;
+                var sidebarRect = _sidebar.RectangleToScreen(_sidebar.ClientRectangle);
+                if (sidebarRect.Contains(cursorPos))
+                {
+                    int delta = (int)((short)(m.WParam.ToInt64() >> 16));
+                    _navScrollY += delta > 0 ? -60 : 60;
+                    NavClampScroll();
+                    return; // 不傳給原本有焦點的控件
+                }
+            }
+            base.WndProc(ref m);
         }
 
         private void AddSectionLabel(string title, ref int y)
         {
-            _navPanel.Controls.Add(new Label
+            _navContent.Controls.Add(new Label
             {
                 Text      = title.ToUpper(),
                 ForeColor = Theme.TextMuted,
@@ -484,7 +515,7 @@ namespace SQ_Email_Tools
 
         private void AddSideGap(ref int y)
         {
-            _navPanel.Controls.Add(new Panel
+            _navContent.Controls.Add(new Panel
             {
                 Location  = new Point(14, y + 3),
                 Size      = new Size(172, 1),
@@ -497,12 +528,12 @@ namespace SQ_Email_Tools
         {
             const int BH = 38;
             var bgNorm = Theme.BgSidebar;
-            var bgAct  = Color.FromArgb(  0,  85, 170); // 藍色選取
+            var bgAct  = Color.FromArgb(  0,  85, 170);
             var fgNorm = Theme.TextSecondary;
-            var fgAct  = Color.FromArgb(160, 215, 255); // 亮藍文字
-            var bgHov  = Color.FromArgb( 32,  36,  52); // hover（比 sidebar 淺）
+            var fgAct  = Color.FromArgb(160, 215, 255);
+            var bgHov  = Color.FromArgb( 32,  36,  52);
 
-            // 按鈕寬度 196（留 20px 給捲軸，避免水平捲動）
+            // indicator 直接畫在按鈕左邊緣（Panel 不加入 Controls，改用按鈕自行繪製）
             var btn = new Button
             {
                 Text      = $"   {icon}  {text}",
@@ -514,27 +545,27 @@ namespace SQ_Email_Tools
                 TextAlign = ContentAlignment.MiddleLeft,
                 Font      = isDefault ? Theme.FontNavBold : Theme.FontNav,
                 Cursor    = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                UseVisualStyleBackColor = false,
+                TabStop   = false
             };
             btn.FlatAppearance.BorderSize         = 0;
             btn.FlatAppearance.MouseOverBackColor = bgHov;
             btn.FlatAppearance.MouseDownBackColor = bgAct;
-            // 在導覽區捲動時也能用滑鼠滾輪
             btn.MouseWheel += SidebarMouseWheel;
-
-            if (isDefault) _activeNav = btn;
-
-            // 左側藍色指示條
-            var indicator = new Panel
+            // 用左側 border 模擬 indicator（不另加 Panel，避免 z-order 攔截點擊）
+            btn.Paint += (s, pe) =>
             {
-                Location  = new Point(0, y),
-                Size      = new Size(3, BH),
-                BackColor = isDefault ? Theme.AccentBlue : Color.Transparent
+                if (btn.Tag is bool active && active)
+                    pe.Graphics.FillRectangle(new SolidBrush(Theme.AccentBlue), 0, 0, 3, btn.Height);
             };
-            _navPanel.Controls.Add(indicator);
-            btn.Tag = indicator;
 
-            _navPanel.Controls.Add(btn);
+            if (isDefault)
+            {
+                _activeNav  = btn;
+                btn.Tag     = true;
+            }
+
+            _navContent.Controls.Add(btn);
             y += BH;
             return btn;
         }
@@ -564,25 +595,30 @@ namespace SQ_Email_Tools
 
             if (_activeNav != null && _activeNav != btn)
             {
-                // 充值管理還原成綠色，其餘還原成預設灰
                 if (_activeNav == _btnRecharge)
-                {
-                    _activeNav.BackColor = Color.FromArgb(0, 80, 40);
-                    _activeNav.ForeColor = Color.FromArgb(100, 230, 140);
-                }
+                    _activeNav.BackColor = Color.FromArgb(22, 101, 52);
                 else
-                {
                     _activeNav.BackColor = Theme.BgSidebar;
-                    _activeNav.ForeColor = Theme.TextSecondary;
-                }
+                _activeNav.ForeColor = _activeNav == _btnRecharge
+                    ? Color.FromArgb(134, 239, 172) : Theme.TextSecondary;
                 _activeNav.Font = Theme.FontNav;
-                if (_activeNav.Tag is Panel oldInd) oldInd.BackColor = Color.Transparent;
+                _activeNav.Tag  = false;
+                _activeNav.Invalidate();
             }
 
-            btn.BackColor = Color.FromArgb( 0,  70, 140);
-            btn.ForeColor = Color.FromArgb(140, 200, 255);
-            btn.Font      = Theme.FontNavBold;
-            if (btn.Tag is Panel ind) ind.BackColor = Theme.AccentBlue;
+            if (btn == _btnRecharge)
+            {
+                btn.BackColor = Color.FromArgb(21, 128, 61);
+                btn.ForeColor = Color.FromArgb(200, 255, 200);
+            }
+            else
+            {
+                btn.BackColor = Color.FromArgb(0, 70, 140);
+                btn.ForeColor = Color.FromArgb(140, 200, 255);
+            }
+            btn.Font = Theme.FontNavBold;
+            btn.Tag  = true;
+            btn.Invalidate();
 
             _activeNav = btn;
         }
@@ -3201,7 +3237,7 @@ namespace SQ_Email_Tools
                         Data      = entry.Item.Id,
                         StartTime = (int)startTs,
                         EndTime   = (int)endTs,
-                        Buff3     = "",
+                        Buff3     = entry.Item.Name,
                         Quantity  = entry.Qty
                     };
                     bool ok = await DatabaseManager.Instance.SendMailAsync(req);
@@ -3235,5 +3271,11 @@ namespace SQ_Email_Tools
             }
             finally { if (!IsDisposed) UpdateSendBtn(); }
         }
+    }
+
+    // 防止 AutoScroll 在子控件獲得焦點時自動捲動
+    internal sealed class NoScrollPanel : Panel
+    {
+        protected override Point ScrollToControl(Control activeControl) => AutoScrollPosition;
     }
 }
