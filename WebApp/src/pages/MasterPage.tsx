@@ -222,142 +222,166 @@ export default function MasterPage() {
           {splitMode && (
             <div>
               {/* 快速套用工具列 */}
-              <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>快速套用（已勾選）：</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>套餐：</span>
-                {TIERS.map(t => (
-                  <button key={t.twd} onClick={() => applyToAll({ twdMode: 'tier', selectedTierTwd: t.twd, selectedTierGold: t.gold, customTwd: '' })}
-                    style={{ padding: '4px 8px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
-                      background: 'var(--bg-input)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                    {t.label}
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginRight: 2 }}>批次套用已勾選：</span>
+                  {TIERS.map(t => (
+                    <button key={t.twd} onClick={() => applyToAll({ twdMode: 'tier', selectedTierTwd: t.twd, selectedTierGold: t.gold, customTwd: '' })}
+                      style={{ padding: '3px 8px', fontSize: 11, borderRadius: 5, cursor: 'pointer', whiteSpace: 'nowrap',
+                        background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                      {t.label}
+                    </button>
+                  ))}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 2px' }}>優惠：</span>
+                  {BONUSES.map(b => (
+                    <button key={b} onClick={() => applyToAll({ bonusPct: b })}
+                      style={{ padding: '3px 7px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
+                        background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                      +{b}%
+                    </button>
+                  ))}
+                  <button onClick={() => setSplits(prev => prev.map(e => ({ ...e, twdMode: 'custom' as const, selectedTierTwd: 0, selectedTierGold: 0, customTwd: '', enabled: false })))}
+                    style={{ padding: '3px 8px', fontSize: 11, borderRadius: 5, cursor: 'pointer', marginLeft: 4,
+                      background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)55' }}>
+                    全部清除
                   </button>
-                ))}
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>優惠：</span>
-                {BONUSES.map(b => (
-                  <button key={b} onClick={() => applyToAll({ bonusPct: b })}
-                    style={{ padding: '4px 8px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
-                      background: 'var(--bg-input)', border: '1px solid var(--border)' }}>
-                    +{b}%
-                  </button>
-                ))}
-                <button onClick={() => setSplits(prev => prev.map(e => e.enabled ? { ...e, twdMode: 'custom', selectedTierTwd: 0, selectedTierGold: 0, customTwd: '' } : e))}
-                  style={{ padding: '4px 8px', fontSize: 11, borderRadius: 5, cursor: 'pointer', marginLeft: 8,
-                    background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)55' }}>
-                  清除已勾選
-                </button>
+                </div>
               </div>
 
-              {/* 各 CDKEY 輸入列 */}
-              {splits.map((entry, idx) => {
-                const char = info.chars.find(c => c.account === entry.account)!
-                const { twd, baseGold, totalGold } = calcEntry(entry)
-                return (
-                  <div key={entry.account} style={{
-                    ...card, padding: 14,
-                    border: `1px solid ${entry.enabled ? 'var(--accent-orange)' : 'var(--border)'}`,
-                    opacity: entry.enabled ? 1 : 0.55,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                      {/* 勾選 + 帳號資訊 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 200 }}>
-                        <input type="checkbox" checked={entry.enabled}
-                          onChange={e => updateSplit(idx, { enabled: e.target.checked })}
-                          style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--accent-orange)' }} />
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11 }}>{char.isOnline ? '🟢' : '⚫'}</span>
-                            <span style={{ fontWeight: 700, fontSize: 13 }}>{char.charName || char.account}</span>
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                            {char.account} · 累積 NT${char.payTotal.toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 套餐選擇 */}
-                      <div style={{ flex: 1, minWidth: 280 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>選擇套餐</div>
-                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                          {TIERS.map(t => (
-                            <button key={t.twd}
-                              onClick={() => updateSplit(idx, { twdMode: 'tier', selectedTierTwd: t.twd, selectedTierGold: t.gold, customTwd: '', enabled: true })}
-                              style={{
-                                padding: '4px 7px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
-                                background: entry.selectedTierTwd === t.twd && entry.twdMode === 'tier'
-                                  ? 'var(--accent-orange)' : 'var(--bg-input)',
-                                color: entry.selectedTierTwd === t.twd && entry.twdMode === 'tier'
-                                  ? '#fff' : 'var(--text-primary)',
-                                border: `1px solid ${entry.selectedTierTwd === t.twd && entry.twdMode === 'tier'
-                                  ? 'var(--accent-orange)' : 'var(--border)'}`,
-                              }}>
-                              {t.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>或自訂 NT$</span>
-                          <input type="number" placeholder="例：200" value={entry.customTwd}
-                            onChange={e => updateSplit(idx, { customTwd: e.target.value, twdMode: 'custom', selectedTierTwd: 0, selectedTierGold: 0, enabled: true })}
-                            style={{ width: 90, fontSize: 12 }} min={0} />
-                        </div>
-                      </div>
-
-                      {/* 優惠% */}
-                      <div style={{ minWidth: 180 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 5 }}>優惠加成</div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {BONUSES.map(b => (
-                            <button key={b}
-                              onClick={() => updateSplit(idx, { bonusPct: b })}
-                              style={{
-                                padding: '4px 7px', fontSize: 11, borderRadius: 5, cursor: 'pointer',
-                                background: entry.bonusPct === b ? 'var(--accent-blue)' : 'var(--bg-input)',
-                                color: entry.bonusPct === b ? '#fff' : 'var(--text-primary)',
-                                border: `1px solid ${entry.bonusPct === b ? 'var(--accent-blue)' : 'var(--border)'}`,
-                              }}>
-                              +{b}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 預覽 */}
-                      <div style={{ minWidth: 160, background: 'var(--bg-input)', borderRadius: 7, padding: '8px 12px', fontSize: 12 }}>
-                        {twd > 0 ? (
-                          <>
-                            <div style={{ color: 'var(--accent-orange)', fontWeight: 700 }}>NT$ {twd.toLocaleString()}</div>
-                            <div style={{ color: 'var(--text-muted)', marginTop: 3 }}>
-                              基礎金幣：{baseGold.toLocaleString()}
-                              {entry.bonusPct > 0 && <span style={{ color: 'var(--accent-blue)' }}> +{entry.bonusPct}%</span>}
-                            </div>
-                            <div style={{ color: 'var(--accent-green)', fontWeight: 700, marginTop: 2 }}>
-                              → {totalGold.toLocaleString()} 金
-                            </div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 3 }}>
-                              累積+NT${twd.toLocaleString()}（贈金不計）
-                            </div>
-                          </>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)' }}>—</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+              {/* 表格主體 */}
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-input)', borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ padding: '9px 10px', textAlign: 'center', width: 36, fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+                          <input type="checkbox"
+                            checked={splits.length > 0 && splits.every(e => e.enabled)}
+                            onChange={e => setSplits(prev => prev.map(s => ({ ...s, enabled: e.target.checked })))}
+                            style={{ cursor: 'pointer', accentColor: 'var(--accent-orange)' }} />
+                        </th>
+                        {['狀態', '帳號 / 角色', '套餐選擇', '自訂 NT$', '優惠 %', '金幣預算'].map(h => (
+                          <th key={h} style={{ padding: '9px 10px', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {splits.map((entry, idx) => {
+                        const char = info.chars.find(c => c.account === entry.account)!
+                        const { twd, baseGold, totalGold } = calcEntry(entry)
+                        const isActive = entry.enabled
+                        return (
+                          <tr key={entry.account} style={{
+                            borderBottom: '1px solid var(--border)',
+                            background: isActive ? 'rgba(250,170,20,.05)' : 'transparent',
+                            opacity: isActive ? 1 : 0.6,
+                          }}>
+                            {/* 勾選 */}
+                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                              <input type="checkbox" checked={isActive}
+                                onChange={e => updateSplit(idx, { enabled: e.target.checked })}
+                                style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent-orange)' }} />
+                            </td>
+                            {/* 帳號/角色 */}
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 11, marginRight: 4 }}>{char.isOnline ? '🟢' : '⚫'}</span>
+                            </td>
+                            <td style={{ padding: '8px 10px' }}>
+                              <div style={{ fontWeight: 700, fontSize: 13 }}>{char.charName || '—'}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                                {char.account}
+                              </div>
+                              {char.payTotal > 0 && (
+                                <div style={{ fontSize: 10, color: 'var(--accent-orange)', marginTop: 1 }}>
+                                  累積 NT${char.payTotal.toLocaleString()}
+                                </div>
+                              )}
+                            </td>
+                            {/* 套餐 */}
+                            <td style={{ padding: '8px 10px' }}>
+                              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                                {TIERS.map(t => {
+                                  const sel = entry.selectedTierTwd === t.twd && entry.twdMode === 'tier'
+                                  return (
+                                    <button key={t.twd}
+                                      onClick={() => updateSplit(idx, { twdMode: 'tier', selectedTierTwd: t.twd, selectedTierGold: t.gold, customTwd: '', enabled: true })}
+                                      style={{
+                                        padding: '3px 6px', fontSize: 11, borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap',
+                                        background: sel ? 'var(--accent-orange)' : 'var(--bg-input)',
+                                        color: sel ? '#fff' : 'var(--text-primary)',
+                                        border: `1px solid ${sel ? 'var(--accent-orange)' : 'var(--border)'}`,
+                                        fontWeight: sel ? 700 : 400,
+                                      }}>
+                                      {t.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </td>
+                            {/* 自訂 NT$ */}
+                            <td style={{ padding: '8px 10px' }}>
+                              <input type="number" placeholder="自訂" value={entry.customTwd}
+                                onChange={e => updateSplit(idx, { customTwd: e.target.value, twdMode: 'custom', selectedTierTwd: 0, selectedTierGold: 0, enabled: true })}
+                                style={{ width: 80, fontSize: 12, padding: '4px 6px' }} min={0} />
+                            </td>
+                            {/* 優惠% */}
+                            <td style={{ padding: '8px 10px' }}>
+                              <div style={{ display: 'flex', gap: 3 }}>
+                                {BONUSES.map(b => {
+                                  const sel = entry.bonusPct === b
+                                  return (
+                                    <button key={b} onClick={() => updateSplit(idx, { bonusPct: b })}
+                                      style={{
+                                        padding: '3px 5px', fontSize: 11, borderRadius: 4, cursor: 'pointer',
+                                        background: sel ? 'var(--accent-blue)' : 'var(--bg-input)',
+                                        color: sel ? '#fff' : 'var(--text-primary)',
+                                        border: `1px solid ${sel ? 'var(--accent-blue)' : 'var(--border)'}`,
+                                        fontWeight: sel ? 700 : 400,
+                                      }}>
+                                      +{b}%
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </td>
+                            {/* 金幣預算 */}
+                            <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', minWidth: 140 }}>
+                              {twd > 0 ? (
+                                <div>
+                                  <span style={{ color: 'var(--accent-orange)', fontWeight: 700 }}>NT$ {twd.toLocaleString()}</span>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 4px' }}>→</span>
+                                  <span style={{ color: 'var(--accent-green)', fontWeight: 700 }}>{totalGold.toLocaleString()} 金</span>
+                                  {entry.bonusPct > 0 && (
+                                    <div style={{ fontSize: 10, color: 'var(--accent-blue)', marginTop: 2 }}>
+                                      基礎 {baseGold.toLocaleString()} +{entry.bonusPct}%
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>未設定</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
               {/* 合計列 + 執行按鈕 */}
-              <div style={{ ...card, background: 'rgba(250,170,20,.07)', border: '1px solid var(--accent-orange)55', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ background: 'rgba(250,170,20,.07)', border: '1px solid var(--accent-orange)55', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-orange)', marginBottom: 4 }}>
-                    合計 NT$ {totalTwd.toLocaleString()}，發出 {totalGold.toLocaleString()} 金（{activeCount} 個帳號）
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-orange)', marginBottom: 4 }}>
+                    合計：NT$ {totalTwd.toLocaleString()}，發出 {totalGold.toLocaleString()} 金，{activeCount} 個帳號
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    ⚠ 累積儲值進度只計算台幣金額，優惠贈金不納入
+                    ⚠ 累積儲值紀錄只計算台幣金額，優惠贈金不計入
                   </div>
                 </div>
                 <button onClick={doSplitRecharge} disabled={splitLoading || activeCount === 0}
-                  style={{ padding: '10px 28px', fontSize: 14, fontWeight: 700, borderRadius: 8, cursor: activeCount > 0 ? 'pointer' : 'not-allowed',
+                  style={{ padding: '10px 28px', fontSize: 14, fontWeight: 700, borderRadius: 8,
+                    cursor: activeCount > 0 ? 'pointer' : 'not-allowed',
                     background: activeCount > 0 ? 'var(--accent-orange)' : 'var(--bg-input)',
                     color: activeCount > 0 ? '#fff' : 'var(--text-muted)',
                     border: `1px solid ${activeCount > 0 ? 'var(--accent-orange)' : 'var(--border)'}` }}>
@@ -367,7 +391,7 @@ export default function MasterPage() {
 
               {/* 執行結果 */}
               {splitResult && splitResult.length > 0 && (
-                <div style={{ ...card, border: '1px solid var(--border)' }}>
+                <div style={{ ...card, marginTop: 12, border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>執行結果</div>
                   {splitResult.map((r, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
