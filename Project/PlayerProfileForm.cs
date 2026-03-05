@@ -1663,6 +1663,7 @@ namespace SQ_Email_Tools
         private Label         _lblGoldCalc;     // 對應金幣預覽
         private RadioButton   _rbOnlyProgress;
         private RadioButton   _rbWithGold;
+        private RadioButton   _rbOnlyGold;
         private Label         _lblCycleAfter;
         private Panel         _barFillAfter;
         private Button[]      _tierBtns;
@@ -1675,11 +1676,12 @@ namespace SQ_Email_Tools
         private int _bonusPct = 0;
         private Button[] _bonusBtns = Array.Empty<Button>();
 
-        /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）</summary>
-        public long TwdAmount  => (long)_nudTwd.Value;
+        /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）；若為「只給金幣」模式則為 0</summary>
+        public long TwdAmount  => (_rbOnlyGold != null && _rbOnlyGold.Checked) ? 0 : (long)_nudTwd.Value;
         /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
-        public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : TwdAmount * 100L) * (1 + _bonusPct / 100.0));
-        public bool GiveGold   => _rbWithGold.Checked;
+        public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L) * (1 + _bonusPct / 100.0));
+        public bool GiveGold   => _rbWithGold.Checked || (_rbOnlyGold != null && _rbOnlyGold.Checked);
+        public bool OnlyGold   => _rbOnlyGold != null && _rbOnlyGold.Checked;
         /// <summary>true = 使用者按了「清0累儲進度」</summary>
         public bool IsResetRequest { get; private set; }
         /// <summary>true = 對話框內執行了修復循環或發放獎勵，呼叫端應刷新列表/詳情</summary>
@@ -1713,7 +1715,7 @@ namespace SQ_Email_Tools
             _claimReady    = claimReady;
             _totalCheck    = totalCheck;
             Text           = $"💳 調整累積充值 — {playerName}";
-            Size           = new Size(660, 650);
+            Size           = new Size(660, 680);
             BackColor = Theme.BgPage;
             ForeColor      = Theme.TextPrimary;
             Font           = Theme.FontBody;
@@ -1927,7 +1929,7 @@ namespace SQ_Email_Tools
 
             // ── 操作類型（強制選擇，預設空白）──────────────────────
             Div(x, y, W); y += 10;
-            var opBox = new Panel { Location = new Point(x, y), Size = new Size(W, 90), BackColor = Theme.BgCard };
+            var opBox = new Panel { Location = new Point(x, y), Size = new Size(W, 118), BackColor = Theme.BgCard };
             opBox.Controls.Add(new Label
             {
                 Text      = "⚠ STEP 3  操作類型（必填）— 請明確選擇，系統不設預設值：",
@@ -1945,12 +1947,19 @@ namespace SQ_Email_Tools
             {
                 Text      = "🟡  【增加累儲進度 ＋ 同步發放金幣】— 正常補單使用",
                 ForeColor = Color.FromArgb(200, 240, 170), Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 60), Checked = false, Cursor = Cursors.Hand,
+                AutoSize = true, Location = new Point(10, 58), Checked = false, Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
-            opBox.Controls.AddRange(new Control[] { _rbOnlyProgress, _rbWithGold });
+            _rbOnlyGold = new RadioButton
+            {
+                Text      = "💰  【只增加金幣，不充值累積】— 發金幣但不計入累積儲值進度",
+                ForeColor = Color.FromArgb(255, 220, 100), Font = new Font(Theme.FontFamily, 9.5f),
+                AutoSize = true, Location = new Point(10, 86), Checked = false, Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
+            };
+            opBox.Controls.AddRange(new Control[] { _rbOnlyProgress, _rbWithGold, _rbOnlyGold });
             Controls.Add(opBox);
-            y += 98;
+            y += 126;
 
             // ── 修復循環 / 發放獎勵（與玩家詳情頁同功能，兩邊一致）──────────────
             if (!string.IsNullOrEmpty(_account))
@@ -2016,7 +2025,7 @@ namespace SQ_Email_Tools
             btnOk.Location = new Point(x + 350, y);
             btnOk.Click += (s, e) =>
             {
-                if (!_rbOnlyProgress.Checked && !_rbWithGold.Checked)
+                if (!_rbOnlyProgress.Checked && !_rbWithGold.Checked && !_rbOnlyGold.Checked)
                 {
                     MessageBox.Show("請選擇操作類型（STEP 3）。\n系統不設預設值，以防止誤操作。",
                         "⚠ 尚未選擇操作類型", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2024,7 +2033,15 @@ namespace SQ_Email_Tools
                 }
                 long twd  = TwdAmount;
                 long gold = GoldAmount;
-                if (twd <= 0)
+                if (_rbOnlyGold.Checked)
+                {
+                    if (gold <= 0)
+                    {
+                        MessageBox.Show("請選擇套餐或輸入台幣金額以計算金幣數量。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+                else if (twd <= 0)
                 {
                     MessageBox.Show("請輸入大於 0 的台幣金額。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
@@ -2044,6 +2061,17 @@ namespace SQ_Email_Tools
                     modeTitle  = "【僅增加累儲進度】";
                     modeDetail = $"❌ 不會發放金幣\n✅ 累積充值進度 +NT${twd:N0}（只計台幣，不含贈金）{cycNote}\n✅ 歷史總累儲同步更新";
                     icon       = "⚠";
+                }
+                else if (_rbOnlyGold.Checked)
+                {
+                    long baseGold  = _selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L;
+                    long bonusGold = gold - baseGold;
+                    string goldBreakdown = _bonusPct > 0
+                        ? $"+{baseGold:N0}（套餐）＋ +{bonusGold:N0}（+{_bonusPct}% 優惠）＝ 共 {gold:N0} 金幣"
+                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : "基礎率 ×100")}）";
+                    modeTitle  = "【只增加金幣，不充值累積】";
+                    modeDetail = $"✅ 金幣入帳：{goldBreakdown}\n❌ 累積充值進度不變（不計台幣、不記錄補單）\n❌ 歷史總累儲不變";
+                    icon       = "💰";
                 }
                 else
                 {
