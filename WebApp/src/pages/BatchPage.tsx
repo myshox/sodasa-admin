@@ -63,7 +63,7 @@ export default function BatchPage() {
   }
 
   const addFromAutocomplete = (item: ItemInfo) => {
-    addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
+    addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.name })
   }
 
   const send = async () => {
