@@ -112,6 +112,23 @@ namespace SQ_Email_Tools
             var navTip = new ToolTip { InitialDelay = 400, ReshowDelay = 200, AutoPopDelay = 5000 };
             _navPanel.Disposed += (_, __) => { try { navTip.Dispose(); } catch { } };
 
+            // ══ 置頂：充值管理（最重要功能，獨立醒目顯示）══
+            _btnRecharge = MakeNavBtn("💳", "充值管理", ref y);
+            _btnRecharge.Size      = new Size(196, 42);      // 稍大一點
+            _btnRecharge.BackColor = Color.FromArgb(0, 80, 40);
+            _btnRecharge.ForeColor = Color.FromArgb(100, 230, 140);
+            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
+            _btnRecharge.Font      = Theme.FontNavBold;
+            navTip.SetToolTip(_btnRecharge, "手動補單 · 套餐選擇 · 累積儲值進度 · 匯率試算 · 充值記錄");
+            _btnRecharge.Click += (s, e) =>
+            {
+                SetActiveNav(_btnRecharge);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RechargeForm());
+            };
+
+            AddSideGap(ref y);
+
             // ══ 玩家帳號（含線上監控）══
             AddSectionLabel("玩家帳號", ref y);
 
@@ -130,19 +147,6 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnMaster);
                 if (!CheckConnected()) return;
                 SwitchToHub(new MasterAccountForm());
-            };
-
-            // 充值管理：綠色高亮（最重要功能）
-            _btnRecharge = MakeNavBtn("💳", "充值管理", ref y);
-            _btnRecharge.BackColor = Color.FromArgb(0, 80, 40);
-            _btnRecharge.ForeColor = Color.FromArgb(100, 230, 140);
-            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 100, 50);
-            navTip.SetToolTip(_btnRecharge, "手動補單 · 套餐選擇 · 累積儲值進度 · 匯率試算 · 充值記錄");
-            _btnRecharge.Click += (s, e) =>
-            {
-                SetActiveNav(_btnRecharge);
-                if (!CheckConnected()) return;
-                SwitchToHub(new RechargeForm());
             };
 
             var btnVip = MakeNavBtn("💎", "VIP 管理", ref y);
