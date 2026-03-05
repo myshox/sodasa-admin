@@ -89,7 +89,7 @@ export default function RechargePage() {
   const [selectedTier, setSelectedTier] = useState<typeof TIERS[0] | null>(null)
   const [bonus, setBonus] = useState(0)
   const [customTwd, setCustomTwd] = useState('')
-  const [opType, setOpType] = useState<null | 'only' | 'gold'>(null)
+  const [opType, setOpType] = useState<null | 'only' | 'gold' | 'onlyGold'>(null)
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgOk, setMsgOk] = useState(true)
@@ -105,12 +105,14 @@ export default function RechargePage() {
   const finalTwd  = selectedTier ? selectedTier.twd : parseInt(customTwd, 10) || 0
   const baseGoldAuto = selectedTier ? selectedTier.gold : (parseInt(customTwd, 10) || 0) * 100
   const finalGold = Math.floor(baseGoldAuto * (1 + bonus / 100))
-  const giveGold  = opType === 'gold'
+  const giveGold  = opType === 'gold' || opType === 'onlyGold'
+  // onlyGold 模式：不影響累積進度，afterCycle 不變
+  const effectiveTwd   = opType === 'onlyGold' ? 0 : finalTwd
   const currentCycle   = info ? info.paydataPoint : 0
-  const afterCycle     = finalTwd > 0 ? currentCycle + finalTwd : currentCycle
+  const afterCycle     = effectiveTwd > 0 ? currentCycle + effectiveTwd : currentCycle
   const completedExtra = afterCycle > 0 ? Math.floor((afterCycle - 1) / CYCLE_MAX) - Math.floor((currentCycle > 0 ? (currentCycle - 1) / CYCLE_MAX : 0)) : 0
   const afterPoint     = afterCycle - Math.floor((afterCycle > 0 ? (afterCycle - 1) / CYCLE_MAX : 0)) * CYCLE_MAX
-  const afterPayTotal  = (info?.payTotal ?? 0) + (giveGold ? finalTwd : 0)
+  const afterPayTotal  = (info?.payTotal ?? 0) + (opType === 'gold' ? finalTwd : 0)
   const afterVip       = afterPayTotal >= 15000 ? 2 : afterPayTotal >= 5000 ? 1 : 0
   const cycPct         = Math.min(100, Math.round((currentCycle / CYCLE_MAX) * 100))
   const afterCycPct    = Math.min(100, Math.round(((afterPoint > 0 ? afterPoint : currentCycle) / CYCLE_MAX) * 100))
@@ -136,11 +138,16 @@ export default function RechargePage() {
 
   const doRecharge = async () => {
     if (!info) { setMsg('請先搜尋並選定玩家'); setMsgOk(false); return }
-    if (finalTwd <= 0) { setMsg('請選擇套餐或輸入台幣金額'); setMsgOk(false); return }
-    if (opType === null) { setMsg('⚠ 請選擇操作類型（STEP 3）'); setMsgOk(false); return }
+    if (opType === null) { setMsg('⚠ 請選擇操作類型（STEP 4）'); setMsgOk(false); return }
+    if (opType !== 'onlyGold' && finalTwd <= 0) { setMsg('請選擇套餐或輸入台幣金額'); setMsgOk(false); return }
+    if (opType === 'onlyGold' && finalGold <= 0) { setMsg('請先選擇套餐（用來決定發放金幣數量）'); setMsgOk(false); return }
     setLoading(true); setMsg('')
     try {
-      const r = await api.post(`/players/${info.account}/recharge`, { twdAmount: finalTwd, goldAmount: giveGold ? finalGold : 0, giveGold })
+      const r = await api.post(`/players/${info.account}/recharge`, {
+        twdAmount: opType === 'onlyGold' ? 0 : finalTwd,
+        goldAmount: giveGold ? finalGold : 0,
+        giveGold
+      })
       setMsg(r.data.message || '✓ 儲值成功'); setMsgOk(true)
       setSelectedTier(null); setCustomTwd(''); setOpType(null)
       await loadPlayer(info.account)
@@ -185,7 +192,9 @@ export default function RechargePage() {
   const vipColor = (v: number) => v === 2 ? '#60a5fa' : v === 1 ? '#fbbf24' : '#6b7280'
   const vipBg    = (v: number) => v === 2 ? 'rgba(96,165,250,.15)' : v === 1 ? 'rgba(251,191,36,.15)' : 'transparent'
 
-  const canSubmit = !!info && finalTwd > 0 && opType !== null
+  const canSubmit = !!info && opType !== null && (
+    opType === 'onlyGold' ? finalGold > 0 : finalTwd > 0
+  )
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : '28px 32px', maxWidth: 1200, width: '100%', boxSizing: 'border-box' }}>
@@ -392,7 +401,7 @@ export default function RechargePage() {
           {/* STEP 4：操作類型 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
             <StepLabel n={4} text="這次要做什麼？" sub="必填" warn />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 8 : 10, marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? 8 : 10, marginTop: 14 }}>
               <OpCard
                 selected={opType === 'gold'} onClick={() => setOpType('gold')}
                 icon="💰" color="#4ade80"
@@ -406,30 +415,47 @@ export default function RechargePage() {
                 title="只記錄，不給金幣"
                 desc="適合金幣已另外處理、只需補儲值紀錄的情況"
               />
+              <OpCard
+                selected={opType === 'onlyGold'} onClick={() => setOpType('onlyGold')}
+                icon="🎁" color="#f59e0b"
+                title="只發金幣，不計充值"
+                desc="發送金幣但不影響累積儲值進度，適合活動補償"
+              />
             </div>
           </div>
 
           {/* 預覽 */}
-          {finalTwd > 0 && opType !== null && (
+          {(opType === 'onlyGold' ? finalGold > 0 : finalTwd > 0) && opType !== null && (
             <div style={{ background: 'linear-gradient(135deg,rgba(74,222,128,.08),rgba(34,211,238,.05))', border: '1px solid rgba(74,222,128,.3)', borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#4ade80', marginBottom: 12 }}>📋 確認預覽</div>
+              {opType === 'onlyGold' && (
+                <div style={{ fontSize: 12, color: '#f59e0b', background: 'rgba(245,158,11,.1)', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>
+                  ⚠ 此模式只發金幣，累積充值進度不變
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 10 }}>
-                <PreviewCard label="台幣" value={`NT$${finalTwd.toLocaleString()}`} color="#fb923c" />
+                {opType !== 'onlyGold'
+                  ? <PreviewCard label="台幣" value={`NT$${finalTwd.toLocaleString()}`} color="#fb923c" />
+                  : <PreviewCard label="台幣" value="不計入" color="#6b7280" />}
                 {giveGold
                   ? <PreviewCard label="金幣入帳" value={`+${finalGold.toLocaleString()}`} color="#fbbf24" />
                   : <PreviewCard label="類型" value="僅累儲" color="#60a5fa" />}
                 {bonus > 0 && <PreviewCard label="加成" value={`+${bonus}%`} color="#4ade80" />}
               </div>
-              {/* 進度條對比 */}
-              <div style={{ marginTop: 14 }}>
-                <BarCompare label="充值前" pct={cycPct} color="#6b7280" />
-                <BarCompare label="充值後" pct={afterCycPct} color="#fb923c" />
-              </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                <span>循環進度：{currentCycle.toLocaleString()} → {(completedExtra > 0 ? afterPoint : afterCycle).toLocaleString()} / 25,000</span>
-                {completedExtra > 0 && <span style={{ color: '#60a5fa', fontWeight: 700 }}>🎉 完成 {completedExtra} 輪！</span>}
-                {afterVip !== (info?.vipLevel ?? 0) && <span style={{ color: vipColor(afterVip), fontWeight: 700 }}>↑ 升級至 {vipLabel(afterVip)}</span>}
-              </div>
+              {/* 進度條對比（onlyGold 模式不顯示，因為進度不變） */}
+              {opType !== 'onlyGold' && (
+                <>
+                  <div style={{ marginTop: 14 }}>
+                    <BarCompare label="充值前" pct={cycPct} color="#6b7280" />
+                    <BarCompare label="充值後" pct={afterCycPct} color="#fb923c" />
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    <span>循環進度：{currentCycle.toLocaleString()} → {(completedExtra > 0 ? afterPoint : afterCycle).toLocaleString()} / 25,000</span>
+                    {completedExtra > 0 && <span style={{ color: '#60a5fa', fontWeight: 700 }}>🎉 完成 {completedExtra} 輪！</span>}
+                    {afterVip !== (info?.vipLevel ?? 0) && <span style={{ color: vipColor(afterVip), fontWeight: 700 }}>↑ 升級至 {vipLabel(afterVip)}</span>}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -447,8 +473,12 @@ export default function RechargePage() {
             }}>
             {loading ? '⏳ 處理中…'
               : !info ? '⬅ 請先選擇玩家'
-              : finalTwd <= 0 ? '⬅ 請選擇套餐或輸入金額'
               : opType === null ? '⬅ 請選擇操作類型（STEP 4）'
+              : opType === 'onlyGold'
+                ? (finalGold > 0
+                    ? `🎁 確認發放 ${info.onlineName} ${finalGold.toLocaleString()} 金幣（不計充值）`
+                    : '⬅ 請選擇套餐以決定金幣數量')
+              : finalTwd <= 0 ? '⬅ 請選擇套餐或輸入金額'
               : isMobile
                 ? `💳 確認儲值 NT$${finalTwd.toLocaleString()}`
                 : `💳 確認給予 ${info.onlineName} 儲值 NT$${finalTwd.toLocaleString()}`}
