@@ -1103,12 +1103,14 @@ namespace SQ_Email_Tools
                              : string.IsNullOrEmpty(v) ? Theme.TextMuted : Theme.TextSecondary;
                     var lbl = new Label
                     {
-                        Text      = $"{k}: {display}",
-                        ForeColor = fg,
-                        Font      = (hi || wn) ? Theme.FontSmallBold : Theme.FontSmall,
-                        AutoSize  = false, Size = new Size(250, 18),
-                        Location  = new Point(cx, cy)
+                        Text         = $"{k}: {display}",
+                        ForeColor    = fg,
+                        Font         = (hi || wn) ? Theme.FontSmallBold : Theme.FontSmall,
+                        AutoSize     = false, Size = new Size(250, 18),
+                        Location     = new Point(cx, cy),
+                        AutoEllipsis = true
                     };
+                    new ToolTip().SetToolTip(lbl, $"{k}: {display}");
                     card.Controls.Add(lbl);
                     if (!left) cy += 18;
                     left = !left;

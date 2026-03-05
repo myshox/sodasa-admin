@@ -1911,8 +1911,8 @@ namespace SQ_Email_Tools
                 Text      = "綠色 = 資料夾存在（正常）　紅色 = 找不到資料夾（需修復）　黃色 = 磁碟有但 DB 沒有的資料夾（孤立）",
                 ForeColor = Theme.TextMuted,
                 AutoSize  = false,
-                Location  = new Point(16, 112),
-                Size      = new Size(860, 20)
+                Location  = new Point(16, 108),
+                Size      = new Size(860, 34)
             };
 
             _dgv = new DataGridView

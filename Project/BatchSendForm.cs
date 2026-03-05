@@ -811,10 +811,11 @@ namespace SQ_Email_Tools
             int totalItems = _cart.Sum(c => c.Qty);
             if (hasItems)
             {
-                _sendBtn.Text      = $"🚀  批量發送 {totalTypes} 種道具 × {totalItems} 件 給所有角色";
+                _sendBtn.Text      = $"🚀  批量發送 {totalTypes} 種 × {totalItems} 件";
                 _sendBtn.BackColor = Theme.AccentOrange;
                 _sendBtn.ForeColor = Color.White;
                 _sendBtn.Enabled   = true;
+                new ToolTip().SetToolTip(_sendBtn, $"批量發送 {totalTypes} 種道具 × 共 {totalItems} 件，給所有符合條件角色");
             }
             else
             {

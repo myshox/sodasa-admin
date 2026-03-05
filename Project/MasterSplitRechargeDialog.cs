@@ -58,6 +58,7 @@ namespace SQ_Email_Tools
         private Label   _lblTotal;
         private Button  _btnOk;
         private Panel   _scrollPanel;
+        private Label   _hdrGoldPreview;   // 表頭「金幣預覽」隨 resize 同步
         public  bool    AnyDone { get; private set; }
 
         // 顏色常數
@@ -201,7 +202,14 @@ namespace SQ_Email_Tools
             Hdr("套餐選擇",   228, 340);
             Hdr("自訂NT$",   574,  90);
             Hdr("優惠%",     672, 170);
-            Hdr("金幣預覽",  848, 160, ContentAlignment.MiddleRight);
+            // 金幣預覽需隨 resize 同步，存為欄位
+            _hdrGoldPreview = new Label
+            {
+                Text = "金幣預覽", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                AutoSize = false, Location = new Point(848, 0), Size = new Size(160, 32),
+                TextAlign = ContentAlignment.MiddleRight, BackColor = Color.Transparent
+            };
+            header.Controls.Add(_hdrGoldPreview);
             Controls.Add(header);
 
             // ── 滾動主體 ──────────────────────────────────────────────
@@ -264,12 +272,12 @@ namespace SQ_Email_Tools
             sr.RowPanel.Controls.Add(new Label {
                 Text = nameStr, Location = new Point(62, 8), Size = new Size(160, 20),
                 ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent, AutoEllipsis = true
             });
             sr.RowPanel.Controls.Add(new Label {
                 Text = p.Account, Location = new Point(62, 28), Size = new Size(160, 18),
                 ForeColor = Theme.TextMuted, Font = new Font(Theme.FontFamily, 7.5f),
-                BackColor = Color.Transparent
+                BackColor = Color.Transparent, AutoEllipsis = true
             });
             if (p.PayTotal > 0)
                 sr.RowPanel.Controls.Add(new Label {
@@ -286,7 +294,7 @@ namespace SQ_Email_Tools
                 var tb = new Button
                 {
                     Text = TIERS[i].Label, AutoSize = false,
-                    Size = new Size(46, 22), Location = new Point(bx + idx * 48, 10),
+                    Size = new Size(48, 24), Location = new Point(bx + idx * 50, 8),
                     FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
                     BackColor = ColBtnDef, ForeColor = Theme.TextPrimary,
                     Font = new Font(Theme.FontFamily, 7f), Tag = idx
@@ -299,9 +307,9 @@ namespace SQ_Email_Tools
             // 套餐說明（小字）
             var lblSub = new Label
             {
-                Location = new Point(228, 36), Size = new Size(336, 14),
+                Location = new Point(228, 34), Size = new Size(352, 18),
                 ForeColor = Theme.TextMuted, Font = new Font(Theme.FontFamily, 6.5f),
-                BackColor = Color.Transparent, Text = "1萬     3.2萬    5.5萬    11.5萬   36萬     62.5萬   130萬"
+                BackColor = Color.Transparent, Text = "1萬      3.2萬    5.5萬    11.5萬   36萬     62.5萬   130萬"
             };
             sr.RowPanel.Controls.Add(lblSub);
 
@@ -424,6 +432,13 @@ namespace SQ_Email_Tools
                     r.LblPreview.Location = new Point(w - 170, 10);
                     r.LblPreview.Width    = 160;
                 }
+            }
+            // 表頭「金幣預覽」同步對齊
+            if (_hdrGoldPreview != null)
+            {
+                int hw = _scrollPanel.ClientSize.Width;
+                _hdrGoldPreview.Location = new Point(hw - 170, 0);
+                _hdrGoldPreview.Width    = 160;
             }
         }
 

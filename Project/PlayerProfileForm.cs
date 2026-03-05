@@ -1715,7 +1715,7 @@ namespace SQ_Email_Tools
             _claimReady    = claimReady;
             _totalCheck    = totalCheck;
             Text           = $"💳 調整累積充值 — {playerName}";
-            Size           = new Size(660, 680);
+            Size           = new Size(660, 710);
             BackColor = Theme.BgPage;
             ForeColor      = Theme.TextPrimary;
             Font           = Theme.FontBody;
@@ -1890,17 +1890,19 @@ namespace SQ_Email_Tools
             Controls.Add(_nudTwd);
 
             Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
+            y += 32;
 
             _lblGoldCalc = new Label
             {
                 Text      = "→ 金幣：10,000（套餐加成）",
                 ForeColor = Color.FromArgb(180, 240, 140),
                 Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize  = true,
-                Location  = new Point(x + 200, y + 3)
+                AutoSize  = false,
+                Size      = new Size(W, 22),
+                Location  = new Point(x, y)
             };
             Controls.Add(_lblGoldCalc);
-            y += 38;
+            y += 28;
 
             // ── 新增後循環預覽 ────────────────────────────────────
             Div(x, y, W); y += 10;
@@ -2128,12 +2130,15 @@ namespace SQ_Email_Tools
             long bonusGold = (long)Math.Round(baseGold * _bonusPct / 100.0);
             long totalGold = baseGold + bonusGold;
             string rateNote = _selectedGold >= 0
-                ? $"（套餐加成，{(double)baseGold / twd:F1}x/NT$）"
-                : "（基礎率 ×100）";
+                ? $"套餐加成 {(double)baseGold / twd:F1}x/NT$"
+                : "基礎率 ×100";
             string bonusNote = _bonusPct > 0
-                ? $"  ＋  {bonusGold:N0}（+{_bonusPct}% 優惠）  ＝  共 {totalGold:N0} 金幣"
+                ? $"  ＋  {bonusGold:N0}（+{_bonusPct}%）"
                 : "";
-            _lblGoldCalc.Text      = $"→ 金幣：{baseGold:N0}　{rateNote}{bonusNote}";
+            // 總計放最前面，確保不被截斷
+            _lblGoldCalc.Text = _bonusPct > 0
+                ? $"→ 共 {totalGold:N0} 金幣　（{baseGold:N0}{bonusNote}　{rateNote}）"
+                : $"→ {baseGold:N0} 金幣　（{rateNote}）";
             _lblGoldCalc.ForeColor = _bonusPct > 0
                 ? Color.FromArgb(80, 230, 130)
                 : (_selectedGold >= 0 ? Color.FromArgb(120, 240, 120) : Color.FromArgb(200, 200, 120));

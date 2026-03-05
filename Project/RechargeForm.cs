@@ -411,9 +411,9 @@ namespace SQ_Email_Tools
             {
                 Text = "💡 贈金是活動獎勵，不計入累積儲值進度。VIP 玩家的加成已自動套用。",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(640, 18), Location = new Point(x, y)
+                AutoSize = false, Size = new Size(600, 34), Location = new Point(x, y)
             });
-            y += 20;
+            y += 36;
             _bonusBtns = new Button[BONUSES.Length];
             bx = x;
             for (int i = 0; i < BONUSES.Length; i++)
@@ -510,9 +510,9 @@ namespace SQ_Email_Tools
             {
                 Text = "❓ 想知道充 X 元台幣，玩家能拿多少金幣？輸入台幣金額後自動計算。",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(640, 18), Location = new Point(x, y)
+                AutoSize = false, Size = new Size(600, 34), Location = new Point(x, y)
             });
-            y += 20;
+            y += 36;
 
             var nudCalcTwd = new NumericUpDown
             {
@@ -552,10 +552,10 @@ namespace SQ_Email_Tools
             {
                 Text = "請輸入台幣金額…",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(600, 18), Location = new Point(x, y)
+                AutoSize = false, Size = new Size(600, 38), Location = new Point(x, y)
             };
             scroll.Controls.Add(_lblCalcResult);
-            y += 28;
+            y += 44;
 
             // ─── 金幣反推台幣計算機 ──────────────────────────────────
             scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
@@ -565,9 +565,9 @@ namespace SQ_Email_Tools
             {
                 Text = "❓ 玩家需要 X 金幣，自動找出最划算套餐，算出最少需花多少台幣。",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(640, 18), Location = new Point(x, y)
+                AutoSize = false, Size = new Size(600, 34), Location = new Point(x, y)
             });
-            y += 20;
+            y += 36;
 
             var nudCalcGold = new NumericUpDown
             {
@@ -607,10 +607,10 @@ namespace SQ_Email_Tools
             {
                 Text = "請輸入金幣數量…",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(620, 32), Location = new Point(x, y)
+                AutoSize = false, Size = new Size(600, 40), Location = new Point(x, y)
             };
             scroll.Controls.Add(_lblCalcRevResult);
-            y += 36;
+            y += 48;
 
             // ─── 充值記錄查詢 ────────────────────────────────────────
             scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
@@ -1029,7 +1029,7 @@ namespace SQ_Email_Tools
 
             _lblCalcRevResult.Text      = line2.Length > 0 ? line1 + "\n" + line2 : line1;
             _lblCalcRevResult.ForeColor = Theme.AccentOrange;
-            _lblCalcRevResult.Size      = new Size(620, line2.Length > 0 ? 36 : 20);
+            _lblCalcRevResult.Size      = new Size(600, line2.Length > 0 ? 40 : 22);
         }
     }
 }
