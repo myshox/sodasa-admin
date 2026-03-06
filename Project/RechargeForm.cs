@@ -600,11 +600,9 @@ namespace SQ_Email_Tools
                     Text = t, ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                     AutoSize = false, Location = new Point(x, 0), Size = new Size(w, 28),
                     TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.Transparent });
-            AddHdr("✓",          10, 24);
-            AddHdr("帳號 / 角色", 52, 140);
-            AddHdr("套餐（點選即勾選）", 196, 330);
-            AddHdr("自訂NT$",    530,  80);
-            AddHdr("優惠%",      616, 158);
+            AddHdr("✓  帳號 / 角色",  10, 180);
+            AddHdr("套餐選擇（點選即自動勾選）", 194, 380);
+            AddHdr("優惠 %",   580, 120);
             _hdrSplitGold = new Label
             {
                 Text = "金幣預覽", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
@@ -645,17 +643,36 @@ namespace SQ_Email_Tools
         private SplitRowCtrl BuildSplitRow(PlayerInfo p, int yPos)
         {
             var sr = new SplitRowCtrl { Player = p };
+
+            // 外層列 Panel — 高度固定，寬度由 UpdateSplitRowWidths 管理
             sr.Row = new Panel
             {
                 Location  = new Point(0, yPos),
-                Size      = new Size(900, SPLIT_ROW_H),   // 初始 900px，UpdateSplitRowWidths 會修正
+                Size      = new Size(900, SPLIT_ROW_H),
                 BackColor = p.IsOnline ? _cBgRowOn : _cBgRowOff,
-                Anchor    = AnchorStyles.Left | AnchorStyles.Top  // 不加 Right，由 UpdateSplitRowWidths 管理
+                Anchor    = AnchorStyles.Left | AnchorStyles.Top
             };
             sr.Row.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
 
-            // 勾選框
-            sr.Chk = new CheckBox { Location = new Point(10, 24), Size = new Size(18, 18), BackColor = Color.Transparent };
+            // ── TableLayoutPanel：3 欄（玩家資訊 | 套餐+自訂 | 優惠+預覽）─
+            var tbl = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, BackColor = Color.Transparent,
+                ColumnCount = 3, RowCount = 1, Margin = Padding.Empty, Padding = Padding.Empty
+            };
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));  // 玩家資訊固定
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));   // 套餐區自動填充
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));  // 優惠+預覽固定
+            tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            sr.Row.Controls.Add(tbl);
+
+            // ══════════ 欄 1：玩家資訊 ══════════════════════════════════
+            var infoPnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+            sr.Chk = new CheckBox
+            {
+                Location = new Point(8, 24), Size = new Size(18, 18),
+                BackColor = Color.Transparent
+            };
             sr.Chk.CheckedChanged += (_, __) =>
             {
                 sr.Enabled = sr.Chk.Checked;
@@ -664,53 +681,74 @@ namespace SQ_Email_Tools
                     : (p.IsOnline ? _cBgRowOn : _cBgRowOff);
                 RefreshSplitTotal();
             };
-            sr.Row.Controls.Add(sr.Chk);
-
-            // 玩家資訊（左側固定區）
+            infoPnl.Controls.Add(sr.Chk);
+            infoPnl.Controls.Add(new Label
+            {
+                Text = p.IsOnline ? "🟢" : (p.IsBanned ? "🔴" : "⚫"),
+                Location = new Point(30, 23), AutoSize = true,
+                Font = new Font(Theme.FontFamily, 9f), BackColor = Color.Transparent
+            });
             string nm = !string.IsNullOrWhiteSpace(p.OnlineName) ? p.OnlineName : p.Account;
-            sr.Row.Controls.Add(new Label { Text = p.IsOnline ? "🟢" : (p.IsBanned ? "🔴" : "⚫"),
-                Location = new Point(32, 23), AutoSize = true,
-                Font = new Font(Theme.FontFamily, 9f), BackColor = Color.Transparent });
-            sr.Row.Controls.Add(new Label { Text = nm, Location = new Point(52, 6), Size = new Size(140, 20),
-                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
-                BackColor = Color.Transparent, AutoEllipsis = true });
-            sr.Row.Controls.Add(new Label { Text = p.Account, Location = new Point(52, 26), Size = new Size(140, 16),
+            infoPnl.Controls.Add(new Label
+            {
+                Text = nm, Location = new Point(50, 8), Size = new Size(134, 20),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                BackColor = Color.Transparent, AutoEllipsis = true
+            });
+            infoPnl.Controls.Add(new Label
+            {
+                Text = p.Account, Location = new Point(50, 29), Size = new Size(134, 16),
                 ForeColor = Theme.TextMuted, Font = new Font(Theme.FontFamily, 7.5f),
-                BackColor = Color.Transparent, AutoEllipsis = true });
+                BackColor = Color.Transparent, AutoEllipsis = true
+            });
             if (p.PayTotal > 0)
-                sr.Row.Controls.Add(new Label { Text = $"NT${p.PayTotal:N0}", Location = new Point(52, 44), Size = new Size(140, 14),
-                    ForeColor = _cOrange, Font = new Font(Theme.FontFamily, 7f), BackColor = Color.Transparent });
+                infoPnl.Controls.Add(new Label
+                {
+                    Text = $"累積 NT${p.PayTotal:N0}", Location = new Point(50, 46), Size = new Size(134, 14),
+                    ForeColor = _cOrange, Font = new Font(Theme.FontFamily, 7f), BackColor = Color.Transparent
+                });
+            tbl.Controls.Add(infoPnl, 0, 0);
 
-            // 套餐按鈕（7 個）
+            // ══════════ 欄 2：套餐按鈕（FlowLayout）+ 自訂 NT$ ══════════
+            var midPnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+
+            // 套餐按鈕 FlowLayoutPanel（不換行，全部在同一行）
+            var tierFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top, Height = 36,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, BackColor = Color.Transparent,
+                Padding = new Padding(4, 6, 0, 0), AutoScroll = false
+            };
             for (int i = 0; i < SPLIT_TIER_LABELS.Length; i++)
             {
                 int idx = i;
                 var tb = new Button
                 {
                     Text = SPLIT_TIER_LABELS[i], AutoSize = false,
-                    Size = new Size(44, 22), Location = new Point(196 + idx * 47, 8),
-                    FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
-                    BackColor = _cBtnTier, ForeColor = Theme.TextPrimary,
-                    Font = new Font(Theme.FontFamily, 7.5f)
+                    Size = new Size(58, 24), FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand, BackColor = _cBtnTier,
+                    ForeColor = Theme.TextPrimary,
+                    Font = new Font(Theme.FontFamily, 8f),
+                    Margin = new Padding(0, 0, 3, 0)
                 };
                 tb.FlatAppearance.BorderColor = Color.FromArgb(55, 70, 110);
                 tb.Click += (_, __) => { SetSplitTier(sr, idx); RefreshSplitAll(); };
                 sr.TierBtns[i] = tb;
-                sr.Row.Controls.Add(tb);
+                tierFlow.Controls.Add(tb);
             }
-            // 套餐小字說明
-            sr.Row.Controls.Add(new Label
-            {
-                Text = string.Join("  ", SPLIT_TIER_SUBS),
-                Location = new Point(196, 32), Size = new Size(330, 14),
-                ForeColor = Color.FromArgb(80, 95, 115), Font = new Font(Theme.FontFamily, 6.5f),
-                BackColor = Color.Transparent
-            });
+            midPnl.Controls.Add(tierFlow);
 
-            // 自訂 NT$
+            // 自訂 NT$ 輸入
+            var nudRow = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+            nudRow.Controls.Add(new Label
+            {
+                Text = "自訂 NT$", Location = new Point(4, 8), AutoSize = true,
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall, BackColor = Color.Transparent
+            });
             sr.Nud = new NumericUpDown
             {
-                Location = new Point(530, 20), Size = new Size(78, 24),
+                Location = new Point(68, 5), Size = new Size(90, 24),
                 Minimum = 0, Maximum = 999_999, Value = 0,
                 BackColor = Color.FromArgb(22, 28, 46), ForeColor = Theme.TextPrimary,
                 Font = new Font(Theme.FontFamily, 8f), BorderStyle = BorderStyle.FixedSingle
@@ -722,36 +760,51 @@ namespace SQ_Email_Tools
                 if (!sr.Enabled && sr.CustomTwd > 0) sr.Chk.Checked = true;
                 RefreshSplitPreview(sr); RefreshSplitTotal();
             };
-            sr.Row.Controls.Add(sr.Nud);
+            nudRow.Controls.Add(sr.Nud);
+            midPnl.Controls.Add(nudRow);
+            tbl.Controls.Add(midPnl, 1, 0);
 
-            // 優惠按鈕（5 個）
+            // ══════════ 欄 3：優惠按鈕 + 金幣預覽 ═══════════════════════
+            var rightPnl = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
+
+            // 優惠按鈕 FlowLayoutPanel
+            var bonusFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top, Height = 36,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, BackColor = Color.Transparent,
+                Padding = new Padding(4, 6, 0, 0), AutoScroll = false
+            };
             for (int i = 0; i < SPLIT_BONUS_VALS.Length; i++)
             {
                 int bi = i;
                 var bb = new Button
                 {
                     Text = $"+{SPLIT_BONUS_VALS[i]}%", AutoSize = false,
-                    Size = new Size(30, 22), Location = new Point(616 + bi * 32, 20),
-                    FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                    Size = new Size(34, 24), FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand,
                     BackColor = bi == 0 ? _cBtnBonSel : _cBtnBonus,
                     ForeColor = bi == 0 ? Color.White : Theme.TextPrimary,
-                    Font = new Font(Theme.FontFamily, 7f)
+                    Font = new Font(Theme.FontFamily, 7.5f),
+                    Margin = new Padding(0, 0, 2, 0)
                 };
                 bb.FlatAppearance.BorderColor = Color.FromArgb(40, 80, 150);
                 bb.Click += (_, __) => { SetSplitBonus(sr, bi); RefreshSplitAll(); };
                 sr.BonusBtns[i] = bb;
-                sr.Row.Controls.Add(bb);
+                bonusFlow.Controls.Add(bb);
             }
-            // Last bonus button ends at: 616 + 4*32 + 30 = 774px
+            rightPnl.Controls.Add(bonusFlow);
 
-            // 金幣預覽（右對齊，動態）
+            // 金幣預覽
             sr.Preview = new Label
             {
+                Dock = DockStyle.Fill,
                 ForeColor = _cGreen2, Font = new Font(Theme.FontFamily, 8f),
                 BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight,
-                Text = "—"
+                Text = "—", Padding = new Padding(0, 0, 8, 0)
             };
-            sr.Row.Controls.Add(sr.Preview);
+            rightPnl.Controls.Add(sr.Preview);
+            tbl.Controls.Add(rightPnl, 2, 0);
 
             return sr;
         }
@@ -759,17 +812,15 @@ namespace SQ_Email_Tools
         private void UpdateSplitRowWidths()
         {
             if (_splitRows == null || _splitScrollPanel == null) return;
-            int w = Math.Max(800, _splitScrollPanel.ClientSize.Width);
+            int w = Math.Max(760, _splitScrollPanel.ClientSize.Width);
             foreach (var r in _splitRows)
-            {
                 r.Row.Width = w;
-                r.Preview.Location = new Point(w - 170, 10);
-                r.Preview.Size     = new Size(162, 44);
-            }
             if (_hdrSplitGold != null)
             {
-                _hdrSplitGold.Location = new Point(w - 170, 0);
-                _hdrSplitGold.Size     = new Size(162, 28);
+                // 表頭右欄對齊 Col3（右側 190px）
+                int hw = _splitScrollPanel.ClientSize.Width > 0 ? _splitScrollPanel.ClientSize.Width : 760;
+                _hdrSplitGold.Location = new Point(hw - 186, 0);
+                _hdrSplitGold.Width    = 180;
             }
         }
 
