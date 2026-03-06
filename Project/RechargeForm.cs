@@ -85,8 +85,8 @@ namespace SQ_Email_Tools
         public RechargeForm()
         {
             Text            = "💰 充值管理";
-            Size            = new Size(1080, 780);
-            MinimumSize     = new Size(900, 640);
+            Size            = new Size(1160, 780);
+            MinimumSize     = new Size(1020, 640);
             BackColor       = Theme.BgPage;
             ForeColor       = Theme.TextPrimary;
             Font            = Theme.FontBody;
@@ -370,31 +370,35 @@ namespace SQ_Email_Tools
             // ── Tab 切換列 ─────────────────────────────────────────
             var tabBar = new Panel
             {
-                Dock = DockStyle.Top, Height = 44,
-                BackColor = Color.FromArgb(16, 20, 34)
+                Dock = DockStyle.Top, Height = 46,
+                BackColor = Color.FromArgb(14, 18, 30)
             };
-            tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+            tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 2, BackColor = Theme.Border });
 
             _btnTabSingle = new Button
             {
-                Text = "💰 新增儲值",
-                Size = new Size(148, 34), Location = new Point(10, 5),
+                Text = "💰  新增儲值",
+                Size = new Size(158, 36), Location = new Point(10, 5),
                 BackColor = Theme.AccentBlue, ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat, Font = Theme.FontBody, Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand, UseVisualStyleBackColor = false
             };
-            _btnTabSingle.FlatAppearance.BorderSize = 0;
+            _btnTabSingle.FlatAppearance.BorderSize  = 0;
+            _btnTabSingle.FlatAppearance.BorderColor = Theme.AccentBlue;
             _btnTabSingle.Click += (_, __) => SwitchTab(false);
 
             _btnTabSplit = new Button
             {
-                Text = "📋 分配儲值",
-                Size = new Size(148, 34), Location = new Point(162, 5),
-                BackColor = Theme.BgCard, ForeColor = Theme.TextMuted,
-                FlatStyle = FlatStyle.Flat, Font = Theme.FontBody, Cursor = Cursors.Hand,
-                Enabled = false, UseVisualStyleBackColor = false
+                Text = "📋  分配儲值",
+                Size = new Size(158, 36), Location = new Point(172, 5),
+                BackColor = Color.FromArgb(28, 36, 56), ForeColor = Color.FromArgb(140, 160, 200),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(Theme.FontFamily, 9.5f),
+                Cursor = Cursors.Hand, Enabled = false, UseVisualStyleBackColor = false
             };
-            _btnTabSplit.FlatAppearance.BorderSize = 0;
+            _btnTabSplit.FlatAppearance.BorderSize  = 1;
+            _btnTabSplit.FlatAppearance.BorderColor = Theme.Border;
             _btnTabSplit.Click += (_, __) => SwitchTab(true);
             new ToolTip().SetToolTip(_btnTabSplit, "搜尋到主帳號後，此 Tab 才會啟用");
 
@@ -424,10 +428,18 @@ namespace SQ_Email_Tools
             _pnlSingleContent.Visible = !showSplit;
             _pnlSplitWrapper.Visible  = showSplit;
 
-            _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Theme.BgCard;
-            _btnTabSingle.ForeColor = !showSplit ? Color.White : Theme.TextMuted;
-            _btnTabSplit.BackColor  = showSplit  ? Theme.AccentBlue : Theme.BgCard;
-            _btnTabSplit.ForeColor  = showSplit  ? Color.White : Theme.TextMuted;
+            // Active tab：藍色背景 + 粗體；inactive：暗色背景 + 細體
+            _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Color.FromArgb(28, 36, 56);
+            _btnTabSingle.ForeColor = !showSplit ? Color.White : Color.FromArgb(140, 160, 200);
+            _btnTabSingle.Font      = new Font(Theme.FontFamily, 9.5f, !showSplit ? FontStyle.Bold : FontStyle.Regular);
+
+            _btnTabSplit.BackColor = showSplit ? Color.FromArgb(20, 100, 30) : Color.FromArgb(28, 36, 56);
+            _btnTabSplit.ForeColor = showSplit ? Color.FromArgb(140, 230, 140) : Color.FromArgb(140, 160, 200);
+            _btnTabSplit.Font      = new Font(Theme.FontFamily, 9.5f, showSplit ? FontStyle.Bold : FontStyle.Regular);
+
+            // 強制重新排版，確保 Fill panel 正確佔滿剩餘空間
+            if (showSplit) _pnlSplitWrapper.PerformLayout();
+            else           _pnlSingleContent.PerformLayout();
         }
 
         // ── 重建嵌入式分配儲值 Panel ────────────────────────────────
@@ -450,12 +462,30 @@ namespace SQ_Email_Tools
                 return;
             }
 
+            // ── 分配儲值標題列（取代 dialog 原本被隱藏的 Title Bar）──
+            _pnlSplitWrapper.Controls.Clear();
+            var splitHdr = new Panel
+            {
+                Dock = DockStyle.Top, Height = 36,
+                BackColor = Color.FromArgb(18, 28, 18)
+            };
+            splitHdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(60, 160, 60) });
+            splitHdr.Controls.Add(new Label
+            {
+                Text      = $"📋  分配儲值 — 主帳號：{_masterName}（{_subs.Count} 位子帳號）",
+                ForeColor = Color.FromArgb(120, 220, 120),
+                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                AutoSize  = true, Location = new Point(12, 8)
+            });
+            _pnlSplitWrapper.Controls.Add(splitHdr);
+
             // 建立嵌入式分配儲值表單
             _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true)
             {
                 TopLevel        = false,
                 FormBorderStyle = FormBorderStyle.None,
-                Dock            = DockStyle.Fill
+                Dock            = DockStyle.Fill,
+                MinimumSize     = Size.Empty   // 移除 860px 最小寬度限制，讓 Dock=Fill 生效
             };
             _embeddedSplit.OnAfterRecharge = async () =>
             {
