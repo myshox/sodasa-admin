@@ -776,38 +776,47 @@ namespace SQ_Email_Tools
             ShowMsg("搜尋中…", true);
             try
             {
-                // 支援主帳號展開：若底下有多個角色，跳出選擇視窗
-                var picked = await PlayerPickerHelper.PickAsync(this, q);
-                if (picked == null) { ShowMsg("", true); return; }
+                // 多選模式：主帳號展開後可勾選多個角色
+                var pickedList = await PlayerPickerHelper.PickMultiAsync(this, q, multiMode: true);
+                if (pickedList == null || pickedList.Count == 0) { ShowMsg("", true); return; }
 
-                _account  = picked.Account;
-                _masterId = picked.MasterId;
-                _masterName = picked.MasterName ?? "";
-                _txtSearch.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
-                _detail   = await DatabaseManager.Instance.GetPlayerDetailAsync(picked.Account);
-                // 預設依 VIP 套用加成
+                var first = pickedList[0];
+                _account    = first.Account;
+                _masterId   = first.MasterId;
+                _masterName = first.MasterName ?? "";
+                _txtSearch.Text = first.OnlineName.Length > 0 ? first.OnlineName : first.Account;
+                _detail = await DatabaseManager.Instance.GetPlayerDetailAsync(first.Account);
                 _bonusPct = VipHelper.BonusPercent(_detail.PayTotal);
                 RefreshBonusButtons();
                 SelectTier(-1);
                 RebuildPlayerInfo();
                 UpdatePreview();
 
-                // ── 載入子帳號（供分配儲值 Tab 使用）────────────────
-                if (_masterId > 0)
+                if (pickedList.Count > 1)
                 {
-                    _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
-                    // 若 MasterName 未從 picked 取得，從第一筆 sub 取
-                    if (string.IsNullOrWhiteSpace(_masterName) && _subs.Count > 0)
-                        _masterName = _subs[0].MasterName ?? "";
+                    // 多選 → 直接進分配儲值 Tab，只顯示選定的角色
+                    _subs = pickedList;
+                    RebuildSplitPanel();
+                    SwitchTab(true);
+                    ShowMsg($"✓ 已選取 {pickedList.Count} 個角色 → 切換到分配儲值", true);
                 }
                 else
                 {
-                    _subs = new List<PlayerInfo>();
+                    // 單選 → 一般模式，同時載入主帳號所有子帳號供分配儲值 Tab
+                    if (_masterId > 0)
+                    {
+                        _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
+                        if (string.IsNullOrWhiteSpace(_masterName) && _subs.Count > 0)
+                            _masterName = _subs[0].MasterName ?? "";
+                    }
+                    else
+                    {
+                        _subs = new List<PlayerInfo>();
+                    }
+                    RebuildSplitPanel();
+                    string subsInfo = _subs.Count > 1 ? $"  ·  主帳號 {_masterName}（{_subs.Count} 位子帳號，可切換分配儲值 Tab）" : "";
+                    ShowMsg($"✓ 已載入玩家：{_detail.OnlineName}（{_detail.Account}）{subsInfo}", true);
                 }
-                RebuildSplitPanel();
-
-                string subsInfo = _subs.Count > 1 ? $"  ·  主帳號 {_masterName}（{_subs.Count} 位子帳號）" : "";
-                ShowMsg($"✓ 已載入玩家：{_detail.OnlineName}（{_detail.Account}）{subsInfo}", true);
             }
             catch (Exception ex) { ShowMsg("找不到玩家：" + ex.Message, false); _detail = null; _account = null; RebuildPlayerInfo(); }
             finally { _btnSearch.Enabled = true; _btnSearch.Text = "🔍 搜尋"; }
