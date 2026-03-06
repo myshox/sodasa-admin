@@ -9,6 +9,8 @@ c:/SodaGM/
 # ===== .NET =====
 WebApi/bin/
 WebApi/obj/
+Project/bin/
+Project/obj/
 *.user
 *.suo
 .vs/
