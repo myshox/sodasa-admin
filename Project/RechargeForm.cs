@@ -58,7 +58,7 @@ namespace SQ_Email_Tools
         private List<SplitRowCtrl>? _splitRows;
         private Label?  _lblSplitTotal;
         private Button? _btnSplitOk;
-        private Panel?  _splitScrollPanel;
+        private Panel?  _splitScrollPanel;   // 保留欄位（設為 null，僅為相容性）
         private Label?  _hdrSplitGold;
 
         private sealed class SplitRowCtrl
@@ -470,8 +470,6 @@ namespace SQ_Email_Tools
         {
             _pnlSingleContent.Visible = !showSplit;
             _pnlSplitWrapper.Visible  = showSplit;
-            // 切到分配儲值時強制更新列寬，確保按鈕可點擊
-            if (showSplit) BeginInvoke((Action)UpdateSplitRowWidths);
 
             _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Color.FromArgb(28, 36, 56);
             _btnTabSingle.ForeColor = !showSplit ? Color.White : Color.FromArgb(140, 160, 200);
@@ -612,45 +610,37 @@ namespace SQ_Email_Tools
             hdr.Controls.Add(_hdrSplitGold);
             _pnlSplitWrapper.Controls.Add(hdr);
 
-            // ── 子帳號滾動區域 ──────────────────────────────────────
-            _splitScrollPanel = new Panel
-            {
-                Dock = DockStyle.Fill, AutoScroll = true, BackColor = _cBg
-            };
+            // ── 子帳號列（DockStyle.Top，WinForms 自動設定寬度，不需手動管理）
+            _splitScrollPanel = null;
             _splitRows = new List<SplitRowCtrl>();
-            int y = 0;
             foreach (var sub in _subs)
             {
-                var rc = BuildSplitRow(sub, y);
-                _splitScrollPanel.Controls.Add(rc.Row);
+                var rc = BuildSplitRow(sub);
+                // 直接加到 _pnlSplitWrapper，DockStyle.Top 自動寬度
+                _pnlSplitWrapper.Controls.Add(rc.Row);
                 _splitRows.Add(rc);
-                y += SPLIT_ROW_H;
             }
-            // 監聽寬度變化，更新每列寬度
-            _splitScrollPanel.Resize += (_, __) => UpdateSplitRowWidths();
-            _pnlSplitWrapper.Controls.Add(_splitScrollPanel);
+            // AutoScroll 讓列數多時可以垂直捲動
+            _pnlSplitWrapper.AutoScroll = true;
 
             _btnTabSplit.Enabled = true;
             _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
             new ToolTip().SetToolTip(_btnTabSplit, $"{_masterName} 旗下 {_subs.Count} 個帳號");
 
             RefreshSplitAll();
-
-            // layout 跑完後強制同步列寬，確保按鈕都在 Panel 邊界內
-            BeginInvoke((Action)UpdateSplitRowWidths);
         }
 
-        private SplitRowCtrl BuildSplitRow(PlayerInfo p, int yPos)
+        private SplitRowCtrl BuildSplitRow(PlayerInfo p)
         {
             var sr = new SplitRowCtrl { Player = p };
 
-            // 外層列 Panel — 高度固定，寬度由 UpdateSplitRowWidths 管理
+            // Dock=Top：WinForms 自動設定寬度 = 父容器寬度，高度固定
+            // 按鈕永遠在 Panel 邊界內，完全不需要手動管理寬度
             sr.Row = new Panel
             {
-                Location  = new Point(0, yPos),
-                Size      = new Size(900, SPLIT_ROW_H),
-                BackColor = p.IsOnline ? _cBgRowOn : _cBgRowOff,
-                Anchor    = AnchorStyles.Left | AnchorStyles.Top
+                Dock      = DockStyle.Top,
+                Height    = SPLIT_ROW_H,
+                BackColor = p.IsOnline ? _cBgRowOn : _cBgRowOff
             };
             sr.Row.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
 
@@ -809,20 +799,7 @@ namespace SQ_Email_Tools
             return sr;
         }
 
-        private void UpdateSplitRowWidths()
-        {
-            if (_splitRows == null || _splitScrollPanel == null) return;
-            int w = Math.Max(760, _splitScrollPanel.ClientSize.Width);
-            foreach (var r in _splitRows)
-                r.Row.Width = w;
-            if (_hdrSplitGold != null)
-            {
-                // 表頭右欄對齊 Col3（右側 190px）
-                int hw = _splitScrollPanel.ClientSize.Width > 0 ? _splitScrollPanel.ClientSize.Width : 760;
-                _hdrSplitGold.Location = new Point(hw - 186, 0);
-                _hdrSplitGold.Width    = 180;
-            }
-        }
+        // UpdateSplitRowWidths 已移除：Dock=Top 自動設定寬度，不再需要
 
         private void SetSplitTier(SplitRowCtrl sr, int idx)
         {
