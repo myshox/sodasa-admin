@@ -37,6 +37,7 @@ namespace SQ_Email_Tools
         private int  _selectedTierIdx = -1;     // -1 = 未選
         private int  _bonusPct = 0;
         private bool _giveGold = true;
+        private bool _syncingGold = false;      // 防止 NT$→金幣 雙向觸發
 
         // ── UI 控件 ────────────────────────────────────────────────
         private TextBox   _txtSearch;
@@ -453,7 +454,26 @@ namespace SQ_Email_Tools
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, ThousandsSeparator = true
             };
-            _nudTwd.ValueChanged += (s, e) => { if (_nudTwd.Value > 0) SelectTier(-1); UpdatePreview(); };
+            _nudTwd.ValueChanged += (s, e) =>
+            {
+                if (_syncingGold) return;
+                if (_nudTwd.Value > 0)
+                {
+                    SelectTier(-1);
+                    // 存「基礎金幣」（不含加成），GetFinalGold() 再乘加成
+                    _syncingGold = true;
+                    var (baseGoldAuto, _, _) = TwdToGold((long)_nudTwd.Value);
+                    _nudGold.Value = baseGoldAuto;
+                    _syncingGold = false;
+                }
+                else
+                {
+                    _syncingGold = true;
+                    _nudGold.Value = 0;
+                    _syncingGold = false;
+                }
+                UpdatePreview();
+            };
             scroll.Controls.Add(_nudTwd);
             scroll.Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 275, y + 5) });
 
@@ -464,9 +484,14 @@ namespace SQ_Email_Tools
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, ThousandsSeparator = true
             };
-            _nudGold.ValueChanged += (s, e) => { if (_nudGold.Value > 0) SelectTier(-1); UpdatePreview(); };
+            _nudGold.ValueChanged += (s, e) =>
+            {
+                if (_syncingGold) return;
+                if (_nudGold.Value > 0) SelectTier(-1);
+                UpdatePreview();
+            };
             scroll.Controls.Add(_nudGold);
-            scroll.Controls.Add(new Label { Text = "金幣", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 434, y + 5) });
+            scroll.Controls.Add(new Label { Text = "金幣（基礎，可覆蓋）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 434, y + 5) });
             y += 36;
 
             // ─── 是否發放金幣 ────────────────────────────────────────
@@ -819,8 +844,11 @@ namespace SQ_Email_Tools
             long twd  = GetFinalTwd();
             long gold = GetFinalGold();
 
-            _btnConfirm.Enabled = _detail != null && twd > 0;
+            bool goldOk = !_giveGold || gold > 0;
+            _btnConfirm.Enabled = _detail != null && twd > 0 && goldOk;
             _btnConfirm.Text    = _detail != null ? $"💰 確認給予 {_detail.OnlineName} 儲值" : "請先選擇玩家";
+            if (_detail != null && twd > 0 && _giveGold && gold <= 0)
+                _btnConfirm.Text = "⚠ 請輸入或選擇套餐以決定金幣數量";
 
             if (twd <= 0) { _pnlPreview.Visible = false; return; }
 
@@ -856,7 +884,20 @@ namespace SQ_Email_Tools
 
         private long GetFinalGold()
         {
-            long baseGold = _selectedTierIdx >= 0 ? TIERS[_selectedTierIdx].Gold : (long)_nudGold.Value;
+            // 統一邏輯：先取基礎金幣，再套加成
+            long baseGold = _selectedTierIdx >= 0
+                ? TIERS[_selectedTierIdx].Gold
+                : (long)_nudGold.Value;   // _nudGold 存的是基礎金幣（無加成）
+            // fallback：若 nudGold 為 0 且有手動台幣，用 TwdToGold 計算
+            if (baseGold <= 0 && _selectedTierIdx < 0)
+            {
+                long twd = (long)_nudTwd.Value;
+                if (twd > 0)
+                {
+                    var (bg, _, _) = TwdToGold(twd);
+                    baseGold = bg;
+                }
+            }
             return (long)Math.Round(baseGold * (1 + _bonusPct / 100.0));
         }
 
