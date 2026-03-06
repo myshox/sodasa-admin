@@ -427,8 +427,31 @@ namespace SQ_Email_Tools
         // ── Tab 切換 ────────────────────────────────────────────────
         private void SwitchTab(bool showSplit)
         {
-            _pnlSingleContent.Visible = !showSplit;
-            _pnlSplitWrapper.Visible  = showSplit;
+            if (showSplit)
+            {
+                _pnlSingleContent.Visible = false;
+                _pnlSplitWrapper.Visible  = true;
+                _pnlSplitWrapper.BringToFront();
+                // layout 完成後強制更新嵌入表單大小並確保在最前方
+                if (_embeddedSplit != null)
+                    BeginInvoke((Action)(() =>
+                    {
+                        if (_embeddedSplit == null || _embeddedSplit.IsDisposed) return;
+                        var sz = _pnlSplitWrapper.ClientSize;
+                        if (!sz.IsEmpty)
+                        {
+                            _embeddedSplit.Location = Point.Empty;
+                            _embeddedSplit.Size     = sz;
+                        }
+                        _embeddedSplit.BringToFront();
+                    }));
+            }
+            else
+            {
+                _pnlSplitWrapper.Visible  = false;
+                _pnlSingleContent.Visible = true;
+                _pnlSingleContent.BringToFront();
+            }
 
             // Active tab：藍色背景 + 粗體；inactive：暗色背景 + 細體
             _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Color.FromArgb(28, 36, 56);
@@ -438,10 +461,6 @@ namespace SQ_Email_Tools
             _btnTabSplit.BackColor = showSplit ? Color.FromArgb(20, 100, 30) : Color.FromArgb(28, 36, 56);
             _btnTabSplit.ForeColor = showSplit ? Color.FromArgb(140, 230, 140) : Color.FromArgb(140, 160, 200);
             _btnTabSplit.Font      = new Font(Theme.FontFamily, 9.5f, showSplit ? FontStyle.Bold : FontStyle.Regular);
-
-            // 強制重新排版，確保 Fill panel 正確佔滿剩餘空間
-            if (showSplit) _pnlSplitWrapper.PerformLayout();
-            else           _pnlSingleContent.PerformLayout();
         }
 
         // ── 重建嵌入式分配儲值 Panel ────────────────────────────────
