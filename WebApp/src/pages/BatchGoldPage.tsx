@@ -58,6 +58,19 @@ export default function BatchGoldPage() {
   const send = async () => {
     const ids = target === 'custom' ? customList.split(/[\n,]/).map(s => s.trim()).filter(Boolean) : Array.from(selected)
     if (ids.length === 0) { setResult('請先載入並勾選要操作的玩家'); return }
+
+    const targetLabel = target === 'all' ? '全服所有玩家' : target === 'online' ? '線上玩家' : `自訂 ${ids.length} 位玩家`
+    const opLabel = amount >= 0 ? `發放 ${amount.toLocaleString()} 金幣` : `扣除 ${Math.abs(amount).toLocaleString()} 金幣`
+
+    // 超大金額（≥ 500 萬）額外警告
+    if (Math.abs(amount) >= 5_000_000) {
+      if (!window.confirm(`⚠ 金幣數量超過 500 萬！\n操作：${opLabel}\n\n確認繼續嗎？`)) return
+    }
+
+    if (!window.confirm(
+      `確定對【${targetLabel}】${opLabel}？\n共 ${ids.length} 位玩家\n\n此操作無法撤銷！`
+    )) return
+
     setLoading(true); setResult('')
     try {
       const r = await api.post('/players/batch-gold', {

@@ -38,6 +38,7 @@ export default function BanPage() {
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 2500) }
 
   const unban = async (account: string) => {
+    if (!window.confirm(`確定解除封禁帳號「${account}」？`)) return
     await api.post(`/players/${encodeURIComponent(account)}/ban`, { ban: false, days: 0 })
     setList(list.filter(x => x.account !== account))
     flash(S.unbanned)
@@ -56,6 +57,31 @@ export default function BanPage() {
     if (targets.length === 0) return
     const days  = banHours > 0 ? 0 : (customDays !== '' ? Number(customDays) : banDays)
     const hours = banHours > 0 ? banHours : 0
+    const isPerm = hours === 0 && days === 0
+
+    // 列出前 5 個目標
+    const nameList = targets.slice(0, 5).map(t => `• ${t.onlineName || t.account}（${t.account}）`).join('\n')
+    const moreNote = targets.length > 5 ? `\n  …（共 ${targets.length} 位）` : ''
+
+    if (isPerm) {
+      // 永久封禁：需輸入「永久封禁」才能執行
+      const confirmInput = window.prompt(
+        `⚠ 永久封禁警告！此操作需手動解封。\n\n` +
+        `封禁目標（${targets.length} 位）：\n${nameList}${moreNote}\n\n` +
+        `請輸入「永久封禁」確認執行：`
+      )
+      if (confirmInput !== '永久封禁') {
+        if (confirmInput !== null) alert('輸入不符，操作已取消')
+        return
+      }
+    } else {
+      const durText = hours > 0 ? `${hours} 小時` : `${days} 天`
+      if (!window.confirm(
+        `確定封禁以下玩家（${durText}）？\n\n${nameList}${moreNote}\n\n` +
+        `原因：${banReason.trim() || 'GM 封禁'}`
+      )) return
+    }
+
     for (const t of targets) {
       await api.post(`/players/${encodeURIComponent(t.account)}/ban`, {
         ban: true, days, hours, reason: banReason.trim()

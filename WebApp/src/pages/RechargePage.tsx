@@ -141,6 +141,21 @@ export default function RechargePage() {
     if (opType === null) { setMsg('⚠ 請選擇操作類型（STEP 4）'); setMsgOk(false); return }
     if (opType !== 'onlyGold' && finalTwd <= 0) { setMsg('請選擇套餐或輸入台幣金額'); setMsgOk(false); return }
     if (opType === 'onlyGold' && finalGold <= 0) { setMsg('請先選擇套餐（用來決定發放金幣數量）'); setMsgOk(false); return }
+
+    const effectiveTwd = opType === 'onlyGold' ? 0 : finalTwd
+
+    // 大額（> NT$10,000）額外警告
+    if (effectiveTwd > 10_000) {
+      if (!window.confirm(`⚠ 充值金額 NT$${effectiveTwd.toLocaleString()} 超過 NT$10,000\n請確認金額無誤。繼續嗎？`)) return
+    }
+
+    // 最終確認
+    const goldLine = giveGold ? `  金幣入帳：+${finalGold.toLocaleString()} 元寶` : '  本次不發放金幣（僅更新累積進度）'
+    const twdLine  = opType === 'onlyGold' ? '  操作類型：只發金幣（不計入累積充值）' : `  台幣金額：NT$${effectiveTwd.toLocaleString()}`
+    if (!window.confirm(
+      `確認給予儲值？\n\n  玩家：${info.onlineName}（${info.account}）\n${twdLine}\n${goldLine}\n\n此操作無法撤銷！`
+    )) return
+
     setLoading(true); setMsg('')
     try {
       const r = await api.post(`/players/${info.account}/recharge`, {
