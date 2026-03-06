@@ -7,7 +7,11 @@ using System.Windows.Forms;
 
 namespace SQ_Email_Tools
 {
-    public class MasterSplitRechargeDialog : Form
+    /// <summary>
+    /// 主帳號分配儲值面板（UserControl，可直接嵌入任何 Panel）。
+    /// 獨立使用時請透過 MasterSplitRechargeDialog.ShowAsDialog() 開啟。
+    /// </summary>
+    public class MasterSplitRechargeDialog : UserControl
     {
         private static readonly (string Label, long Twd, long Gold)[] TIERS =
         {
@@ -63,6 +67,8 @@ namespace SQ_Email_Tools
         public  bool    AnyDone { get; private set; }
         /// <summary>嵌入模式下，完成儲值後觸發（讓父視窗刷新）</summary>
         public  Action? OnAfterRecharge { get; set; }
+        /// <summary>獨立視窗模式：使用者按「取消」時觸發，父 Form 負責關閉</summary>
+        public event EventHandler? CloseRequested;
 
         // 顏色常數
         private static readonly Color ColBg        = Color.FromArgb(14, 18, 30);
@@ -80,17 +86,34 @@ namespace SQ_Email_Tools
 
         public MasterSplitRechargeDialog(string masterName, List<PlayerInfo> subs, bool embedded = false)
         {
-            _masterName   = masterName;
-            _subs         = subs;
-            _embedded     = embedded;
-            Text          = $"💰 主帳號分配儲值 — {masterName}";
-            Size          = new Size(1020, 700);
-            MinimumSize   = new Size(860, 480);
-            BackColor     = ColBg;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
-            StartPosition = FormStartPosition.CenterParent;
+            _masterName = masterName;
+            _subs       = subs;
+            _embedded   = embedded;
+            BackColor   = ColBg;
+            ForeColor   = Theme.TextPrimary;
+            Font        = Theme.FontBody;
+            Dock        = DockStyle.Fill;   // 預設填滿父容器
             BuildUI();
+        }
+
+        /// <summary>以獨立對話框方式開啟（供 MasterAccountForm 使用）</summary>
+        public static bool ShowAsDialog(string masterName, List<PlayerInfo> subs, IWin32Window? owner = null)
+        {
+            var panel = new MasterSplitRechargeDialog(masterName, subs, embedded: false);
+            using var frm = new Form
+            {
+                Text          = $"💰 主帳號分配儲值 — {masterName}",
+                Size          = new Size(1040, 720),
+                MinimumSize   = new Size(860, 480),
+                BackColor     = ColBg,
+                ForeColor     = Theme.TextPrimary,
+                Font          = Theme.FontBody,
+                StartPosition = FormStartPosition.CenterParent
+            };
+            panel.CloseRequested += (_, __) => frm.Close();
+            frm.Controls.Add(panel);
+            frm.ShowDialog(owner);
+            return panel.AnyDone;
         }
 
         private void BuildUI()
@@ -121,7 +144,7 @@ namespace SQ_Email_Tools
                     FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
                 };
                 btnCancel.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 110);
-                btnCancel.Click += (_, __) => Close();
+                btnCancel.Click += (_, __) => CloseRequested?.Invoke(this, EventArgs.Empty);
                 btnBar.Controls.Add(btnCancel);
             }
 
@@ -231,9 +254,9 @@ namespace SQ_Email_Tools
             }
             Controls.Add(_scrollPanel);
 
-            // 視窗 resize 時更新每列寬度
-            Resize += (_, __) => UpdateRowWidths();
-            Shown  += (_, __) => UpdateRowWidths();
+            // Resize 時更新每列寬度；HandleCreated 後延遲初始化
+            Resize       += (_, __) => UpdateRowWidths();
+            HandleCreated += (_, __) => BeginInvoke((Action)UpdateRowWidths);
 
             RefreshAll();
         }
@@ -492,7 +515,7 @@ namespace SQ_Email_Tools
             if (done > 0)
             {
                 if (_embedded) OnAfterRecharge?.Invoke();
-                else Close();
+                else CloseRequested?.Invoke(this, EventArgs.Empty);
             }
         }
 

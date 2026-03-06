@@ -427,33 +427,9 @@ namespace SQ_Email_Tools
         // ── Tab 切換 ────────────────────────────────────────────────
         private void SwitchTab(bool showSplit)
         {
-            if (showSplit)
-            {
-                _pnlSingleContent.Visible = false;
-                _pnlSplitWrapper.Visible  = true;
-                _pnlSplitWrapper.BringToFront();
-                // layout 完成後強制更新嵌入表單大小並確保在最前方
-                if (_embeddedSplit != null)
-                    BeginInvoke((Action)(() =>
-                    {
-                        if (_embeddedSplit == null || _embeddedSplit.IsDisposed) return;
-                        var sz = _pnlSplitWrapper.ClientSize;
-                        if (!sz.IsEmpty)
-                        {
-                            _embeddedSplit.Location = Point.Empty;
-                            _embeddedSplit.Size     = sz;
-                        }
-                        _embeddedSplit.BringToFront();
-                    }));
-            }
-            else
-            {
-                _pnlSplitWrapper.Visible  = false;
-                _pnlSingleContent.Visible = true;
-                _pnlSingleContent.BringToFront();
-            }
+            _pnlSingleContent.Visible = !showSplit;
+            _pnlSplitWrapper.Visible  = showSplit;
 
-            // Active tab：藍色背景 + 粗體；inactive：暗色背景 + 細體
             _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Color.FromArgb(28, 36, 56);
             _btnTabSingle.ForeColor = !showSplit ? Color.White : Color.FromArgb(140, 160, 200);
             _btnTabSingle.Font      = new Font(Theme.FontFamily, 9.5f, !showSplit ? FontStyle.Bold : FontStyle.Regular);
@@ -463,10 +439,9 @@ namespace SQ_Email_Tools
             _btnTabSplit.Font      = new Font(Theme.FontFamily, 9.5f, showSplit ? FontStyle.Bold : FontStyle.Regular);
         }
 
-        // ── 重建嵌入式分配儲值 Panel ────────────────────────────────
+        // ── 重建分配儲值 Panel（UserControl，直接嵌入，無 Form 問題）──
         private void RebuildSplitPanel()
         {
-            // 清除舊的嵌入表單
             if (_embeddedSplit != null)
             {
                 _pnlSplitWrapper.Controls.Remove(_embeddedSplit);
@@ -483,20 +458,10 @@ namespace SQ_Email_Tools
                 return;
             }
 
-            // 清除舊內容
             _pnlSplitWrapper.Controls.Clear();
 
-            // 建立嵌入式分配儲值表單（不用 DockStyle.Fill，改用手動 Resize）
-            _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true)
-            {
-                TopLevel        = false,
-                FormBorderStyle = FormBorderStyle.None,
-                MinimumSize     = Size.Empty,
-                Location        = new Point(0, 0),
-                Size            = _pnlSplitWrapper.ClientSize.IsEmpty
-                                    ? new Size(800, 500)
-                                    : _pnlSplitWrapper.ClientSize
-            };
+            // UserControl：Dock=Fill 直接生效，無 z-order / 點擊問題
+            _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true);
             _embeddedSplit.OnAfterRecharge = async () =>
             {
                 if (_masterId > 0)
@@ -505,24 +470,10 @@ namespace SQ_Email_Tools
                 SwitchTab(true);
             };
             _pnlSplitWrapper.Controls.Add(_embeddedSplit);
-            _embeddedSplit.Show();
-
-            // 監聽 _pnlSplitWrapper Resize，讓嵌入式表單跟著撐滿
-            _pnlSplitWrapper.Resize -= OnSplitWrapperResize;
-            _pnlSplitWrapper.Resize += OnSplitWrapperResize;
 
             _btnTabSplit.Enabled = true;
             _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
             new ToolTip().SetToolTip(_btnTabSplit, $"主帳號 {_masterName} 旗下 {_subs.Count} 個子帳號批次儲值");
-        }
-
-        // 讓嵌入式 MasterSplitRechargeDialog 跟著 _pnlSplitWrapper 大小自動填滿
-        private void OnSplitWrapperResize(object? sender, EventArgs e)
-        {
-            if (_embeddedSplit == null || _embeddedSplit.IsDisposed) return;
-            var sz = _pnlSplitWrapper.ClientSize;
-            if (sz.Width > 0 && sz.Height > 0)
-                _embeddedSplit.Size = sz;
         }
 
         // ── 新增儲值內容（原 BuildRightPanel 主體移至此）────────────

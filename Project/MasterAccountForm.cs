@@ -222,9 +222,9 @@ namespace SQ_Email_Tools
                     MessageBox.Show("請先點選左側主帳號", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
-                using var dlg = new MasterSplitRechargeDialog(_currentMaster.Name, _currentSubs);
-                dlg.ShowDialog(this);
-                if (dlg.AnyDone) _ = LoadSubAccountsAsync(_currentMaster);
+                bool anyDone = MasterSplitRechargeDialog.ShowAsDialog(
+                    _currentMaster.Name, _currentSubs, this);
+                if (anyDone) _ = LoadSubAccountsAsync(_currentMaster);
             };
             titleBar.Controls.Add(_lblSubTitle);
             titleBar.Controls.Add(_btnSplitRecharge);
