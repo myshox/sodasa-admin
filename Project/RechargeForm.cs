@@ -610,18 +610,22 @@ namespace SQ_Email_Tools
             hdr.Controls.Add(_hdrSplitGold);
             _pnlSplitWrapper.Controls.Add(hdr);
 
-            // ── 子帳號列（DockStyle.Top，WinForms 自動設定寬度，不需手動管理）
-            _splitScrollPanel = null;
+            // ── 子帳號列（DockStyle.Top 在 scrollPanel 內，寬度自動 = scrollPanel 寬度）
+            // scrollPanel 是 DockStyle.Fill，其寬度 = _pnlSplitWrapper 寬度
+            // 所以 row 寬度自動 = _pnlSplitWrapper 寬度，完全不需要手動管理
+            _splitScrollPanel = new Panel
+            {
+                Dock = DockStyle.Fill, AutoScroll = true,
+                BackColor = _cBg
+            };
             _splitRows = new List<SplitRowCtrl>();
             foreach (var sub in _subs)
             {
                 var rc = BuildSplitRow(sub);
-                // 直接加到 _pnlSplitWrapper，DockStyle.Top 自動寬度
-                _pnlSplitWrapper.Controls.Add(rc.Row);
+                _splitScrollPanel.Controls.Add(rc.Row);
                 _splitRows.Add(rc);
             }
-            // AutoScroll 讓列數多時可以垂直捲動
-            _pnlSplitWrapper.AutoScroll = true;
+            _pnlSplitWrapper.Controls.Add(_splitScrollPanel);
 
             _btnTabSplit.Enabled = true;
             _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
