@@ -52,8 +52,49 @@ namespace SQ_Email_Tools
         private Button    _btnTabSingle;
         private Button    _btnTabSplit;
         private Panel     _pnlSingleContent;   // Tab 1：新增儲值
-        private Panel     _pnlSplitWrapper;    // Tab 2：分配儲值（嵌入）
-        private MasterSplitRechargeDialog? _embeddedSplit;
+        private Panel     _pnlSplitWrapper;    // Tab 2：分配儲值（直接建構）
+
+        // 分配儲值狀態（直接建在 Panel，無嵌入物件）
+        private List<SplitRowCtrl>? _splitRows;
+        private Label?  _lblSplitTotal;
+        private Button? _btnSplitOk;
+        private Panel?  _splitScrollPanel;
+        private Label?  _hdrSplitGold;
+
+        private sealed class SplitRowCtrl
+        {
+            public PlayerInfo    Player  = null!;
+            public bool          Enabled;
+            public int           TierIdx = -1;
+            public long          CustomTwd;
+            public int           BonusIdx = 0;
+            public Panel         Row     = null!;
+            public CheckBox      Chk     = null!;
+            public Button[]      TierBtns  = new Button[7];
+            public Button[]      BonusBtns = new Button[5];
+            public NumericUpDown Nud     = null!;
+            public Label         Preview = null!;
+
+            private static readonly (long Twd, long Gold)[] T =
+            {
+                (100,10_000),(300,32_000),(500,55_000),(1_000,115_000),
+                (3_000,360_000),(5_000,625_000),(10_000,1_300_000)
+            };
+            private static readonly int[] B = { 0, 5, 10, 15, 20 };
+            public int  BonusPct  => B[BonusIdx];
+            public long EffTwd    => TierIdx >= 0 ? T[TierIdx].Twd : CustomTwd;
+            public long BaseGold
+            {
+                get {
+                    if (TierIdx >= 0) return T[TierIdx].Gold;
+                    if (CustomTwd <= 0) return 0;
+                    var best = T[0];
+                    foreach (var t in T) if (CustomTwd >= t.Twd) best = t;
+                    return (long)Math.Floor(CustomTwd * ((double)best.Gold / best.Twd));
+                }
+            }
+            public long TotalGold => (long)Math.Round(BaseGold * (1 + BonusPct / 100.0));
+        }
 
         // 左：玩家資訊
         private Panel       _pnlPlayerInfo;
@@ -439,15 +480,28 @@ namespace SQ_Email_Tools
             _btnTabSplit.Font      = new Font(Theme.FontFamily, 9.5f, showSplit ? FontStyle.Bold : FontStyle.Regular);
         }
 
-        // ── 重建分配儲值 Panel（UserControl，直接嵌入，無 Form 問題）──
+        // ════════════════════════════════════════════════════════════
+        // 分配儲值 Tab — 直接建構在 _pnlSplitWrapper（無任何嵌入物件）
+        // ════════════════════════════════════════════════════════════
+        private static readonly Color _cBg        = Color.FromArgb(14, 18, 30);
+        private static readonly Color _cBgRowOff  = Color.FromArgb(16, 21, 36);
+        private static readonly Color _cBgRowOn   = Color.FromArgb(12, 26, 14);
+        private static readonly Color _cBtnTier   = Color.FromArgb(28, 36, 58);
+        private static readonly Color _cBtnSel    = Color.FromArgb(180, 100, 0);
+        private static readonly Color _cBtnBonus  = Color.FromArgb(20, 60, 120);
+        private static readonly Color _cBtnBonSel = Color.FromArgb(30, 100, 200);
+        private static readonly Color _cBorder2   = Color.FromArgb(35, 45, 70);
+        private static readonly Color _cOrange    = Color.FromArgb(255, 195, 50);
+        private static readonly Color _cGreen2    = Color.FromArgb(86, 196, 118);
+        private const int SPLIT_ROW_H = 66;
+        private static readonly string[] SPLIT_TIER_LABELS = { "NT$100","NT$300","NT$500","NT$1K","NT$3K","NT$5K","NT$10K" };
+        private static readonly string[] SPLIT_TIER_SUBS   = { "1萬","3.2萬","5.5萬","11.5萬","36萬","62.5萬","130萬" };
+        private static readonly int[]    SPLIT_BONUS_VALS  = { 0, 5, 10, 15, 20 };
+
         private void RebuildSplitPanel()
         {
-            if (_embeddedSplit != null)
-            {
-                _pnlSplitWrapper.Controls.Remove(_embeddedSplit);
-                _embeddedSplit.Dispose();
-                _embeddedSplit = null;
-            }
+            _pnlSplitWrapper.Controls.Clear();
+            _splitRows = null;
 
             if (_subs.Count == 0)
             {
@@ -458,23 +512,382 @@ namespace SQ_Email_Tools
                 return;
             }
 
-            _pnlSplitWrapper.Controls.Clear();
+            // ── 底部確認列 ─────────────────────────────────────────
+            var btnBar = new Panel
+            {
+                Dock = DockStyle.Bottom, Height = 50,
+                BackColor = Color.FromArgb(10, 14, 24)
+            };
+            btnBar.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = _cBorder2 });
+            _lblSplitTotal = new Label
+            {
+                Text = "請勾選帳號後選擇套餐",
+                Dock = DockStyle.Fill, ForeColor = _cOrange,
+                Font = Theme.FontBody, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(10, 0, 0, 0)
+            };
+            _btnSplitOk = new Button
+            {
+                Text = "💰 確認分配儲值", Size = new Size(156, 34), Dock = DockStyle.Right,
+                BackColor = Color.FromArgb(50, 55, 70), ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                Cursor = Cursors.Hand, Enabled = false, Margin = new Padding(0, 8, 10, 8)
+            };
+            _btnSplitOk.FlatAppearance.BorderColor = _cBorder2;
+            _btnSplitOk.Click += async (_, __) => await DoSplitRechargeAsync();
+            btnBar.Controls.Add(_lblSplitTotal);
+            btnBar.Controls.Add(_btnSplitOk);
+            _pnlSplitWrapper.Controls.Add(btnBar);
 
-            // UserControl：Dock=Fill 直接生效，無 z-order / 點擊問題
-            _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true);
-            _embeddedSplit.OnAfterRecharge = async () =>
+            // ── 快速套用列 ──────────────────────────────────────────
+            var quickBar = new Panel
+            {
+                Dock = DockStyle.Top, Height = 40,
+                BackColor = Color.FromArgb(14, 20, 36)
+            };
+            quickBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
+            var qFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false, BackColor = Color.Transparent,
+                Padding = new Padding(8, 6, 0, 0), AutoScroll = false
+            };
+            qFlow.Controls.Add(new Label { Text = "批次套用：", AutoSize = true,
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall, BackColor = Color.Transparent,
+                Margin = new Padding(0, 4, 4, 0) });
+            for (int i = 0; i < SPLIT_TIER_LABELS.Length; i++)
+            {
+                int ii = i;
+                var qb = MakeSplitQuickBtn(SPLIT_TIER_LABELS[i]);
+                qb.Click += (_, __) => { foreach (var r in _splitRows!) if (r.Enabled) SetSplitTier(r, ii); RefreshSplitAll(); };
+                qFlow.Controls.Add(qb);
+            }
+            qFlow.Controls.Add(new Label { Text = "  優惠：", AutoSize = true,
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall, BackColor = Color.Transparent,
+                Margin = new Padding(6, 4, 4, 0) });
+            for (int i = 0; i < SPLIT_BONUS_VALS.Length; i++)
+            {
+                int ii = i;
+                var qb = MakeSplitQuickBtn($"+{SPLIT_BONUS_VALS[i]}%");
+                qb.Click += (_, __) => { foreach (var r in _splitRows!) if (r.Enabled) SetSplitBonus(r, ii); RefreshSplitAll(); };
+                qFlow.Controls.Add(qb);
+            }
+            var qClear = MakeSplitQuickBtn("✕ 清除");
+            qClear.BackColor = Color.FromArgb(70, 22, 22);
+            qClear.ForeColor = Color.FromArgb(245, 100, 100);
+            qClear.Margin = new Padding(8, 3, 0, 3);
+            qClear.Click += (_, __) =>
+            {
+                foreach (var r in _splitRows!) if (r.Enabled)
+                { SetSplitTier(r, -1); r.Nud.Value = 0; SetSplitBonus(r, 0); }
+                RefreshSplitAll();
+            };
+            qFlow.Controls.Add(qClear);
+            quickBar.Controls.Add(qFlow);
+            _pnlSplitWrapper.Controls.Add(quickBar);
+
+            // ── 表頭 ────────────────────────────────────────────────
+            var hdr = new Panel
+            {
+                Dock = DockStyle.Top, Height = 28,
+                BackColor = Color.FromArgb(12, 16, 28)
+            };
+            hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
+            void AddHdr(string t, int x, int w) =>
+                hdr.Controls.Add(new Label {
+                    Text = t, ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                    AutoSize = false, Location = new Point(x, 0), Size = new Size(w, 28),
+                    TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.Transparent });
+            AddHdr("✓",          10, 24);
+            AddHdr("帳號 / 角色", 52, 140);
+            AddHdr("套餐（點選即勾選）", 196, 330);
+            AddHdr("自訂NT$",    530,  80);
+            AddHdr("優惠%",      616, 158);
+            _hdrSplitGold = new Label
+            {
+                Text = "金幣預覽", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                BackColor = Color.Transparent
+            };
+            hdr.Controls.Add(_hdrSplitGold);
+            _pnlSplitWrapper.Controls.Add(hdr);
+
+            // ── 子帳號滾動區域 ──────────────────────────────────────
+            _splitScrollPanel = new Panel
+            {
+                Dock = DockStyle.Fill, AutoScroll = true, BackColor = _cBg
+            };
+            _splitRows = new List<SplitRowCtrl>();
+            int y = 0;
+            foreach (var sub in _subs)
+            {
+                var rc = BuildSplitRow(sub, y);
+                _splitScrollPanel.Controls.Add(rc.Row);
+                _splitRows.Add(rc);
+                y += SPLIT_ROW_H;
+            }
+            // 監聽寬度變化，更新每列寬度
+            _splitScrollPanel.Resize += (_, __) => UpdateSplitRowWidths();
+            _pnlSplitWrapper.Controls.Add(_splitScrollPanel);
+
+            _btnTabSplit.Enabled = true;
+            _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
+            new ToolTip().SetToolTip(_btnTabSplit, $"{_masterName} 旗下 {_subs.Count} 個帳號");
+
+            RefreshSplitAll();
+        }
+
+        private SplitRowCtrl BuildSplitRow(PlayerInfo p, int yPos)
+        {
+            var sr = new SplitRowCtrl { Player = p };
+            sr.Row = new Panel
+            {
+                Location  = new Point(0, yPos),
+                Height    = SPLIT_ROW_H,
+                BackColor = p.IsOnline ? _cBgRowOn : _cBgRowOff,
+                Anchor    = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+            };
+            sr.Row.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
+
+            // 勾選框
+            sr.Chk = new CheckBox { Location = new Point(10, 24), Size = new Size(18, 18), BackColor = Color.Transparent };
+            sr.Chk.CheckedChanged += (_, __) =>
+            {
+                sr.Enabled = sr.Chk.Checked;
+                sr.Row.BackColor = sr.Enabled
+                    ? (p.IsOnline ? Color.FromArgb(22, 34, 18) : Color.FromArgb(20, 24, 42))
+                    : (p.IsOnline ? _cBgRowOn : _cBgRowOff);
+                RefreshSplitTotal();
+            };
+            sr.Row.Controls.Add(sr.Chk);
+
+            // 玩家資訊（左側固定區）
+            string nm = !string.IsNullOrWhiteSpace(p.OnlineName) ? p.OnlineName : p.Account;
+            sr.Row.Controls.Add(new Label { Text = p.IsOnline ? "🟢" : (p.IsBanned ? "🔴" : "⚫"),
+                Location = new Point(32, 23), AutoSize = true,
+                Font = new Font(Theme.FontFamily, 9f), BackColor = Color.Transparent });
+            sr.Row.Controls.Add(new Label { Text = nm, Location = new Point(52, 6), Size = new Size(140, 20),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                BackColor = Color.Transparent, AutoEllipsis = true });
+            sr.Row.Controls.Add(new Label { Text = p.Account, Location = new Point(52, 26), Size = new Size(140, 16),
+                ForeColor = Theme.TextMuted, Font = new Font(Theme.FontFamily, 7.5f),
+                BackColor = Color.Transparent, AutoEllipsis = true });
+            if (p.PayTotal > 0)
+                sr.Row.Controls.Add(new Label { Text = $"NT${p.PayTotal:N0}", Location = new Point(52, 44), Size = new Size(140, 14),
+                    ForeColor = _cOrange, Font = new Font(Theme.FontFamily, 7f), BackColor = Color.Transparent });
+
+            // 套餐按鈕（7 個）
+            for (int i = 0; i < SPLIT_TIER_LABELS.Length; i++)
+            {
+                int idx = i;
+                var tb = new Button
+                {
+                    Text = SPLIT_TIER_LABELS[i], AutoSize = false,
+                    Size = new Size(44, 22), Location = new Point(196 + idx * 47, 8),
+                    FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                    BackColor = _cBtnTier, ForeColor = Theme.TextPrimary,
+                    Font = new Font(Theme.FontFamily, 7.5f)
+                };
+                tb.FlatAppearance.BorderColor = Color.FromArgb(55, 70, 110);
+                tb.Click += (_, __) => { SetSplitTier(sr, idx); RefreshSplitAll(); };
+                sr.TierBtns[i] = tb;
+                sr.Row.Controls.Add(tb);
+            }
+            // 套餐小字說明
+            sr.Row.Controls.Add(new Label
+            {
+                Text = string.Join("  ", SPLIT_TIER_SUBS),
+                Location = new Point(196, 32), Size = new Size(330, 14),
+                ForeColor = Color.FromArgb(80, 95, 115), Font = new Font(Theme.FontFamily, 6.5f),
+                BackColor = Color.Transparent
+            });
+
+            // 自訂 NT$
+            sr.Nud = new NumericUpDown
+            {
+                Location = new Point(530, 20), Size = new Size(78, 24),
+                Minimum = 0, Maximum = 999_999, Value = 0,
+                BackColor = Color.FromArgb(22, 28, 46), ForeColor = Theme.TextPrimary,
+                Font = new Font(Theme.FontFamily, 8f), BorderStyle = BorderStyle.FixedSingle
+            };
+            sr.Nud.ValueChanged += (_, __) =>
+            {
+                sr.CustomTwd = (long)sr.Nud.Value;
+                if (sr.CustomTwd > 0) SetSplitTier(sr, -1);
+                if (!sr.Enabled && sr.CustomTwd > 0) sr.Chk.Checked = true;
+                RefreshSplitPreview(sr); RefreshSplitTotal();
+            };
+            sr.Row.Controls.Add(sr.Nud);
+
+            // 優惠按鈕（5 個）
+            for (int i = 0; i < SPLIT_BONUS_VALS.Length; i++)
+            {
+                int bi = i;
+                var bb = new Button
+                {
+                    Text = $"+{SPLIT_BONUS_VALS[i]}%", AutoSize = false,
+                    Size = new Size(30, 22), Location = new Point(616 + bi * 32, 20),
+                    FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+                    BackColor = bi == 0 ? _cBtnBonSel : _cBtnBonus,
+                    ForeColor = bi == 0 ? Color.White : Theme.TextPrimary,
+                    Font = new Font(Theme.FontFamily, 7f)
+                };
+                bb.FlatAppearance.BorderColor = Color.FromArgb(40, 80, 150);
+                bb.Click += (_, __) => { SetSplitBonus(sr, bi); RefreshSplitAll(); };
+                sr.BonusBtns[i] = bb;
+                sr.Row.Controls.Add(bb);
+            }
+            // Last bonus button ends at: 616 + 4*32 + 30 = 774px
+
+            // 金幣預覽（右對齊，動態）
+            sr.Preview = new Label
+            {
+                ForeColor = _cGreen2, Font = new Font(Theme.FontFamily, 8f),
+                BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight,
+                Text = "—"
+            };
+            sr.Row.Controls.Add(sr.Preview);
+
+            return sr;
+        }
+
+        private void UpdateSplitRowWidths()
+        {
+            if (_splitRows == null || _splitScrollPanel == null) return;
+            int w = Math.Max(800, _splitScrollPanel.ClientSize.Width);
+            foreach (var r in _splitRows)
+            {
+                r.Row.Width = w;
+                r.Preview.Location = new Point(w - 170, 10);
+                r.Preview.Size     = new Size(162, 44);
+            }
+            if (_hdrSplitGold != null)
+            {
+                _hdrSplitGold.Location = new Point(w - 170, 0);
+                _hdrSplitGold.Size     = new Size(162, 28);
+            }
+        }
+
+        private void SetSplitTier(SplitRowCtrl sr, int idx)
+        {
+            sr.TierIdx = idx;
+            for (int i = 0; i < sr.TierBtns.Length; i++)
+            {
+                bool sel = i == idx;
+                sr.TierBtns[i].BackColor = sel ? _cBtnSel : _cBtnTier;
+                sr.TierBtns[i].ForeColor = sel ? Color.White : Theme.TextPrimary;
+                sr.TierBtns[i].FlatAppearance.BorderColor = sel ? Color.FromArgb(220, 130, 20) : Color.FromArgb(55, 70, 110);
+                sr.TierBtns[i].Font = new Font(Theme.FontFamily, sel ? 7.5f : 7f, sel ? FontStyle.Bold : FontStyle.Regular);
+            }
+            if (idx >= 0 && sr.Nud.Value > 0) sr.Nud.Value = 0;
+            if (idx >= 0 && !sr.Enabled) sr.Chk.Checked = true;
+            RefreshSplitPreview(sr);
+        }
+
+        private void SetSplitBonus(SplitRowCtrl sr, int idx)
+        {
+            sr.BonusIdx = idx;
+            for (int i = 0; i < sr.BonusBtns.Length; i++)
+            {
+                bool sel = i == idx;
+                sr.BonusBtns[i].BackColor = sel ? _cBtnBonSel : _cBtnBonus;
+                sr.BonusBtns[i].ForeColor = sel ? Color.White : Theme.TextPrimary;
+            }
+            RefreshSplitPreview(sr);
+        }
+
+        private void RefreshSplitPreview(SplitRowCtrl sr)
+        {
+            long twd = sr.EffTwd;
+            if (twd <= 0) { sr.Preview.Text = "—"; sr.Preview.ForeColor = Theme.TextMuted; return; }
+            long tg = sr.TotalGold;
+            string bonus = sr.BonusPct > 0 ? $"\n+{sr.BonusPct}%" : "";
+            sr.Preview.Text = $"NT${twd:N0}\n→ {tg:N0} 金{bonus}";
+            sr.Preview.ForeColor = _cGreen2;
+        }
+
+        private void RefreshSplitTotal()
+        {
+            if (_splitRows == null) return;
+            long totTwd = 0, totGold = 0; int cnt = 0;
+            foreach (var r in _splitRows)
+            {
+                if (!r.Enabled || r.EffTwd <= 0) continue;
+                totTwd += r.EffTwd; totGold += r.TotalGold; cnt++;
+            }
+            if (_lblSplitTotal != null)
+                _lblSplitTotal.Text = cnt > 0
+                    ? $"合計：NT$ {totTwd:N0}，發出 {totGold:N0} 金，{cnt} 個帳號"
+                    : "請勾選帳號後選擇套餐";
+            if (_btnSplitOk != null)
+            {
+                _btnSplitOk.Enabled  = cnt > 0;
+                _btnSplitOk.BackColor = cnt > 0 ? _cBtnSel : Color.FromArgb(50, 55, 70);
+            }
+        }
+
+        private void RefreshSplitAll()
+        {
+            if (_splitRows == null) return;
+            foreach (var r in _splitRows) RefreshSplitPreview(r);
+            RefreshSplitTotal();
+        }
+
+        private async Task DoSplitRechargeAsync()
+        {
+            if (_splitRows == null) return;
+            var items = _splitRows.Where(r => r.Enabled && r.EffTwd > 0).ToList();
+            if (items.Count == 0) { MessageBox.Show("請勾選至少一個有效帳號", "提示"); return; }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"確認為【{_masterName}】旗下帳號分配儲值？\n");
+            foreach (var r in items)
+            {
+                string nm = !string.IsNullOrWhiteSpace(r.Player.OnlineName) ? r.Player.OnlineName : r.Player.Account;
+                sb.AppendLine($"• {nm}（{r.Player.Account}）");
+                sb.AppendLine($"  NT${r.EffTwd:N0}  →  {r.TotalGold:N0} 金" +
+                              (r.BonusPct > 0 ? $"（+{r.BonusPct}%）" : ""));
+            }
+            sb.AppendLine("\n⚠ 累積儲值只計台幣，贈金不納入");
+            if (MessageBox.Show(sb.ToString(), "確認分配儲值",
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+
+            _btnSplitOk!.Enabled = false; _btnSplitOk.Text = "處理中…";
+            int done = 0; var fails = new List<string>();
+            foreach (var r in items)
+            {
+                try
+                {
+                    bool ok = await DatabaseManager.Instance.AdjustPayDataPointAsync(
+                        r.Player.Account, r.EffTwd, r.TotalGold, giveGold: true);
+                    if (ok) done++;
+                    else fails.Add(r.Player.Account + "（失敗）");
+                }
+                catch (Exception ex) { fails.Add(r.Player.Account + ": " + ex.Message); }
+            }
+            string msg = $"✓ 完成 {done}/{items.Count} 個帳號";
+            if (fails.Count > 0) msg += $"\n\n失敗：\n{string.Join("\n", fails)}";
+            MessageBox.Show(msg, "分配儲值結果", MessageBoxButtons.OK,
+                fails.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+
+            _btnSplitOk.Text = "💰 確認分配儲值"; _btnSplitOk.Enabled = true;
+            if (done > 0)
             {
                 if (_masterId > 0)
                     _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
                 RebuildSplitPanel();
                 SwitchTab(true);
-            };
-            _pnlSplitWrapper.Controls.Add(_embeddedSplit);
-
-            _btnTabSplit.Enabled = true;
-            _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
-            new ToolTip().SetToolTip(_btnTabSplit, $"主帳號 {_masterName} 旗下 {_subs.Count} 個子帳號批次儲值");
+            }
         }
+
+        private static Button MakeSplitQuickBtn(string text) => new Button
+        {
+            Text = text, AutoSize = false, Size = new Size(54, 26),
+            FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand,
+            BackColor = Color.FromArgb(28, 36, 58), ForeColor = Theme.TextPrimary,
+            Font = new Font(Theme.FontFamily, 7.5f),
+            Margin = new Padding(2, 3, 2, 3)
+        };
 
         // ── 新增儲值內容（原 BuildRightPanel 主體移至此）────────────
         private void BuildSingleRechargeContent(Panel container)
