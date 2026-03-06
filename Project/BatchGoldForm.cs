@@ -478,10 +478,23 @@ namespace SQ_Email_Tools
             long   amount = (long)_nudAmount.Value;
             if (_rbSub.Checked) amount = -amount;
 
-            string opText = _rbSub.Checked ? $"扣除 {_nudAmount.Value:N0} 金幣" : $"發放 {_nudAmount.Value:N0} 金幣";
+            long amount0 = (long)_nudAmount.Value;
+            bool isSub   = _rbSub.Checked;
+            string opText = isSub ? $"扣除 {amount0:N0} 金幣" : $"發放 {amount0:N0} 金幣";
+
+            // 列出前 10 個帳號；超大金額（≥ 500 萬）額外警告
+            var nameList  = targets.Take(10).ToList();
+            string names  = string.Join("\n", nameList.Select(a => $"  • {a}"));
+            if (targets.Count > 10) names += $"\n  …（共 {targets.Count} 位）";
+
+            bool bigAmount = amount0 >= 5_000_000;
+            string bigWarn = bigAmount ? "\n\n⚠ 金幣數量超過 500 萬，請確認無誤！" : "";
+
             var confirm = MessageBox.Show(
-                $"確定對已勾選的 {targets.Count} 位玩家\n{opText}？\n\n此操作無法撤銷！",
-                "確認批量操作", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                $"確定對以下 {targets.Count} 位玩家【{opText}】？\n\n{names}{bigWarn}\n\n此操作無法撤銷！",
+                bigAmount ? "⚠ 大額操作確認" : "確認批量操作",
+                MessageBoxButtons.YesNo,
+                bigAmount ? MessageBoxIcon.Stop : MessageBoxIcon.Warning);
             if (confirm != DialogResult.Yes) return;
 
             _isSending     = true;

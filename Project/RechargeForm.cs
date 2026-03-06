@@ -975,6 +975,15 @@ namespace SQ_Email_Tools
                     : $"  金幣入帳：+{gold:N0} 元寶")
                 : "  本次不發放金幣（僅更新累積儲值進度）";
 
+            // 大額（> NT$10,000）需二次確認
+            if (twd > 10_000)
+            {
+                var bigConfirm = MessageBox.Show(
+                    $"⚠ 本次充值金額為 NT${twd:N0}，超過 NT$10,000，\n請確認金額無誤。\n\n繼續嗎？",
+                    "⚠ 大額充值警告", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (bigConfirm != DialogResult.Yes) return;
+            }
+
             if (MessageBox.Show(
                 $"確認給予以下儲值？\n\n" +
                 $"  玩家：{_detail.OnlineName}（{_detail.Account}）\n" +

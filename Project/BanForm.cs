@@ -199,30 +199,85 @@ namespace SQ_Email_Tools
         {
             using var dlg = new Form
             {
-                Text          = $"封號：{account}",
-                Size          = new Size(400, 280),
+                Text          = $"🔒 封號：{account}",
+                Size          = new Size(430, 380),
                 StartPosition = FormStartPosition.CenterParent,
                 BackColor     = Theme.BgMid,
                 ForeColor     = Theme.TextPrimary,
-                Font          = Theme.FontBody
+                Font          = Theme.FontBody,
+                MinimumSize   = new Size(430, 380),
+                MaximizeBox   = false
             };
 
-            int y = 20;
-            void AddLbl(string t) { dlg.Controls.Add(new Label { Text = t, AutoSize = true, Location = new Point(20, y), ForeColor = Theme.TextSecondary }); }
-            Control AddCtl(Control c) { c.Location = new Point(140, y); dlg.Controls.Add(c); return c; }
+            int y = 16;
+            void AddLbl(string t) { dlg.Controls.Add(new Label { Text = t, AutoSize = true, Location = new Point(20, y + 4), ForeColor = Theme.TextSecondary }); }
+            Control AddCtl(Control c) { c.Location = new Point(145, y); dlg.Controls.Add(c); return c; }
 
             AddLbl("封禁時長：");
-            var cboDuration = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat };
-            cboDuration.Items.AddRange(new object[] { "1 天", "3 天", "7 天", "14 天", "30 天", "永久" });
+            var cboDuration = new ComboBox
+            {
+                Width = 200, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat
+            };
+            cboDuration.Items.AddRange(new object[] { "1 天", "3 天", "7 天", "14 天", "30 天", "🔴 永久封禁" });
             cboDuration.SelectedIndex = 0;
             AddCtl(cboDuration); y += 36;
 
+            // ── 永久封禁警告區（初始隱藏）──────────────────────────
+            var pnlPermWarn = new Panel
+            {
+                Location  = new Point(12, y),
+                Size      = new Size(390, 88),
+                BackColor = Color.FromArgb(50, 20, 20),
+                Visible   = false
+            };
+            pnlPermWarn.Controls.Add(new Label
+            {
+                Text      = "⚠  永久封禁無法自動解除！請輸入角色帳號確認：",
+                ForeColor = Color.FromArgb(255, 120, 80),
+                Font      = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                AutoSize  = false, Size = new Size(370, 22),
+                Location  = new Point(10, 8)
+            });
+            var txtConfirm = new TextBox
+            {
+                Size        = new Size(260, 26), Location = new Point(10, 36),
+                BackColor   = Color.FromArgb(40, 15, 15),
+                ForeColor   = Color.FromArgb(255, 140, 100),
+                Font        = Theme.FontBody,
+                PlaceholderText = $"輸入「{account}」確認"
+            };
+            var lblConfirmHint = new Label
+            {
+                Text      = "✗ 尚未輸入",
+                ForeColor = Color.FromArgb(180, 80, 80),
+                Font      = Theme.FontSmall, AutoSize = true,
+                Location  = new Point(280, 40)
+            };
+            txtConfirm.TextChanged += (s, e) =>
+            {
+                bool ok = txtConfirm.Text.Trim() == account;
+                lblConfirmHint.Text      = ok ? "✓ 已確認" : "✗ 帳號不符";
+                lblConfirmHint.ForeColor = ok ? Theme.AccentGreen : Color.FromArgb(180, 80, 80);
+            };
+            pnlPermWarn.Controls.AddRange(new Control[] { txtConfirm, lblConfirmHint });
+            dlg.Controls.Add(pnlPermWarn);
+            y += 96;
+
             AddLbl("封禁原因：");
-            var txtReason = new TextBox { Width = 200, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary };
+            var txtReason = new TextBox
+            {
+                Width = 200, BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
+                PlaceholderText = "選填，預設：GM 封禁"
+            };
             AddCtl(txtReason); y += 36;
 
             AddLbl("自訂到期：");
-            var chkCustom = new CheckBox { Text = "啟用自訂日期", AutoSize = true, ForeColor = Theme.TextSecondary, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
+            var chkCustom = new CheckBox
+            {
+                Text = "啟用自訂日期", AutoSize = true,
+                ForeColor = Theme.TextSecondary, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
+            };
             AddCtl(chkCustom); y += 36;
 
             AddLbl("到期時間：");
@@ -231,18 +286,56 @@ namespace SQ_Email_Tools
                 Width = 200, Value = DateTime.Now.AddDays(1),
                 Enabled = false, BackColor = Theme.BgLight
             };
-            AddCtl(dtp); y += 50;
-            chkCustom.CheckedChanged += (s, e) => { dtp.Enabled = chkCustom.Checked; cboDuration.Enabled = !chkCustom.Checked; };
+            AddCtl(dtp); y += 40;
+            chkCustom.CheckedChanged += (s, e) =>
+            {
+                dtp.Enabled           = chkCustom.Checked;
+                cboDuration.Enabled   = !chkCustom.Checked;
+                pnlPermWarn.Visible   = false; // 自訂日期時隱藏永久警告
+            };
 
-            var btnBan = Theme.MakePrimaryButton("確定封號", 100, 32);
+            // 切換永久封禁時顯示/隱藏警告區
+            cboDuration.SelectedIndexChanged += (s, e) =>
+            {
+                bool isPerm = cboDuration.SelectedIndex == 5;
+                pnlPermWarn.Visible = isPerm && !chkCustom.Checked;
+                if (isPerm) txtConfirm.Text = "";
+            };
+
+            var btnBan = Theme.MakePrimaryButton("確定封號", 110, 34);
             btnBan.BackColor = Theme.AccentRed;
-            btnBan.Location  = new Point(100, y);
-            var btnCancel = Theme.MakeSecondaryButton("取消", 80, 32);
+            btnBan.Location  = new Point(90, y);
+            var btnCancel = Theme.MakeSecondaryButton("取消", 80, 34);
             btnCancel.Location = new Point(210, y);
             btnCancel.Click   += (s, e) => dlg.Close();
 
             btnBan.Click += async (s, e) =>
             {
+                bool isPerm = cboDuration.SelectedIndex == 5 && !chkCustom.Checked;
+
+                // 永久封禁需輸入帳號確認
+                if (isPerm && txtConfirm.Text.Trim() != account)
+                {
+                    MessageBox.Show($"永久封禁需正確輸入帳號「{account}」才能執行。",
+                        "⚠ 永久封禁確認", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    txtConfirm.Focus();
+                    return;
+                }
+
+                // 最終二次確認
+                string durText   = isPerm ? "永久（不可自動解除）" : (cboDuration.SelectedItem?.ToString() ?? "");
+                string reasonStr = txtReason.Text.Trim().Length > 0 ? txtReason.Text.Trim() : "GM 封禁";
+                var confirm = MessageBox.Show(
+                    $"確定要封禁帳號 [{account}]？\n\n" +
+                    $"  封禁時長：{durText}\n" +
+                    $"  封禁原因：{reasonStr}\n\n" +
+                    (isPerm ? "⚠ 永久封禁執行後無法自動解除，需手動操作解封！\n\n" : "") +
+                    "此操作將立即生效。",
+                    isPerm ? "⚠ 永久封禁 — 最終確認" : "確認封號",
+                    MessageBoxButtons.YesNo,
+                    isPerm ? MessageBoxIcon.Stop : MessageBoxIcon.Warning);
+                if (confirm != DialogResult.Yes) return;
+
                 int endUnix = 0;
                 if (chkCustom.Checked)
                 {
@@ -254,9 +347,8 @@ namespace SQ_Email_Tools
                     int d = days[cboDuration.SelectedIndex];
                     endUnix = d == 0 ? 0 : (int)DateTimeOffset.UtcNow.AddDays(d).ToUnixTimeSeconds();
                 }
-                string reason = txtReason.Text.Trim().Length > 0 ? txtReason.Text.Trim() : "GM 封禁";
                 dlg.Close();
-                bool ok = await DatabaseManager.Instance.BanPlayerAsync(account, endUnix, reason);
+                bool ok = await DatabaseManager.Instance.BanPlayerAsync(account, endUnix, reasonStr);
                 _statusLbl.Text = ok ? $"✓ 已封禁 {account}" : "✗ 封禁失敗";
                 await (string.IsNullOrWhiteSpace(_searchBox.Text) ? LoadBannedAsync() : SearchPlayerAsync(_searchBox.Text.Trim()));
             };
