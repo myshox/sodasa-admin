@@ -54,12 +54,15 @@ namespace SQ_Email_Tools
 
         private readonly string          _masterName;
         private readonly List<PlayerInfo> _subs;
+        private readonly bool            _embedded;          // true = 嵌入在父視窗中，不顯示取消按鈕
         private readonly List<SplitRow>  _rows = new();
         private Label   _lblTotal;
         private Button  _btnOk;
         private Panel   _scrollPanel;
         private Label   _hdrGoldPreview;   // 表頭「金幣預覽」隨 resize 同步
         public  bool    AnyDone { get; private set; }
+        /// <summary>嵌入模式下，完成儲值後觸發（讓父視窗刷新）</summary>
+        public  Action? OnAfterRecharge { get; set; }
 
         // 顏色常數
         private static readonly Color ColBg        = Color.FromArgb(14, 18, 30);
@@ -75,10 +78,11 @@ namespace SQ_Email_Tools
         private static readonly Color ColGreen     = Color.FromArgb(86, 196, 118);
         private const int ROW_H = 62;
 
-        public MasterSplitRechargeDialog(string masterName, List<PlayerInfo> subs)
+        public MasterSplitRechargeDialog(string masterName, List<PlayerInfo> subs, bool embedded = false)
         {
             _masterName   = masterName;
             _subs         = subs;
+            _embedded     = embedded;
             Text          = $"💰 主帳號分配儲值 — {masterName}";
             Size          = new Size(1020, 700);
             MinimumSize   = new Size(860, 480);
@@ -108,15 +112,18 @@ namespace SQ_Email_Tools
             };
             btnBar.Controls.Add(_lblTotal);
 
-            var btnCancel = new Button
+            if (!_embedded)
             {
-                Text = "取消", Size = new Size(80, 36), Dock = DockStyle.Right,
-                BackColor = Color.FromArgb(44, 50, 68), ForeColor = Theme.TextPrimary,
-                FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
-            };
-            btnCancel.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 110);
-            btnCancel.Click += (_, __) => Close();
-            btnBar.Controls.Add(btnCancel);
+                var btnCancel = new Button
+                {
+                    Text = "取消", Size = new Size(80, 36), Dock = DockStyle.Right,
+                    BackColor = Color.FromArgb(44, 50, 68), ForeColor = Theme.TextPrimary,
+                    FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand
+                };
+                btnCancel.FlatAppearance.BorderColor = Color.FromArgb(70, 80, 110);
+                btnCancel.Click += (_, __) => Close();
+                btnBar.Controls.Add(btnCancel);
+            }
 
             _btnOk = new Button
             {
@@ -482,7 +489,11 @@ namespace SQ_Email_Tools
                 fails.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
 
             _btnOk.Text = "💰  確認分配儲值"; _btnOk.Enabled = true;
-            if (done > 0) Close();
+            if (done > 0)
+            {
+                if (_embedded) OnAfterRecharge?.Invoke();
+                else Close();
+            }
         }
 
         // ── 輔助 ─────────────────────────────────────────────────────

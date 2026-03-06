@@ -32,6 +32,9 @@ namespace SQ_Email_Tools
         // ── 玩家狀態 ───────────────────────────────────────────────
         private PlayerDetail _detail;           // null 表示尚未搜尋
         private string       _account;
+        private int          _masterId   = 0;
+        private string       _masterName = "";
+        private List<PlayerInfo> _subs   = new();
 
         // ── STEP 2 套餐選擇狀態 ────────────────────────────────────
         private int  _selectedTierIdx = -1;     // -1 = 未選
@@ -44,6 +47,13 @@ namespace SQ_Email_Tools
         // ── UI 控件 ────────────────────────────────────────────────
         private TextBox   _txtSearch;
         private Button    _btnSearch;
+
+        // 右側 tab 切換
+        private Button    _btnTabSingle;
+        private Button    _btnTabSplit;
+        private Panel     _pnlSingleContent;   // Tab 1：新增儲值
+        private Panel     _pnlSplitWrapper;    // Tab 2：分配儲值（嵌入）
+        private MasterSplitRechargeDialog? _embeddedSplit;
 
         // 左：玩家資訊
         private Panel       _pnlPlayerInfo;
@@ -352,14 +362,124 @@ namespace SQ_Email_Tools
         private void Div(int x, int y, int w) =>
             _pnlPlayerInfo.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(w, 1), BackColor = Theme.Border });
 
-        // ── 右側：給予儲值 + 計算機 + 充值記錄 ──────────────────────
+        // ── 右側：分頁切換 → 新增儲值 | 分配儲值 ────────────────────
         private void BuildRightPanel(SplitterPanel panel)
         {
             panel.BackColor = Theme.BgPage;
-            panel.AutoScroll = true;
+
+            // ── Tab 切換列 ─────────────────────────────────────────
+            var tabBar = new Panel
+            {
+                Dock = DockStyle.Top, Height = 44,
+                BackColor = Color.FromArgb(16, 20, 34)
+            };
+            tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+
+            _btnTabSingle = new Button
+            {
+                Text = "💰 新增儲值",
+                Size = new Size(148, 34), Location = new Point(10, 5),
+                BackColor = Theme.AccentBlue, ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat, Font = Theme.FontBody, Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            _btnTabSingle.FlatAppearance.BorderSize = 0;
+            _btnTabSingle.Click += (_, __) => SwitchTab(false);
+
+            _btnTabSplit = new Button
+            {
+                Text = "📋 分配儲值",
+                Size = new Size(148, 34), Location = new Point(162, 5),
+                BackColor = Theme.BgCard, ForeColor = Theme.TextMuted,
+                FlatStyle = FlatStyle.Flat, Font = Theme.FontBody, Cursor = Cursors.Hand,
+                Enabled = false, UseVisualStyleBackColor = false
+            };
+            _btnTabSplit.FlatAppearance.BorderSize = 0;
+            _btnTabSplit.Click += (_, __) => SwitchTab(true);
+            new ToolTip().SetToolTip(_btnTabSplit, "搜尋到主帳號後，此 Tab 才會啟用");
+
+            tabBar.Controls.AddRange(new Control[] { _btnTabSingle, _btnTabSplit });
+            panel.Controls.Add(tabBar);
+
+            // ── 分配儲值 Panel（後加，DockStyle.Fill 先到者先填）────
+            _pnlSplitWrapper = new Panel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.BgPage, Visible = false
+            };
+            panel.Controls.Add(_pnlSplitWrapper);
+
+            // ── 新增儲值 Panel ────────────────────────────────────
+            _pnlSingleContent = new Panel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.BgPage
+            };
+            panel.Controls.Add(_pnlSingleContent);
+
+            BuildSingleRechargeContent(_pnlSingleContent);
+        }
+
+        // ── Tab 切換 ────────────────────────────────────────────────
+        private void SwitchTab(bool showSplit)
+        {
+            _pnlSingleContent.Visible = !showSplit;
+            _pnlSplitWrapper.Visible  = showSplit;
+
+            _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Theme.BgCard;
+            _btnTabSingle.ForeColor = !showSplit ? Color.White : Theme.TextMuted;
+            _btnTabSplit.BackColor  = showSplit  ? Theme.AccentBlue : Theme.BgCard;
+            _btnTabSplit.ForeColor  = showSplit  ? Color.White : Theme.TextMuted;
+        }
+
+        // ── 重建嵌入式分配儲值 Panel ────────────────────────────────
+        private void RebuildSplitPanel()
+        {
+            // 清除舊的嵌入表單
+            if (_embeddedSplit != null)
+            {
+                _pnlSplitWrapper.Controls.Remove(_embeddedSplit);
+                _embeddedSplit.Dispose();
+                _embeddedSplit = null;
+            }
+
+            if (_subs.Count == 0)
+            {
+                _btnTabSplit.Enabled = false;
+                _btnTabSplit.Text    = "📋 分配儲值";
+                new ToolTip().SetToolTip(_btnTabSplit, "搜尋到主帳號後，此 Tab 才會啟用");
+                SwitchTab(false);
+                return;
+            }
+
+            // 建立嵌入式分配儲值表單
+            _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true)
+            {
+                TopLevel        = false,
+                FormBorderStyle = FormBorderStyle.None,
+                Dock            = DockStyle.Fill
+            };
+            _embeddedSplit.OnAfterRecharge = async () =>
+            {
+                // 儲值後刷新子帳號資料
+                if (_masterId > 0)
+                    _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
+                RebuildSplitPanel();
+                SwitchTab(true);
+            };
+            _pnlSplitWrapper.Controls.Add(_embeddedSplit);
+            _embeddedSplit.Show();
+
+            _btnTabSplit.Enabled = true;
+            _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
+            new ToolTip().SetToolTip(_btnTabSplit, $"主帳號 {_masterName} 旗下 {_subs.Count} 個子帳號批次儲值");
+        }
+
+        // ── 新增儲值內容（原 BuildRightPanel 主體移至此）────────────
+        private void BuildSingleRechargeContent(Panel container)
+        {
+            container.AutoScroll = true;
 
             var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.BgPage };
-            panel.Controls.Add(scroll);
+            container.Controls.Add(scroll);
 
             int y = 14;
             const int x = 14;
@@ -661,6 +781,8 @@ namespace SQ_Email_Tools
                 if (picked == null) { ShowMsg("", true); return; }
 
                 _account  = picked.Account;
+                _masterId = picked.MasterId;
+                _masterName = picked.MasterName ?? "";
                 _txtSearch.Text = picked.OnlineName.Length > 0 ? picked.OnlineName : picked.Account;
                 _detail   = await DatabaseManager.Instance.GetPlayerDetailAsync(picked.Account);
                 // 預設依 VIP 套用加成
@@ -669,7 +791,23 @@ namespace SQ_Email_Tools
                 SelectTier(-1);
                 RebuildPlayerInfo();
                 UpdatePreview();
-                ShowMsg($"✓ 已載入玩家：{_detail.OnlineName}（{_detail.Account}）", true);
+
+                // ── 載入子帳號（供分配儲值 Tab 使用）────────────────
+                if (_masterId > 0)
+                {
+                    _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
+                    // 若 MasterName 未從 picked 取得，從第一筆 sub 取
+                    if (string.IsNullOrWhiteSpace(_masterName) && _subs.Count > 0)
+                        _masterName = _subs[0].MasterName ?? "";
+                }
+                else
+                {
+                    _subs = new List<PlayerInfo>();
+                }
+                RebuildSplitPanel();
+
+                string subsInfo = _subs.Count > 1 ? $"  ·  主帳號 {_masterName}（{_subs.Count} 位子帳號）" : "";
+                ShowMsg($"✓ 已載入玩家：{_detail.OnlineName}（{_detail.Account}）{subsInfo}", true);
             }
             catch (Exception ex) { ShowMsg("找不到玩家：" + ex.Message, false); _detail = null; _account = null; RebuildPlayerInfo(); }
             finally { _btnSearch.Enabled = true; _btnSearch.Text = "🔍 搜尋"; }
