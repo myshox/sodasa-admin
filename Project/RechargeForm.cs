@@ -191,9 +191,11 @@ namespace SQ_Email_Tools
                 // Panel1MinSize / Panel2MinSize 不能在建構時設定（此時 Width=0 會拋例外）
             };
             Controls.Add(split);
-            // 用 Load 事件（表單已完全配置後才設定 SplitterDistance，避免 Width=0 問題）
-            Load += (_, __) =>
+            // 首次 Resize 時才有真實寬度，設完後立即取消事件
+            void InitSplitter(object? s, EventArgs e)
             {
+                if (split.Width < 400) return;
+                split.Resize -= InitSplitter;
                 try
                 {
                     split.Panel1MinSize = 240;
@@ -203,7 +205,8 @@ namespace SQ_Email_Tools
                     split.SplitterDistance = Math.Max(split.Panel1MinSize, d);
                 }
                 catch { }
-            };
+            }
+            split.Resize += InitSplitter;
 
             BuildLeftPanel(split.Panel1);
             BuildRightPanel(split.Panel2);
