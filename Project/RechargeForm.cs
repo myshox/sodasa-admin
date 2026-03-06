@@ -132,6 +132,43 @@ namespace SQ_Email_Tools
             _btnSearch.FlatAppearance.BorderSize = 0;
             _btnSearch.Click += (s, e) => _ = SearchPlayerAsync();
             topBar.Controls.Add(_btnSearch);
+
+            // ── Tab 切換按鈕（放在搜尋列右側，永遠可見）────────────
+            var tabSep = new Panel
+            {
+                Size = new Size(1, 28), Location = new Point(604, 14),
+                BackColor = Theme.Border
+            };
+            topBar.Controls.Add(tabSep);
+
+            _btnTabSingle = new Button
+            {
+                Text = "💰 新增儲值",
+                Size = new Size(130, 28), Location = new Point(610, 14),
+                BackColor = Theme.AccentBlue, ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand, UseVisualStyleBackColor = false
+            };
+            _btnTabSingle.FlatAppearance.BorderSize = 0;
+            _btnTabSingle.Click += (_, __) => SwitchTab(false);
+            topBar.Controls.Add(_btnTabSingle);
+
+            _btnTabSplit = new Button
+            {
+                Text = "📋 分配儲值",
+                Size = new Size(130, 28), Location = new Point(744, 14),
+                BackColor = Color.FromArgb(30, 38, 60), ForeColor = Color.FromArgb(120, 140, 180),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font(Theme.FontFamily, 8.5f),
+                Cursor = Cursors.Hand, Enabled = false, UseVisualStyleBackColor = false
+            };
+            _btnTabSplit.FlatAppearance.BorderSize  = 1;
+            _btnTabSplit.FlatAppearance.BorderColor = Theme.Border;
+            _btnTabSplit.Click += (_, __) => SwitchTab(true);
+            new ToolTip().SetToolTip(_btnTabSplit, "搜尋到主帳號後，此 Tab 才會啟用");
+            topBar.Controls.Add(_btnTabSplit);
+
             Controls.Add(topBar);
 
             // ── 狀態欄 ───────────────────────────────────────────────
@@ -362,57 +399,19 @@ namespace SQ_Email_Tools
         private void Div(int x, int y, int w) =>
             _pnlPlayerInfo.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(w, 1), BackColor = Theme.Border });
 
-        // ── 右側：分頁切換 → 新增儲值 | 分配儲值 ────────────────────
+        // ── 右側：新增儲值 | 分配儲值（Tab 按鈕已移至頂部搜尋列）────
         private void BuildRightPanel(SplitterPanel panel)
         {
             panel.BackColor = Theme.BgPage;
 
-            // ── Tab 切換列 ─────────────────────────────────────────
-            var tabBar = new Panel
-            {
-                Dock = DockStyle.Top, Height = 46,
-                BackColor = Color.FromArgb(14, 18, 30)
-            };
-            tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 2, BackColor = Theme.Border });
-
-            _btnTabSingle = new Button
-            {
-                Text = "💰  新增儲值",
-                Size = new Size(158, 36), Location = new Point(10, 5),
-                BackColor = Theme.AccentBlue, ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                Cursor = Cursors.Hand, UseVisualStyleBackColor = false
-            };
-            _btnTabSingle.FlatAppearance.BorderSize  = 0;
-            _btnTabSingle.FlatAppearance.BorderColor = Theme.AccentBlue;
-            _btnTabSingle.Click += (_, __) => SwitchTab(false);
-
-            _btnTabSplit = new Button
-            {
-                Text = "📋  分配儲值",
-                Size = new Size(158, 36), Location = new Point(172, 5),
-                BackColor = Color.FromArgb(28, 36, 56), ForeColor = Color.FromArgb(140, 160, 200),
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font(Theme.FontFamily, 9.5f),
-                Cursor = Cursors.Hand, Enabled = false, UseVisualStyleBackColor = false
-            };
-            _btnTabSplit.FlatAppearance.BorderSize  = 1;
-            _btnTabSplit.FlatAppearance.BorderColor = Theme.Border;
-            _btnTabSplit.Click += (_, __) => SwitchTab(true);
-            new ToolTip().SetToolTip(_btnTabSplit, "搜尋到主帳號後，此 Tab 才會啟用");
-
-            tabBar.Controls.AddRange(new Control[] { _btnTabSingle, _btnTabSplit });
-            panel.Controls.Add(tabBar);
-
-            // ── 分配儲值 Panel（後加，DockStyle.Fill 先到者先填）────
+            // 分配儲值 Panel（初始隱藏）
             _pnlSplitWrapper = new Panel
             {
                 Dock = DockStyle.Fill, BackColor = Theme.BgPage, Visible = false
             };
             panel.Controls.Add(_pnlSplitWrapper);
 
-            // ── 新增儲值 Panel ────────────────────────────────────
+            // 新增儲值 Panel（初始顯示）
             _pnlSingleContent = new Panel
             {
                 Dock = DockStyle.Fill, BackColor = Theme.BgPage
