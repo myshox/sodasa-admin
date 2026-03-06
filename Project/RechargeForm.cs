@@ -478,6 +478,9 @@ namespace SQ_Email_Tools
             _btnTabSplit.BackColor = showSplit ? Color.FromArgb(20, 100, 30) : Color.FromArgb(28, 36, 56);
             _btnTabSplit.ForeColor = showSplit ? Color.FromArgb(140, 230, 140) : Color.FromArgb(140, 160, 200);
             _btnTabSplit.Font      = new Font(Theme.FontFamily, 9.5f, showSplit ? FontStyle.Bold : FontStyle.Regular);
+
+            // 切到分配儲值時，等 layout 完成後再重建內容（此時 wrapper 已 Visible=true，尺寸正確）
+            if (showSplit) BeginInvoke((Action)RebuildSplitContent);
         }
 
         // ════════════════════════════════════════════════════════════
@@ -498,10 +501,10 @@ namespace SQ_Email_Tools
         private static readonly string[] SPLIT_TIER_SUBS   = { "1萬","3.2萬","5.5萬","11.5萬","36萬","62.5萬","130萬" };
         private static readonly int[]    SPLIT_BONUS_VALS  = { 0, 5, 10, 15, 20 };
 
+        // 只更新資料與 Tab 按鈕狀態；實際 UI 在 SwitchTab→BeginInvoke→RebuildSplitContent 建立
         private void RebuildSplitPanel()
         {
-            _pnlSplitWrapper.Controls.Clear();
-            _splitRows = null;
+            _splitRows = null;   // 清除舊狀態，UI 待 visible 後重建
 
             if (_subs.Count == 0)
             {
@@ -511,6 +514,19 @@ namespace SQ_Email_Tools
                 SwitchTab(false);
                 return;
             }
+
+            _btnTabSplit.Enabled = true;
+            _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
+            new ToolTip().SetToolTip(_btnTabSplit, $"{_masterName} 旗下 {_subs.Count} 個帳號");
+        }
+
+        // 在 _pnlSplitWrapper 已 Visible=true 且尺寸正確後才呼叫，確保 layout 正確
+        private void RebuildSplitContent()
+        {
+            if (_subs.Count == 0) return;
+
+            _pnlSplitWrapper.Controls.Clear();
+            _splitRows = null;
 
             // ── 底部確認列 ─────────────────────────────────────────
             var btnBar = new Panel
@@ -626,11 +642,6 @@ namespace SQ_Email_Tools
                 _splitRows.Add(rc);
             }
             _pnlSplitWrapper.Controls.Add(_splitScrollPanel);
-
-            _btnTabSplit.Enabled = true;
-            _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
-            new ToolTip().SetToolTip(_btnTabSplit, $"{_masterName} 旗下 {_subs.Count} 個帳號");
-
             RefreshSplitAll();
         }
 
