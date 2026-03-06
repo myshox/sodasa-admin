@@ -191,16 +191,16 @@ namespace SQ_Email_Tools
                 // Panel1MinSize / Panel2MinSize 不能在建構時設定（此時 Width=0 會拋例外）
             };
             Controls.Add(split);
-            split.HandleCreated += (_, __) =>
+            // 用 Load 事件（表單已完全配置後才設定 SplitterDistance，避免 Width=0 問題）
+            Load += (_, __) =>
             {
                 try
                 {
                     split.Panel1MinSize = 240;
-                    // Panel2MinSize 必須在寬度足夠時才設定，否則會拋 InvalidOperationException
                     if (split.Width > 240 + 480 + split.SplitterWidth)
                         split.Panel2MinSize = 480;
                     int d = Math.Max(270, Math.Min(split.Width - 500, (int)(split.Width * 0.27)));
-                    if (d > split.Panel1MinSize) split.SplitterDistance = d;
+                    split.SplitterDistance = Math.Max(split.Panel1MinSize, d);
                 }
                 catch { }
             };
@@ -461,34 +461,22 @@ namespace SQ_Email_Tools
                 return;
             }
 
-            // ── 分配儲值標題列（取代 dialog 原本被隱藏的 Title Bar）──
+            // 清除舊內容
             _pnlSplitWrapper.Controls.Clear();
-            var splitHdr = new Panel
-            {
-                Dock = DockStyle.Top, Height = 36,
-                BackColor = Color.FromArgb(18, 28, 18)
-            };
-            splitHdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(60, 160, 60) });
-            splitHdr.Controls.Add(new Label
-            {
-                Text      = $"📋  分配儲值 — 主帳號：{_masterName}（{_subs.Count} 位子帳號）",
-                ForeColor = Color.FromArgb(120, 220, 120),
-                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize  = true, Location = new Point(12, 8)
-            });
-            _pnlSplitWrapper.Controls.Add(splitHdr);
 
-            // 建立嵌入式分配儲值表單
+            // 建立嵌入式分配儲值表單（不用 DockStyle.Fill，改用手動 Resize）
             _embeddedSplit = new MasterSplitRechargeDialog(_masterName, _subs, embedded: true)
             {
                 TopLevel        = false,
                 FormBorderStyle = FormBorderStyle.None,
-                Dock            = DockStyle.Fill,
-                MinimumSize     = Size.Empty   // 移除 860px 最小寬度限制，讓 Dock=Fill 生效
+                MinimumSize     = Size.Empty,
+                Location        = new Point(0, 0),
+                Size            = _pnlSplitWrapper.ClientSize.IsEmpty
+                                    ? new Size(800, 500)
+                                    : _pnlSplitWrapper.ClientSize
             };
             _embeddedSplit.OnAfterRecharge = async () =>
             {
-                // 儲值後刷新子帳號資料
                 if (_masterId > 0)
                     _subs = await DatabaseManager.Instance.GetSubAccountsAsync(_masterId);
                 RebuildSplitPanel();
@@ -497,9 +485,22 @@ namespace SQ_Email_Tools
             _pnlSplitWrapper.Controls.Add(_embeddedSplit);
             _embeddedSplit.Show();
 
+            // 監聽 _pnlSplitWrapper Resize，讓嵌入式表單跟著撐滿
+            _pnlSplitWrapper.Resize -= OnSplitWrapperResize;
+            _pnlSplitWrapper.Resize += OnSplitWrapperResize;
+
             _btnTabSplit.Enabled = true;
             _btnTabSplit.Text    = $"📋 分配儲值（{_subs.Count} 位）";
             new ToolTip().SetToolTip(_btnTabSplit, $"主帳號 {_masterName} 旗下 {_subs.Count} 個子帳號批次儲值");
+        }
+
+        // 讓嵌入式 MasterSplitRechargeDialog 跟著 _pnlSplitWrapper 大小自動填滿
+        private void OnSplitWrapperResize(object? sender, EventArgs e)
+        {
+            if (_embeddedSplit == null || _embeddedSplit.IsDisposed) return;
+            var sz = _pnlSplitWrapper.ClientSize;
+            if (sz.Width > 0 && sz.Height > 0)
+                _embeddedSplit.Size = sz;
         }
 
         // ── 新增儲值內容（原 BuildRightPanel 主體移至此）────────────
