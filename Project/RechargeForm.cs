@@ -37,7 +37,9 @@ namespace SQ_Email_Tools
         private int  _selectedTierIdx = -1;     // -1 = 未選
         private int  _bonusPct = 0;
         private bool _giveGold = true;
-        private bool _syncingGold = false;      // 防止 NT$→金幣 雙向觸發
+        private bool _syncingGold = false;      // 防止 NT$↔金幣 雙向觸發
+        private Label _lblTwdHint;              // 台幣旁動態提示（→ X 金幣）
+        private Label _lblGoldHint;             // 金幣旁動態提示（→ 最少 NT$X）
 
         // ── UI 控件 ────────────────────────────────────────────────
         private TextBox   _txtSearch;
@@ -65,16 +67,7 @@ namespace SQ_Email_Tools
         private Button      _btnConfirm;
         private Label       _lblMsg;
 
-        // 下：計算機 + 充值記錄
-        private NumericUpDown _nudCalcTwd;
-        private Button[]    _calcBonusBtns;
-        private int         _calcBonusPct = 0;
-        private Label       _lblCalcResult;
-        // 金幣反推計算機
-        private NumericUpDown _nudCalcGold;
-        private Button[]    _calcRevBonusBtns;
-        private int         _calcRevBonusPct = 0;
-        private Label       _lblCalcRevResult;
+        // 下：充值記錄
         private TextBox     _txtHistQ;
         private DataGridView _dgvHistory;
         private Label       _lblHistStatus;
@@ -397,7 +390,7 @@ namespace SQ_Email_Tools
                     Cursor = Cursors.Hand, UseVisualStyleBackColor = false
                 };
                 btn.FlatAppearance.BorderColor = Theme.Border;
-                btn.Click += (s, e) => { SelectTier(idx); UpdatePreview(); };
+                btn.Click += (s, e) => { SelectTier(idx); UpdatePreview(); UpdateManualHints(); };
                 scroll.Controls.Add(btn);
                 _tierBtns[i] = btn;
                 bx += 84;
@@ -429,7 +422,7 @@ namespace SQ_Email_Tools
                     Cursor = Cursors.Hand, UseVisualStyleBackColor = false, Tag = pct
                 };
                 btn.FlatAppearance.BorderColor = Theme.Border;
-                btn.Click += (s, e) => { _bonusPct = pct; RefreshBonusButtons(); UpdatePreview(); };
+                btn.Click += (s, e) => { _bonusPct = pct; RefreshBonusButtons(); UpdatePreview(); UpdateManualHints(); };
                 scroll.Controls.Add(btn);
                 _bonusBtns[i] = btn;
                 bx += 88;
@@ -437,19 +430,20 @@ namespace SQ_Email_Tools
             RefreshBonusButtons();
             y += 36;
 
-            // ─── 手動輸入 ───────────────────────────────────────────
-            scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
+            // ─── 或自訂金額（雙向同步）──────────────────────────────
+            scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(600, 1), BackColor = Theme.Border });
             y += 10;
+            SectionLabel(scroll, "或自訂金額（輸入台幣 ↔ 自動換算金幣，雙向同步）", x, y); y += 22;
+
+            // 第一行：台幣輸入
             scroll.Controls.Add(new Label
             {
-                Text = "或手動輸入（不選套餐）：",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = true, Location = new Point(x, y + 4)
+                Text = "台幣 NT$", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
+                AutoSize = true, Location = new Point(x, y + 5)
             });
-
             _nudTwd = new NumericUpDown
             {
-                Location = new Point(x + 170, y), Size = new Size(100, 26),
+                Location = new Point(x + 76, y), Size = new Size(130, 26),
                 Minimum = 0, Maximum = 9_999_999, Value = 0,
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, ThousandsSeparator = true
@@ -457,41 +451,60 @@ namespace SQ_Email_Tools
             _nudTwd.ValueChanged += (s, e) =>
             {
                 if (_syncingGold) return;
-                if (_nudTwd.Value > 0)
-                {
-                    SelectTier(-1);
-                    // 存「基礎金幣」（不含加成），GetFinalGold() 再乘加成
-                    _syncingGold = true;
-                    var (baseGoldAuto, _, _) = TwdToGold((long)_nudTwd.Value);
-                    _nudGold.Value = baseGoldAuto;
-                    _syncingGold = false;
-                }
-                else
-                {
-                    _syncingGold = true;
-                    _nudGold.Value = 0;
-                    _syncingGold = false;
-                }
-                UpdatePreview();
+                SelectTier(-1);
+                _syncingGold = true;
+                var (bg, _, _) = TwdToGold((long)_nudTwd.Value);
+                _nudGold.Value = _nudTwd.Value > 0 ? bg : 0;
+                _syncingGold = false;
+                UpdatePreview(); UpdateManualHints();
             };
             scroll.Controls.Add(_nudTwd);
-            scroll.Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 275, y + 5) });
+            _lblTwdHint = new Label
+            {
+                Text = "← 輸入台幣，自動換算金幣",
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                AutoSize = false, Size = new Size(370, 18),
+                Location = new Point(x + 214, y + 5)
+            };
+            scroll.Controls.Add(_lblTwdHint);
+            y += 32;
 
+            // 第二行：金幣輸入（反推台幣）
+            scroll.Controls.Add(new Label
+            {
+                Text = "金幣 元寶", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
+                AutoSize = true, Location = new Point(x, y + 5)
+            });
             _nudGold = new NumericUpDown
             {
-                Location = new Point(x + 310, y), Size = new Size(120, 26),
+                Location = new Point(x + 76, y), Size = new Size(130, 26),
                 Minimum = 0, Maximum = 999_999_999, Value = 0,
-                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.BgInput, ForeColor = Color.FromArgb(251, 191, 36),
                 Font = Theme.FontBody, ThousandsSeparator = true
             };
             _nudGold.ValueChanged += (s, e) =>
             {
                 if (_syncingGold) return;
-                if (_nudGold.Value > 0) SelectTier(-1);
-                UpdatePreview();
+                SelectTier(-1);
+                _syncingGold = true;
+                if (_nudGold.Value > 0)
+                {
+                    var opts = GoldToTwd((long)_nudGold.Value, _bonusPct);
+                    _nudTwd.Value = opts.Count > 0 ? Math.Min(opts[0].Item1, _nudTwd.Maximum) : 0;
+                }
+                else _nudTwd.Value = 0;
+                _syncingGold = false;
+                UpdatePreview(); UpdateManualHints();
             };
             scroll.Controls.Add(_nudGold);
-            scroll.Controls.Add(new Label { Text = "金幣（基礎，可覆蓋）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 434, y + 5) });
+            _lblGoldHint = new Label
+            {
+                Text = "← 輸入金幣，自動反推最低台幣",
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                AutoSize = false, Size = new Size(370, 18),
+                Location = new Point(x + 214, y + 5)
+            };
+            scroll.Controls.Add(_lblGoldHint);
             y += 36;
 
             // ─── 是否發放金幣 ────────────────────────────────────────
@@ -526,116 +539,6 @@ namespace SQ_Email_Tools
             _btnConfirm.Click += async (s, e) => await DoRechargeAsync();
             scroll.Controls.Add(_btnConfirm);
             y += 52;
-
-            // ─── 台幣換算計算機 ─────────────────────────────────────
-            scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
-            y += 10;
-            SectionLabel(scroll, "💱 匯率試算工具（純試算，不影響實際操作）", x, y); y += 22;
-            scroll.Controls.Add(new Label
-            {
-                Text = "❓ 想知道充 X 元台幣，玩家能拿多少金幣？輸入台幣金額後自動計算。",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(600, 34), Location = new Point(x, y)
-            });
-            y += 36;
-
-            var nudCalcTwd = new NumericUpDown
-            {
-                Location = new Point(x, y), Size = new Size(120, 26),
-                Minimum = 0, Maximum = 9_999_999, Value = 0,
-                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
-                Font = Theme.FontBody, ThousandsSeparator = true
-            };
-            _nudCalcTwd = nudCalcTwd;
-            nudCalcTwd.ValueChanged += (s, e) => RefreshCalcResult();
-            scroll.Controls.Add(nudCalcTwd);
-            scroll.Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 126, y + 5) });
-
-            _calcBonusBtns = new Button[BONUSES.Length];
-            int cbx = x + 160;
-            for (int i = 0; i < BONUSES.Length; i++)
-            {
-                int pct = BONUSES[i];
-                var btn = new Button
-                {
-                    Text = pct == 0 ? "無加成" : $"+{pct}%",
-                    BackColor = Theme.BgInput, ForeColor = Theme.TextSecondary,
-                    FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall,
-                    Size = new Size(68, 26), Location = new Point(cbx, y),
-                    Cursor = Cursors.Hand, UseVisualStyleBackColor = false, Tag = pct
-                };
-                btn.FlatAppearance.BorderColor = Theme.Border;
-                btn.Click += (s, e) => { _calcBonusPct = pct; RefreshCalcButtons(); RefreshCalcResult(); };
-                scroll.Controls.Add(btn);
-                _calcBonusBtns[i] = btn;
-                cbx += 72;
-            }
-            RefreshCalcButtons();
-            y += 32;
-
-            _lblCalcResult = new Label
-            {
-                Text = "請輸入台幣金額…",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(600, 38), Location = new Point(x, y)
-            };
-            scroll.Controls.Add(_lblCalcResult);
-            y += 44;
-
-            // ─── 金幣反推台幣計算機 ──────────────────────────────────
-            scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
-            y += 10;
-            SectionLabel(scroll, "🔁 反推：金幣 → 台幣（玩家要 X 金幣，最少需充多少？）", x, y); y += 22;
-            scroll.Controls.Add(new Label
-            {
-                Text = "❓ 玩家需要 X 金幣，自動找出最划算套餐，算出最少需花多少台幣。",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(600, 34), Location = new Point(x, y)
-            });
-            y += 36;
-
-            var nudCalcGold = new NumericUpDown
-            {
-                Location = new Point(x, y), Size = new Size(150, 26),
-                Minimum = 0, Maximum = 999_999_999, Value = 0,
-                BackColor = Theme.BgInput, ForeColor = Theme.AccentOrange,
-                Font = Theme.FontBody, ThousandsSeparator = true
-            };
-            _nudCalcGold = nudCalcGold;
-            nudCalcGold.ValueChanged += (s, e) => RefreshCalcRevResult();
-            scroll.Controls.Add(nudCalcGold);
-            scroll.Controls.Add(new Label { Text = "金幣", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 156, y + 5) });
-
-            _calcRevBonusBtns = new Button[BONUSES.Length];
-            int rbx = x + 200;
-            for (int i = 0; i < BONUSES.Length; i++)
-            {
-                int pct = BONUSES[i];
-                var btn = new Button
-                {
-                    Text = pct == 0 ? "無加成" : $"+{pct}%",
-                    BackColor = Theme.BgInput, ForeColor = Theme.TextSecondary,
-                    FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall,
-                    Size = new Size(66, 26), Location = new Point(rbx, y),
-                    Cursor = Cursors.Hand, UseVisualStyleBackColor = false, Tag = pct
-                };
-                btn.FlatAppearance.BorderColor = Theme.Border;
-                btn.Click += (s, e) => { _calcRevBonusPct = pct; RefreshCalcRevButtons(); RefreshCalcRevResult(); };
-                scroll.Controls.Add(btn);
-                _calcRevBonusBtns[i] = btn;
-                rbx += 70;
-            }
-            RefreshCalcRevButtons();
-            y += 32;
-
-            _lblCalcRevResult = new Label
-            {
-                Text = "請輸入金幣數量…",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                AutoSize = false, Size = new Size(600, 40), Location = new Point(x, y)
-            };
-            scroll.Controls.Add(_lblCalcRevResult);
-            y += 48;
 
             // ─── 充值記錄查詢 ────────────────────────────────────────
             scroll.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(640, 1), BackColor = Theme.Border });
@@ -813,30 +716,39 @@ namespace SQ_Email_Tools
             }
         }
 
-        private void RefreshCalcButtons()
+        private void UpdateManualHints()
         {
-            foreach (var btn in _calcBonusBtns)
-            {
-                int pct = (int)btn.Tag;
-                bool sel = pct == _calcBonusPct;
-                btn.BackColor = sel ? (pct > 0 ? Color.FromArgb(20, 60, 25) : Theme.BgCard) : Theme.BgInput;
-                btn.ForeColor = sel ? (pct > 0 ? Theme.AccentGreen : Theme.TextPrimary) : Theme.TextSecondary;
-                btn.FlatAppearance.BorderColor = sel ? (pct > 0 ? Theme.AccentGreen : Theme.Border) : Theme.Border;
-            }
-        }
+            if (_lblTwdHint == null || _lblGoldHint == null) return;
+            long twd  = (long)_nudTwd.Value;
+            long goldB = (long)_nudGold.Value;
 
-        private void RefreshCalcResult()
-        {
-            long n = (long)_nudCalcTwd.Value;
-            if (n <= 0) { _lblCalcResult.Text = "請輸入台幣金額…"; _lblCalcResult.ForeColor = Theme.TextMuted; return; }
-            var (baseGold, rate, tierLabel) = TwdToGold(n);
-            long bonus = (long)Math.Round(baseGold * _calcBonusPct / 100.0);
-            long total = baseGold + bonus;
-            string result = _calcBonusPct > 0
-                ? $"匯率：{tierLabel}（{rate:F1}金/NT$）  基礎金幣：{baseGold:N0}  +{_calcBonusPct}% = {bonus:N0}  合計：{total:N0} 元寶"
-                : $"匯率：{tierLabel}（{rate:F1}金/NT$）  → {baseGold:N0} 元寶（累積進度計 NT${n:N0}，贈金不納入）";
-            _lblCalcResult.Text = result;
-            _lblCalcResult.ForeColor = Theme.AccentGreen;
+            // 台幣旁提示：顯示對應金幣
+            if (twd > 0)
+            {
+                var (bg, rate, tierLbl) = TwdToGold(twd);
+                long total = (long)Math.Round(bg * (1 + _bonusPct / 100.0));
+                _lblTwdHint.Text = _bonusPct > 0
+                    ? $"→ {bg:N0} 基礎，+{_bonusPct}% 後共 {total:N0} 元寶（{tierLbl} {rate:F1}x/NT$）"
+                    : $"→ {bg:N0} 元寶（{tierLbl}，{rate:F1}x/NT$）";
+                _lblTwdHint.ForeColor = Color.FromArgb(80, 220, 130);
+            }
+            else { _lblTwdHint.Text = "← 輸入台幣，自動換算金幣"; _lblTwdHint.ForeColor = Theme.TextMuted; }
+
+            // 金幣旁提示：反推最低台幣
+            if (goldB > 0)
+            {
+                var opts = GoldToTwd(goldB, _bonusPct);
+                if (opts.Count > 0)
+                {
+                    var (minTwd, actual, tierLbl2, rate2) = opts[0];
+                    _lblGoldHint.Text = _bonusPct > 0
+                        ? $"→ 最少 NT${minTwd:N0}（{tierLbl2}，+{_bonusPct}% 後可得 {actual:N0} 金）"
+                        : $"→ 最少 NT${minTwd:N0}（{tierLbl2}，{rate2:F1}x，可得 {actual:N0} 金）";
+                    _lblGoldHint.ForeColor = Color.FromArgb(251, 191, 36);
+                }
+                else { _lblGoldHint.Text = "無法估算（金額過小）"; _lblGoldHint.ForeColor = Theme.AccentRed; }
+            }
+            else { _lblGoldHint.Text = "← 輸入金幣，自動反推最低台幣"; _lblGoldHint.ForeColor = Theme.TextMuted; }
         }
 
         private void UpdatePreview()
@@ -1022,55 +934,5 @@ namespace SQ_Email_Tools
                 .ToList();
         }
 
-        private void RefreshCalcRevButtons()
-        {
-            foreach (var btn in _calcRevBonusBtns)
-            {
-                int pct = (int)btn.Tag;
-                bool sel = pct == _calcRevBonusPct;
-                btn.BackColor = sel ? (pct > 0 ? Color.FromArgb(20, 60, 25) : Theme.BgCard) : Theme.BgInput;
-                btn.ForeColor = sel ? (pct > 0 ? Theme.AccentGreen : Theme.TextPrimary) : Theme.TextSecondary;
-                btn.FlatAppearance.BorderColor = sel ? (pct > 0 ? Theme.AccentGreen : Color.FromArgb(80, 100, 140)) : Theme.Border;
-            }
-        }
-
-        private void RefreshCalcRevResult()
-        {
-            long gold = (long)_nudCalcGold.Value;
-            if (gold <= 0)
-            {
-                _lblCalcRevResult.Text      = "請輸入金幣數量…";
-                _lblCalcRevResult.ForeColor = Theme.TextMuted;
-                return;
-            }
-
-            var options = GoldToTwd(gold, _calcRevBonusPct);
-            if (options.Count == 0)
-            {
-                _lblCalcRevResult.Text      = "無法計算（請確認數值）";
-                _lblCalcRevResult.ForeColor = Theme.AccentRed;
-                return;
-            }
-
-            // 最佳方案（最少台幣）
-            var (bestTwd, bestActual, bestTier, bestRate) = options[0];
-            string bonusNote = _calcRevBonusPct > 0
-                ? $"（含 +{_calcRevBonusPct}% 加成，基礎需 {(long)Math.Ceiling(gold / (1 + _calcRevBonusPct / 100.0)):N0} 金幣）"
-                : "";
-            string line1 = $"✦ 最少台幣：NT${bestTwd:N0}  ·  套用 {bestTier} 匯率（{bestRate:F1}金/NT$）  ·  可得 {bestActual:N0} 金幣 {bonusNote}";
-
-            // 若有其他方案也列出（套餐門檻才能達到的方案）
-            string line2 = "";
-            if (options.Count > 1)
-            {
-                var alts = options.Skip(1).Take(2)
-                    .Select(o => $"NT${o.Item1:N0}({o.Item3})→{o.Item2:N0}金");
-                line2 = $"其他方案：{string.Join("  |  ", alts)}";
-            }
-
-            _lblCalcRevResult.Text      = line2.Length > 0 ? line1 + "\n" + line2 : line1;
-            _lblCalcRevResult.ForeColor = Theme.AccentOrange;
-            _lblCalcRevResult.Size      = new Size(600, line2.Length > 0 ? 40 : 22);
-        }
     }
 }
