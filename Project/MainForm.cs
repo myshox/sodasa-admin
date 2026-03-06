@@ -241,21 +241,12 @@ namespace SQ_Email_Tools
             AddSectionLabel("GM 工具", ref y);
 
             var btnBatchOps = MakeNavBtn("📦", "批量工具", ref y);
-            navTip.SetToolTip(btnBatchOps, "道具給予（單人）/ 批量發送（全服）/ 維護工具 — 三個功能合一");
+            navTip.SetToolTip(btnBatchOps, "📬 個別發送 / 📢 批量全服發送 / 🔧 維護工具 — 三個功能合一（含原全服批量發送）");
             btnBatchOps.Click += (s, e) =>
             {
                 SetActiveNav(btnBatchOps);
                 if (!CheckConnected()) return;
                 SwitchToHub(new BatchOpsHubForm());
-            };
-
-            var btnBatchSend = MakeNavBtn("📢", "全服批量發送", ref y);
-            navTip.SetToolTip(btnBatchSend, "一次發送道具給全服所有玩家或僅在線玩家");
-            btnBatchSend.Click += (s, e) =>
-            {
-                SetActiveNav(btnBatchSend);
-                if (!CheckConnected()) return;
-                SwitchToHub(new BatchSendForm());
             };
 
             var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
@@ -308,7 +299,7 @@ namespace SQ_Email_Tools
                 SwitchToHub(new DashboardForm());
             };
 
-            var btnRechargeHist = MakeNavBtn("💳", "充值記錄", ref y);
+            var btnRechargeHist = MakeNavBtn("📜", "充值記錄", ref y);
             navTip.SetToolTip(btnRechargeHist, "查詢全服充值訂單記錄");
             btnRechargeHist.Click += (s, e) =>
             {
@@ -317,7 +308,7 @@ namespace SQ_Email_Tools
                 SwitchToHub(new RechargeHistoryForm());
             };
 
-            var btnTradeLog = MakeNavBtn("📊", "交易記錄", ref y);
+            var btnTradeLog = MakeNavBtn("🔄", "交易記錄", ref y);
             navTip.SetToolTip(btnTradeLog, "查詢玩家間的物品交易歷史");
             btnTradeLog.Click += (s, e) =>
             {
@@ -326,7 +317,7 @@ namespace SQ_Email_Tools
                 SwitchToHub(new TradeLogForm());
             };
 
-            var btnGoldLog = MakeNavBtn("💎", "金幣日誌", ref y);
+            var btnGoldLog = MakeNavBtn("🪙", "金幣日誌", ref y);
             navTip.SetToolTip(btnGoldLog, "查詢金幣異動記錄（GM給予、消費、交易等）");
             btnGoldLog.Click += (s, e) =>
             {
