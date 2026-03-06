@@ -470,6 +470,8 @@ namespace SQ_Email_Tools
         {
             _pnlSingleContent.Visible = !showSplit;
             _pnlSplitWrapper.Visible  = showSplit;
+            // 切到分配儲值時強制更新列寬，確保按鈕可點擊
+            if (showSplit) BeginInvoke((Action)UpdateSplitRowWidths);
 
             _btnTabSingle.BackColor = !showSplit ? Theme.AccentBlue : Color.FromArgb(28, 36, 56);
             _btnTabSingle.ForeColor = !showSplit ? Color.White : Color.FromArgb(140, 160, 200);
@@ -635,6 +637,9 @@ namespace SQ_Email_Tools
             new ToolTip().SetToolTip(_btnTabSplit, $"{_masterName} 旗下 {_subs.Count} 個帳號");
 
             RefreshSplitAll();
+
+            // layout 跑完後強制同步列寬，確保按鈕都在 Panel 邊界內
+            BeginInvoke((Action)UpdateSplitRowWidths);
         }
 
         private SplitRowCtrl BuildSplitRow(PlayerInfo p, int yPos)
@@ -643,9 +648,9 @@ namespace SQ_Email_Tools
             sr.Row = new Panel
             {
                 Location  = new Point(0, yPos),
-                Height    = SPLIT_ROW_H,
+                Size      = new Size(900, SPLIT_ROW_H),   // 初始 900px，UpdateSplitRowWidths 會修正
                 BackColor = p.IsOnline ? _cBgRowOn : _cBgRowOff,
-                Anchor    = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+                Anchor    = AnchorStyles.Left | AnchorStyles.Top  // 不加 Right，由 UpdateSplitRowWidths 管理
             };
             sr.Row.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = _cBorder2 });
 
