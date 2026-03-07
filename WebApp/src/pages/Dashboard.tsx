@@ -17,8 +17,8 @@ const StatCard = ({ icon, label, value, color, sub }: {
   icon: string; label: string; value: string | number; color: string; sub?: string
 }) => (
   <div style={{
-    background: 'var(--bg-card)', border: '1px solid var(--border)',
-    borderRadius: 12, padding: '18px 20px', flex: 1, minWidth: 140
+    background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised-sm)',
+    borderRadius: 14, padding: '18px 20px', flex: 1, minWidth: 140
   }}>
     <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
     <div style={{ fontSize: 24, fontWeight: 800, color, letterSpacing: -0.5 }}>{value}</div>
@@ -91,13 +91,21 @@ export default function Dashboard() {
           {quickLinks.map(q => (
             <button key={q.path} onClick={() => nav(q.path)}
               style={{
-                background: 'var(--bg-card)', border: `1px solid var(--border)`,
-                borderRadius: 12, padding: isMobile ? '14px 12px' : '16px 18px',
+                background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised-sm)',
+                border: 'none', borderRadius: 14, padding: isMobile ? '14px 12px' : '16px 18px',
                 textAlign: 'left', cursor: 'pointer', transition: 'all .15s',
                 WebkitTapHighlightColor: 'transparent',
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = q.color; (e.currentTarget as HTMLButtonElement).style.background = `${q.color}12` }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-card)' }}
+              onMouseEnter={e => {
+                const t = e.currentTarget as HTMLButtonElement
+                t.style.boxShadow = '6px 6px 12px #bebebe, -6px -6px 12px #ffffff'
+                t.style.background = `${q.color}18`
+              }}
+              onMouseLeave={e => {
+                const t = e.currentTarget as HTMLButtonElement
+                t.style.boxShadow = 'var(--neu-shadow-raised-sm)'
+                t.style.background = 'var(--bg-card)'
+              }}
             >
               <div style={{ fontSize: isMobile ? 22 : 26, marginBottom: 8 }}>{q.icon}</div>
               <div style={{ fontSize: isMobile ? 13 : 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{q.label}</div>

@@ -1603,11 +1603,11 @@ namespace SQ_Email_Tools
             }
 
             // 寵物數量 + 最強寵物四圍素質（hp/attack/def/quick/sum）
-            // cdkey 可能存登入帳號 / 角色名 / uid，三者都嘗試
+            // cdkey 或 author 可能存登入帳號/角色名/uid，皆比對
             string petCharName = detail.OnlineName;
             string petUid      = detail.Uid;
             using (var cmd2 = new MySqlCommand(
-                "SELECT COUNT(*) FROM capturepet WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid)", conn))
+                "SELECT COUNT(*) FROM capturepet WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid) OR author=@cname OR author=@acc", conn))
             {
                 cmd2.Parameters.AddWithValue("@acc",   account);
                 cmd2.Parameters.AddWithValue("@cname", petCharName);
@@ -1620,7 +1620,7 @@ namespace SQ_Email_Tools
             {
                 using var petCmd = new MySqlCommand(
                     @"SELECT id, name, lv, hp, attack, def, quick, sum, author
-                      FROM capturepet WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid)
+                      FROM capturepet WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid) OR author=@cname OR author=@acc
                       ORDER BY sum DESC LIMIT 1", conn);
                 petCmd.Parameters.AddWithValue("@acc",   account);
                 petCmd.Parameters.AddWithValue("@cname", petCharName);
@@ -2414,11 +2414,12 @@ namespace SQ_Email_Tools
             }
             catch (Exception dbEx) { System.Diagnostics.Debug.WriteLine("[DB] " + dbEx.Message); }
 
-            // 同時比對：登入帳號 / 角色名 / uid
+            // 同時比對：登入帳號 / 角色名 / uid；遊戲可能把擁有者存於 author（角色名），一併比對
             using var cmd = new MySqlCommand(
                 @"SELECT unicode,id,name,type,lv,hp,attack,def,quick,sum,author,cdkey,`check`
                   FROM capturepet
                   WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid)
+                     OR author=@cname OR author=@acc
                   ORDER BY sum DESC", conn);
             cmd.Parameters.AddWithValue("@acc",   account);
             cmd.Parameters.AddWithValue("@cname", charName);

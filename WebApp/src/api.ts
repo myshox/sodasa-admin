@@ -40,3 +40,10 @@ export interface DashboardStats {
   totalPlayers: number; onlinePlayers: number; bannedPlayers: number
   newToday: number; totalGold: number; totalCrystal: number
 }
+
+/** 玩家寵物（capturepet）一筆 */
+export interface PetInfo {
+  unicode: string; id: number; name: string; type: string
+  lv: number; hp: number; attack: number; def: number; quick: number; sum: number
+  author: string; cdkey: string; check: number  // 0=揹包 1=出戰
+}

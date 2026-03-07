@@ -426,3 +426,26 @@ public class BatchCostResetRequest
     public List<string> Accounts  { get; set; } = new();
     public bool         FullReset { get; set; } = false;
 }
+
+// ── 玩家寵物（capturepet）────────────────────────────────────
+public class PetInfoDto
+{
+    public string Unicode { get; set; } = "";
+    public int    Id      { get; set; }
+    public string Name    { get; set; } = "";
+    public string Type    { get; set; } = "";
+    public int    Lv      { get; set; }
+    public int    Hp      { get; set; }
+    public int    Attack  { get; set; }
+    public int    Def     { get; set; }
+    public int    Quick   { get; set; }
+    public double Sum     { get; set; }
+    public string Author  { get; set; } = "";
+    public string Cdkey   { get; set; } = "";
+    public int    Check   { get; set; }  // 0=揹包 1=出戰
+}
+
+public class RemovePetRequest
+{
+    public string Unicode { get; set; } = "";
+}

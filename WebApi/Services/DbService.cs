@@ -25,11 +25,10 @@ public class DbService
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
                    IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
                    IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal,
-                   IFNULL(m.`Name`,'') masterName
+                   (SELECT COUNT(*) FROM capturepet p WHERE p.cdkey=c.`Name` OR p.cdkey=c.OnlineName OR (IFNULL(c.uid,'')<>'' AND p.cdkey=c.uid) OR p.author=c.OnlineName OR p.author=c.`Name`) petCount,
+                   IFNULL(c.PayTotal,0) payTotal, IFNULL(m.`Name`,'') masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
             LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
             WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw OR m.`Name` LIKE @kw
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
@@ -39,10 +38,10 @@ public class DbService
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
                    IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
                    IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
+                   (SELECT COUNT(*) FROM capturepet p WHERE p.cdkey=c.`Name` OR p.cdkey=c.OnlineName OR (IFNULL(c.uid,'')<>'' AND p.cdkey=c.uid) OR p.author=c.OnlineName OR p.author=c.`Name`) petCount,
+                   IFNULL(c.PayTotal,0) payTotal, '' masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
             WHERE c.`Name` LIKE @kw OR c.OnlineName LIKE @kw
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim"
         };
@@ -93,7 +92,9 @@ public class DbService
                        IFNULL(c.PayTotal,0) payTotal,
                        IFNULL(mail.total,0) totalMails,
                        IFNULL(mail.unread,0) unreadMails,
-                       IFNULL(pet.cnt,0) petCount
+                       (SELECT COUNT(*) FROM capturepet p
+                        WHERE p.cdkey=c.`Name` OR p.cdkey=c.OnlineName OR (c.uid<>'' AND p.cdkey=c.uid)
+                           OR p.author=c.OnlineName OR p.author=c.`Name`) AS petCount
                 FROM csalogin c
                 LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
                 LEFT JOIN (
@@ -102,8 +103,6 @@ public class DbService
                            SUM(CASE WHEN isread=0 THEN 1 ELSE 0 END) AS unread
                     FROM maildata GROUP BY receiverid
                 ) mail ON mail.receiverid=c.`Name`
-                LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
-                       ON pet.cdkey=c.`Name`
                 WHERE c.`Name`=@acc LIMIT 1";
             await using var cmd = new MySqlCommand(sqlFull, db);
             cmd.Parameters.AddWithValue("@acc", account);
@@ -337,6 +336,141 @@ public class DbService
         return await cmd.ExecuteNonQueryAsync() > 0;
     }
 
+    // ── 玩家寵物清單（capturepet），cdkey 比對帳號/角色名/uid ───
+    public async Task<List<PetInfoDto>> GetPlayerPetsAsync(string account, string? charName = null)
+    {
+        var list = new List<PetInfoDto>();
+        await using var db = Open();
+        await db.OpenAsync();
+
+        string uid = "";
+        string cname = charName ?? "";
+        try
+        {
+            await using var nc = new MySqlCommand("SELECT OnlineName, uid FROM csalogin WHERE `Name`=@n LIMIT 1", db);
+            nc.Parameters.AddWithValue("@n", account);
+            await using var nr = await nc.ExecuteReaderAsync();
+            if (await nr.ReadAsync())
+            {
+                if (string.IsNullOrEmpty(cname)) cname = nr["OnlineName"]?.ToString() ?? "";
+                uid = nr["uid"]?.ToString() ?? "";
+            }
+        }
+        catch { /* 忽略 */ }
+
+        // 遊戲可能把擁有者存於 cdkey（帳號/角色名/uid）或 author（角色名），皆比對
+        const string sql = @"
+            SELECT unicode, id, name, type, lv, hp, attack, def, quick, sum, author, cdkey, `check`
+            FROM capturepet
+            WHERE cdkey=@acc OR cdkey=@cname OR (@uid<>'' AND cdkey=@uid)
+               OR author=@cname OR author=@acc
+            ORDER BY sum DESC";
+        await using var cmd = new MySqlCommand(sql, db);
+        cmd.Parameters.AddWithValue("@acc", account);
+        cmd.Parameters.AddWithValue("@cname", cname);
+        cmd.Parameters.AddWithValue("@uid", uid);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new PetInfoDto
+            {
+                Unicode = r["unicode"]?.ToString() ?? "",
+                Id      = r["id"] == DBNull.Value ? 0 : Convert.ToInt32(r["id"]),
+                Name    = r["name"]?.ToString() ?? "",
+                Type    = r["type"]?.ToString() ?? "",
+                Lv      = r["lv"] == DBNull.Value ? 0 : Convert.ToInt32(r["lv"]),
+                Hp      = r["hp"] == DBNull.Value ? 0 : Convert.ToInt32(r["hp"]),
+                Attack  = r["attack"] == DBNull.Value ? 0 : Convert.ToInt32(r["attack"]),
+                Def     = r["def"] == DBNull.Value ? 0 : Convert.ToInt32(r["def"]),
+                Quick   = r["quick"] == DBNull.Value ? 0 : Convert.ToInt32(r["quick"]),
+                Sum     = r["sum"] == DBNull.Value ? 0 : Convert.ToDouble(r["sum"]),
+                Author  = r["author"]?.ToString() ?? "",
+                Cdkey   = r["cdkey"]?.ToString() ?? "",
+                Check   = r["check"] == DBNull.Value ? 0 : Convert.ToInt32(r["check"])
+            });
+        return list;
+    }
+
+    /// <summary>依 unicode 刪除 capturepet 一筆記錄（不可復原）</summary>
+    public async Task<bool> DeletePetAsync(string unicode)
+    {
+        if (string.IsNullOrWhiteSpace(unicode)) return false;
+        await using var db = Open();
+        await db.OpenAsync();
+        await using var cmd = new MySqlCommand("DELETE FROM capturepet WHERE unicode=@uid", db);
+        cmd.Parameters.AddWithValue("@uid", unicode);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    /// <summary>診斷：回傳查詢用到的 account/onlineName/uid、匹配到的寵物數、以及 capturepet 最近幾筆的 cdkey/author 供比對</summary>
+    public async Task<object> GetPetDiagnoseAsync(string account, string? charName = null)
+    {
+        string uid = "", cname = charName ?? "";
+        await using var db = Open();
+        await db.OpenAsync();
+        try
+        {
+            await using var nc = new MySqlCommand("SELECT OnlineName, uid FROM csalogin WHERE `Name`=@n LIMIT 1", db);
+            nc.Parameters.AddWithValue("@n", account);
+            await using var nr = await nc.ExecuteReaderAsync();
+            if (await nr.ReadAsync())
+            {
+                if (string.IsNullOrEmpty(cname)) cname = nr["OnlineName"]?.ToString() ?? "";
+                uid = nr["uid"]?.ToString() ?? "";
+            }
+        }
+        catch { /* ignore */ }
+
+        var pets = await GetPlayerPetsAsync(account, charName);
+        var sample = new List<object>();
+        var fuzzyByAuthor = new List<object>();
+        try
+        {
+            await using var cmd = new MySqlCommand("SELECT cdkey, author, name, id FROM capturepet ORDER BY id DESC LIMIT 10", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                sample.Add(new
+                {
+                    cdkey = r["cdkey"]?.ToString() ?? "",
+                    author = r["author"]?.ToString() ?? "",
+                    name = r["name"]?.ToString() ?? "",
+                    id = r["id"] == DBNull.Value ? 0 : Convert.ToInt32(r["id"])
+                });
+        }
+        catch { /* ignore */ }
+
+        // 若精確比對為 0，用 author LIKE '%角色名%' 模糊查，確認是否有編碼/空格差異
+        if (pets.Count == 0 && !string.IsNullOrWhiteSpace(cname))
+        {
+            try
+            {
+                await using var fc = new MySqlCommand("SELECT cdkey, author, name, id FROM capturepet WHERE author LIKE @pat LIMIT 20", db);
+                fc.Parameters.AddWithValue("@pat", "%" + cname + "%");
+                await using var fr = await fc.ExecuteReaderAsync();
+                while (await fr.ReadAsync())
+                    fuzzyByAuthor.Add(new
+                    {
+                        cdkey = fr["cdkey"]?.ToString() ?? "",
+                        author = fr["author"]?.ToString() ?? "",
+                        name = fr["name"]?.ToString() ?? "",
+                        id = fr["id"] == DBNull.Value ? 0 : Convert.ToInt32(fr["id"])
+                    });
+            }
+            catch { /* ignore */ }
+        }
+
+        return new
+        {
+            account,
+            onlineName = cname,
+            uid,
+            matchedPetCount = pets.Count,
+            fuzzyMatchByAuthor = fuzzyByAuthor.Count,
+            fuzzyPets = fuzzyByAuthor,
+            hint = "查詢條件：cdkey 或 author 符合 account / 角色名(onlineName) / uid 任一個即會列出。若 matchedPetCount 為 0，見 sample 看 cdkey/author 格式；若 fuzzyMatchByAuthor>0 表示有 author 含角色名的筆數（可改為模糊匹配）。",
+            sample
+        };
+    }
+
     // ── 玩家列表（全服，供批量操作用）────────────────────────
     public async Task<List<PlayerRow>> GetPlayerListAsync(int limit = 500)
         => await RunWithFallbackAsync(
@@ -346,10 +480,10 @@ public class DbService
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
                    IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
                    IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, IFNULL(m.`Name`,'') masterName
+                   (SELECT COUNT(*) FROM capturepet p WHERE p.cdkey=c.`Name` OR p.cdkey=c.OnlineName OR (IFNULL(c.uid,'')<>'' AND p.cdkey=c.uid) OR p.author=c.OnlineName OR p.author=c.`Name`) petCount,
+                   IFNULL(c.PayTotal,0) payTotal, IFNULL(m.`Name`,'') masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
             LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
             @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName,
@@ -358,10 +492,10 @@ public class DbService
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
                    IFNULL(c.IP,'') ip, (lk.Name IS NOT NULL) isBanned,
                    IFNULL(c.VipPoint,0) gold, IFNULL(c.PetPoint,0) crystal,
-                   IFNULL(pet.cnt,0) petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
+                   (SELECT COUNT(*) FROM capturepet p WHERE p.cdkey=c.`Name` OR p.cdkey=c.OnlineName OR (IFNULL(c.uid,'')<>'' AND p.cdkey=c.uid) OR p.author=c.OnlineName OR p.author=c.`Name`) petCount,
+                   IFNULL(c.PayTotal,0) payTotal, '' masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet ON pet.cdkey=c.`Name`
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
             p => { p.AddWithValue("@lim", limit); });
 

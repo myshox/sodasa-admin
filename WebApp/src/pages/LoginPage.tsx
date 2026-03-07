@@ -48,8 +48,8 @@ export default function LoginPage() {
       justifyContent: 'center', background: 'var(--bg-page)'
     }}>
       <form onSubmit={login} style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: '40px 48px', width: 360,
+        background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised)',
+        borderRadius: 16, padding: '40px 48px', width: 360,
         display: 'flex', flexDirection: 'column', gap: 18
       }}>
         <div style={{ textAlign: 'center', marginBottom: 8 }}>

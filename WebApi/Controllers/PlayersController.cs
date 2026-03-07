@@ -108,6 +108,32 @@ public class PlayersController : ControllerBase
         return d == null ? NotFound() : Ok(d);
     }
 
+    /// <summary>診斷寵物查詢：回傳查詢條件與資料庫中 capturepet 的 cdkey/author 樣本，供「讀不到寵物」時比對</summary>
+    [HttpGet("{account}/pets/diagnose")]
+    public async Task<IActionResult> GetPetsDiagnose(string account, [FromQuery] string? charName = null)
+    {
+        var result = await _db.GetPetDiagnoseAsync(account, charName);
+        return Ok(result);
+    }
+
+    /// <summary>取得該玩家角色底下的寵物清單（capturepet）</summary>
+    [HttpGet("{account}/pets")]
+    public async Task<IActionResult> GetPets(string account, [FromQuery] string? charName = null)
+    {
+        var list = await _db.GetPlayerPetsAsync(account, charName);
+        return Ok(list);
+    }
+
+    /// <summary>移除指定寵物（依 unicode 刪除 capturepet 一筆，不可復原）</summary>
+    [HttpPost("{account}/pets/remove")]
+    public async Task<IActionResult> RemovePet(string account, [FromBody] RemovePetRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req?.Unicode))
+            return BadRequest(new { message = "請提供寵物 unicode" });
+        var ok = await _db.DeletePetAsync(req.Unicode.Trim());
+        return ok ? Ok(new { message = "✓ 已移除寵物" }) : BadRequest(new { message = "移除失敗或該筆不存在" });
+    }
+
     [HttpPut("{account}/gold")]
     public async Task<IActionResult> SetGold(string account, [FromBody] SetCurrencyRequest req)
     {

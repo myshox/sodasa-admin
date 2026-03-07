@@ -121,8 +121,8 @@ namespace SQ_Email_Tools
                 Location  = new Point(6, 6),
                 Size      = new Size(NAV_W - 12, 38),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(22, 101, 52),
-                ForeColor = Color.FromArgb(134, 239, 172),
+                BackColor = Theme.AccentGreen,
+                ForeColor = Color.White,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Font      = Theme.FontNavBold,
                 Cursor    = Cursors.Hand,
@@ -130,8 +130,8 @@ namespace SQ_Email_Tools
                 TabStop   = false
             };
             _btnRecharge.FlatAppearance.BorderSize         = 0;
-            _btnRecharge.FlatAppearance.MouseOverBackColor = Color.FromArgb(21, 128, 61);
-            _btnRecharge.FlatAppearance.MouseDownBackColor = Color.FromArgb(20, 83, 45);
+            _btnRecharge.FlatAppearance.MouseOverBackColor = ControlPaint.Light(Theme.AccentGreen, 0.15f);
+            _btnRecharge.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(Theme.AccentGreen, 0.1f);
             _btnRecharge.Click += (s, e) =>
             {
                 SetActiveNav(_btnRecharge);
@@ -519,10 +519,10 @@ namespace SQ_Email_Tools
         {
             const int BH = 38;
             var bgNorm = Theme.BgSidebar;
-            var bgAct  = Color.FromArgb(  0,  85, 170);
+            var bgAct  = Theme.AccentBlue;
             var fgNorm = Theme.TextSecondary;
-            var fgAct  = Color.FromArgb(160, 215, 255);
-            var bgHov  = Color.FromArgb( 32,  36,  52);
+            var fgAct  = Color.White;
+            var bgHov  = ControlPaint.Light(Theme.BgSidebar, 0.15f);
 
             // indicator 直接畫在按鈕左邊緣（Panel 不加入 Controls，改用按鈕自行繪製）
             var btn = new Button
@@ -576,7 +576,7 @@ namespace SQ_Email_Tools
                 UseVisualStyleBackColor = false
             };
             btn.FlatAppearance.BorderSize         = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(42, 44, 58);
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(Theme.BgSidebar, 0.12f);
             return btn;
         }
 
@@ -587,7 +587,7 @@ namespace SQ_Email_Tools
             if (_activeNav != null && _activeNav != btn)
             {
                 if (_activeNav == _btnRecharge)
-                    _activeNav.BackColor = Color.FromArgb(22, 101, 52);
+                    _activeNav.BackColor = Theme.AccentGreen;
                 else
                     _activeNav.BackColor = Theme.BgSidebar;
                 _activeNav.ForeColor = _activeNav == _btnRecharge
@@ -599,13 +599,13 @@ namespace SQ_Email_Tools
 
             if (btn == _btnRecharge)
             {
-                btn.BackColor = Color.FromArgb(21, 128, 61);
-                btn.ForeColor = Color.FromArgb(200, 255, 200);
+                btn.BackColor = Theme.AccentGreen;
+                btn.ForeColor = Color.White;
             }
             else
             {
-                btn.BackColor = Color.FromArgb(0, 70, 140);
-                btn.ForeColor = Color.FromArgb(140, 200, 255);
+                btn.BackColor = Theme.AccentBlue;
+                btn.ForeColor = Color.White;
             }
             btn.Font = Theme.FontNavBold;
             btn.Tag  = true;
@@ -780,17 +780,17 @@ namespace SQ_Email_Tools
 
         private void BuildHintBar()
         {
-            var bar = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = Color.FromArgb(20, 38, 68) };
+            var bar = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = Theme.BgMid };
             bar.Controls.Add(new Label
             {
                 Text         = "  💡 雙擊列 = 發送道具    👤 資料 = 詳情/改名/充值    💰 貨幣 = 修改金幣    🗑 刪除 = 需二次確認",
-                ForeColor    = Color.FromArgb(120, 180, 255),
+                ForeColor    = Theme.TextSecondary,
                 Font         = Theme.FontSmall,
                 Dock         = DockStyle.Fill,
                 TextAlign    = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
             });
-            bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(40, 70, 120) });
+            bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             _playerContent.Controls.Add(bar);
         }
 
@@ -2709,7 +2709,7 @@ namespace SQ_Email_Tools
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
 
-            var titleBar = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(14, 28, 52) };
+            var titleBar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgDark };
             _itemCountLbl = new Label
             {
                 Text      = "📦  道具清單  ←  雙擊加入購物車",

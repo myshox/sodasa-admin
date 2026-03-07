@@ -22,31 +22,31 @@ namespace SQ_Email_Tools
             return "Segoe UI";
         }
 
-        // ── 背景層次（各層色差拉大，視覺區隔明顯）──────────────────
-        //   Sidebar(最深) → Header → Page底 → Mid板 → Card → Input(最淺)
-        public static readonly Color BgSidebar = Color.FromArgb( 14,  15,  20); // 側邊欄（近黑）
-        public static readonly Color BgDark    = Color.FromArgb( 22,  24,  34); // Header / 狀態列 / Toolbar
-        public static readonly Color BgPage    = Color.FromArgb( 30,  32,  46); // 頁面主底色
-        public static readonly Color BgMid     = Color.FromArgb( 38,  41,  58); // SplitContainer / 次底
-        public static readonly Color BgCard    = Color.FromArgb( 48,  52,  72); // 卡片 / 面板（比Page亮18步）
-        public static readonly Color BgLight   = Color.FromArgb( 62,  67,  90); // 輸入框 / 按鈕背板
+        // ── Neumorphism / Soft UI 色系（淺灰基底，柔陰影感）────────────
+        //   側欄略深 → 頁面灰 → 卡片/輸入與基底同調，用邊框模擬柔邊
+        public static readonly Color BgSidebar = Color.FromArgb(209, 217, 230); // #d1d9e6 側欄
+        public static readonly Color BgDark    = Color.FromArgb(224, 229, 236); // #e0e5ec Header/Toolbar
+        public static readonly Color BgPage    = Color.FromArgb(224, 229, 236);  // #e0e5ec 頁面主底
+        public static readonly Color BgMid     = Color.FromArgb(220, 226, 235); // 次底
+        public static readonly Color BgCard    = Color.FromArgb(224, 229, 236); // 卡片（與頁面同，靠邊框區隔）
+        public static readonly Color BgLight   = Color.FromArgb(240, 243, 247); // #f0f3f7 輸入框（略亮，模擬凹陷）
         public static readonly Color BgInput   = BgLight;
         public static readonly Color CardBg    = BgCard;
 
-        public static readonly Color Border    = Color.FromArgb( 76,  82, 108); // 分隔線（比 Card 亮，清晰可見）
-        public static readonly Color BorderHov = Color.FromArgb( 30, 160, 255); // focus ring
+        public static readonly Color Border    = Color.FromArgb(190, 198, 210); // 柔邊（模擬陰影邊）
+        public static readonly Color BorderHov = Color.FromArgb( 91, 124, 255);  // focus 藍
 
-        // 強調色（飽和度提高，在深色底上更顯眼）
-        public static readonly Color AccentBlue   = Color.FromArgb(  0, 160, 255);
-        public static readonly Color AccentGreen  = Color.FromArgb( 48, 215,  90);
-        public static readonly Color AccentRed    = Color.FromArgb(255,  65,  55);
-        public static readonly Color AccentOrange = Color.FromArgb(255, 168,  10);
-        public static readonly Color AccentPurple = Color.FromArgb(200, 110, 255);
+        // 強調色（Soft UI 適中飽和）
+        public static readonly Color AccentBlue   = Color.FromArgb( 91, 124, 255);
+        public static readonly Color AccentGreen  = Color.FromArgb( 82, 199, 122);
+        public static readonly Color AccentRed    = Color.FromArgb(232,  93,  93);
+        public static readonly Color AccentOrange = Color.FromArgb(240, 167,  85);
+        public static readonly Color AccentPurple = Color.FromArgb(165, 120, 220);
 
-        // 文字（對比度提升）
-        public static readonly Color TextPrimary   = Color.FromArgb(245, 245, 252); // 主要文字（近白，更亮）
-        public static readonly Color TextSecondary = Color.FromArgb(195, 198, 215); // 次要文字
-        public static readonly Color TextMuted     = Color.FromArgb(130, 135, 158); // 提示文字
+        // 文字（深色在淺底上）
+        public static readonly Color TextPrimary   = Color.FromArgb( 45,  55,  72); // #2d3748
+        public static readonly Color TextSecondary = Color.FromArgb( 74,  85, 104); // #4a5568
+        public static readonly Color TextMuted     = Color.FromArgb(113, 128, 150); // #718096
 
         // ── 字體 ────────────────────────────────────────────────
         public static readonly Font FontTitle      = new Font(_ff, 15f,  FontStyle.Bold);
@@ -71,6 +71,7 @@ namespace SQ_Email_Tools
 
         // ── 基本控制項工廠 ──────────────────────────────────────
 
+        /// <summary>Soft UI 風格按鈕：淺灰底 + 淺邊框模擬凸起</summary>
         public static Button MakeButton(string text, Color bg, Color fg, int w = 110, int h = 34)
         {
             var btn = new Button
@@ -84,9 +85,11 @@ namespace SQ_Email_Tools
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
             };
-            btn.FlatAppearance.BorderColor        = bg;
-            btn.FlatAppearance.BorderSize         = 0;
-            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.15f);
+            // Neumorphism：上/左亮邊、下/右暗邊模擬凸起
+            btn.FlatAppearance.BorderColor        = Color.FromArgb(220, 226, 235);
+            btn.FlatAppearance.BorderSize         = 1;
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.08f);
+            btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.05f);
             return btn;
         }
 
@@ -94,9 +97,9 @@ namespace SQ_Email_Tools
         public static Button MakePrimaryButton(string text, int w = 110, int h = 32)
             => MakeButton(text, AccentBlue, Color.White, w, h);
 
-        /// <summary>次要按鈕（深色背景白字，與深色主題一致）</summary>
+        /// <summary>次要按鈕（Soft UI 灰底）</summary>
         public static Button MakeSecondaryButton(string text, int w = 110, int h = 32)
-            => MakeButton(text, Color.FromArgb(55, 60, 85), TextPrimary, w, h);
+            => MakeButton(text, BgLight, TextPrimary, w, h);
 
         public static TextBox MakeTextBox(int w = 200)
         {
@@ -157,8 +160,8 @@ namespace SQ_Email_Tools
             // ── 右鍵「複製」快捷選單 ──────────────────────────────────
             var ctxMenu = new ContextMenuStrip
             {
-                BackColor = Color.FromArgb(36, 37, 50),
-                ForeColor = Color.FromArgb(220, 220, 235),
+                BackColor = BgCard,
+                ForeColor = TextPrimary,
                 RenderMode = ToolStripRenderMode.System
             };
             var copyCell = new ToolStripMenuItem("📋  複製此格內容");
@@ -216,22 +219,22 @@ namespace SQ_Email_Tools
                 catch (ObjectDisposedException) { }
             };
 
-            // 資料列（偶數列用 BgCard）
+            // 資料列（Soft UI：與卡片同底）
             dgv.DefaultCellStyle.BackColor          = BgCard;
             dgv.DefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(  0, 100, 200);
-            dgv.DefaultCellStyle.SelectionForeColor = Color.White;
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 215, 255);
+            dgv.DefaultCellStyle.SelectionForeColor = TextPrimary;
             dgv.DefaultCellStyle.Font               = FontBody;
             dgv.DefaultCellStyle.Padding            = new Padding(8, 0, 8, 0);
 
-            // 交錯列（奇數列明顯亮一級，對比強化）
-            dgv.AlternatingRowsDefaultCellStyle.BackColor          = Color.FromArgb(58, 63, 86);
+            // 交錯列（略亮）
+            dgv.AlternatingRowsDefaultCellStyle.BackColor          = Color.FromArgb(232, 236, 243);
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(0, 100, 200);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 215, 255);
 
-            // 欄位標題列（更深，與資料列形成明顯邊界）
-            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(18, 20, 30);
-            dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(200, 210, 240);
+            // 欄位標題列（略深，Soft UI 區隔）
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(200, 208, 222);
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextPrimary;
             dgv.ColumnHeadersDefaultCellStyle.Font      = FontSmall;
             dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
             dgv.ColumnHeadersHeight                     = 38;
@@ -280,14 +283,13 @@ namespace SQ_Email_Tools
             rb.Cursor      = Cursors.Hand;
         }
 
-        /// <summary>深色次要按鈕（清除/重置/取消類）</summary>
+        /// <summary>Soft UI 次要按鈕（取消/清除類）</summary>
         public static Button MakeGhostButton(string text, int w = 80, int h = 32)
         {
-            var bg = Color.FromArgb(55, 60, 80);
             var btn = new Button
             {
                 Text      = text,
-                BackColor = bg,
+                BackColor = BgLight,
                 ForeColor = TextSecondary,
                 FlatStyle = FlatStyle.Flat,
                 Font      = FontBody,
@@ -295,15 +297,15 @@ namespace SQ_Email_Tools
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
             };
-            btn.FlatAppearance.BorderColor        = Color.FromArgb(85, 90, 115);
+            btn.FlatAppearance.BorderColor        = Border;
             btn.FlatAppearance.BorderSize         = 1;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(70, 75, 100);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 230, 238);
             return btn;
         }
 
-        /// <summary>危險按鈕（刪除/封號/強制類）</summary>
+        /// <summary>危險按鈕（刪除/封號類）</summary>
         public static Button MakeDangerButton(string text, int w = 110, int h = 32)
-            => MakeButton(text, Color.FromArgb(160, 30, 30), Color.White, w, h);
+            => MakeButton(text, AccentRed, Color.White, w, h);
 
         // ── 數值感知排序（供各歷史表單使用）────────────────────────
         /// <summary>

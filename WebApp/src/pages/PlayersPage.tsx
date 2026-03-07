@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api'
-import type { PlayerRow, PlayerDetail } from '../api'
+import type { PlayerRow, PlayerDetail, PetInfo } from '../api'
 import { S } from '../strings'
 import useIsMobile from '../hooks/useIsMobile'
 
@@ -114,6 +114,29 @@ export default function PlayersPage() {
   const [showRename, setShowRename] = useState(false)
   const [newName, setNewName] = useState('')
 
+  // 寵物清單（玩家詳情內）
+  const [playerPets, setPlayerPets] = useState<PetInfo[] | null>(null)
+  const [loadingPets, setLoadingPets] = useState(false)
+  const loadPets = async (account: string) => {
+    setLoadingPets(true); setPlayerPets(null)
+    try {
+      const r = await api.get(`/players/${encodeURIComponent(account)}/pets`)
+      setPlayerPets(Array.isArray(r.data) ? r.data : [])
+    } catch { setPlayerPets([]) }
+    finally { setLoadingPets(false) }
+  }
+  const removePet = async (account: string, unicode: string, petName: string) => {
+    if (!window.confirm(`確定要移除此筆 capturepet 記錄「${petName}」？\n此操作無法復原。`)) return
+    try {
+      await api.post(`/players/${encodeURIComponent(account)}/pets/remove`, { unicode })
+      flash('已移除該筆 capturepet 記錄')
+      loadPets(account)
+      loadDetail(account) // 更新詳情中的寵物數
+    } catch (e: any) {
+      flash(e.response?.data?.message || '移除失敗')
+    }
+  }
+
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
   // 如果本地過濾結果為 0，才向伺服器補充搜尋
@@ -146,6 +169,7 @@ export default function PlayersPage() {
     const r = await api.get(`/players/${account}`)
     const d = r.data as PlayerDetail
     setDetail(d)
+    setPlayerPets(null) // 切換玩家時收合寵物清單
     setGoldVal(String(d.gold))
     setCrysVal(String(d.crystal))
     setShowBan(false); setShowRecharge(false); setShowRename(false)
@@ -280,7 +304,7 @@ export default function PlayersPage() {
                     <Th>帳號</Th>
                     <Th>主帳號</Th>
                     <Th>VIP</Th>
-                    <Th>寵物</Th>
+                    <Th title={S.petCountHint}>capturepet</Th>
                     <Th>儲值(NT$)</Th>
                     <Th>最後登入</Th>
                     <Th>操作</Th>
@@ -547,7 +571,32 @@ export default function PlayersPage() {
               <Row label="伺服器" value={detail.serverId > 0 ? `ch${detail.serverId}` : '—'} />
               <Row label="群組 ID" value={String(detail.groupId ?? 0)} />
               <Row label="NeiCe" value={String(detail.neiCe ?? 0)} />
-              <Row label="寵物數" value={`${detail.petCount} 隻`} />
+              <Row label={S.petCount} value={`${detail.petCount} 筆`} title={S.petCountHint} />
+              {detail.petCount > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <button
+                    onClick={() => playerPets === null ? loadPets(detail.account) : setPlayerPets(null)}
+                    disabled={loadingPets}
+                    style={{ fontSize: 12, padding: '4px 10px', background: 'var(--accent-green)', color: '#fff', border: 'none', borderRadius: 6 }}
+                    title={S.petCountHint}>
+                    {loadingPets ? '載入中…' : playerPets === null ? '📋 查看 capturepet 清單' : '📋 收合清單'}
+                  </button>
+                  {playerPets !== null && playerPets.length > 0 && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 220, overflowY: 'auto' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>共 {playerPets.length} 筆 · ※ 來自 capturepet 表（如練寵活動），非角色身上寵物 · 點擊「移除」自資料庫刪除（不可復原）</div>
+                      {playerPets.map(p => (
+                        <div key={p.unicode} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                          <span><b>{p.name}</b> Lv.{p.lv} 戰力 {Math.round(p.sum)} {p.check === 1 ? '· 出戰中' : ''}</span>
+                          <button onClick={() => removePet(detail.account, p.unicode, p.name)} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(245,101,101,.2)', color: 'var(--accent-red)', border: '1px solid var(--accent-red)', borderRadius: 4 }}>移除</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {playerPets !== null && playerPets.length === 0 && !loadingPets && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)' }}>未查到 capturepet 記錄（可能 cdkey/author 與資料庫不符）</div>
+                  )}
+                </div>
+              )}
               <Row label="郵件" value={`${detail.unreadMails} 未讀 / ${detail.totalMails} 封`} />
               <div style={{ display: 'flex', gap: 6, padding: '4px 0', flexWrap: 'wrap' }}>
                 <button onClick={() => doClearMail(true)} disabled={clearingMail}
@@ -622,14 +671,14 @@ const Tag = ({ text, color }: { text: string; color: string }) => (
 const SectionLabel = ({ label }: { label: string }) => (
   <div style={{ color: 'var(--accent-blue)', fontSize: 12, fontWeight: 600, marginBottom: 4, marginTop: 2, borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>{label}</div>
 )
-const Row = ({ label, value }: { label: string; value: string }) => (
-  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+const Row = ({ label, value, title }: { label: string; value: string; title?: string }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }} title={title}>
     <span style={{ color: 'var(--text-muted)' }}>{label}</span>
     <span style={{ color: 'var(--text-primary)' }}>{value || S.em}</span>
   </div>
 )
-const Th = ({ children }: { children: React.ReactNode }) => (
-  <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+const Th = ({ children, title }: { children: React.ReactNode; title?: string }) => (
+  <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }} title={title}>
     {children}
   </th>
 )

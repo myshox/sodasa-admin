@@ -1160,9 +1160,9 @@ namespace SQ_Email_Tools
 
             // ── 寵物四圍素質 ──────────────────────────────────────
             y += 4;
-            Section("🐾  寵物（capturepet）", Color.FromArgb(150, 220, 150));
+            Section("🐾  capturepet（練寵活動等，非角色身上寵物）", Color.FromArgb(150, 220, 150));
             var tp = _detail.TopPet;
-            RowDouble("持有數量：", $"{tp.Count} 隻",
+            RowDouble("capturepet 筆數：", $"{tp.Count} 筆",
                       "郵件總數：", $"{_detail.TotalMails} 封");
             Row("未領取郵件：", $"{_detail.UnreadMails} 封",
                 _detail.UnreadMails > 0 ? Theme.AccentOrange : Theme.TextPrimary);
@@ -1211,12 +1211,12 @@ namespace SQ_Email_Tools
             if (tp.HasPet)
             {
                 y += 2;
-                Row("最強寵物：", $"#{tp.BestId}  {tp.BestName}  Lv.{tp.BestLv}  (由 {tp.BestAuthor} 捕捉)", Color.FromArgb(160, 240, 180));
+                Row("capturepet 最強一筆：", $"#{tp.BestId}  {tp.BestName}  Lv.{tp.BestLv}  (author: {tp.BestAuthor})", Color.FromArgb(160, 240, 180));
                 RowPetStats(tp.BestHp, tp.BestAttack, tp.BestDef, tp.BestQuick, tp.BestSum);
             }
-            // 查看全部寵物 + GM 指令按鈕列（各佔一行，確保可見）
+            // 查看 capturepet 清單 + GM 指令按鈕列
             {
-                var btnPets = Theme.MakeButton("🐾 查看全部寵物清單", Color.FromArgb(30, 90, 50), Color.FromArgb(150, 240, 170), 180, 26);
+                var btnPets = Theme.MakeButton("📋 查看 capturepet 清單", Color.FromArgb(30, 90, 50), Color.FromArgb(150, 240, 170), 200, 26);
                 btnPets.Location = new Point(x + 140, y);
                 btnPets.Font     = Theme.FontSmall;
                 btnPets.Click   += async (s, e) =>
@@ -2200,7 +2200,7 @@ namespace SQ_Email_Tools
             _playerName   = playerName;
             _account      = account;
             _pets         = pets;
-            Text          = $"🐾 寵物清單 — {playerName}";
+            Text          = $"📋 capturepet 清單 — {playerName}（練寵活動等，非身上寵物）";
             Size          = new Size(920, 560);
             MinimumSize   = new Size(720, 420);
             BackColor     = Theme.BgPage;
@@ -2260,7 +2260,7 @@ namespace SQ_Email_Tools
             // 右鍵選單
             var ctx = new ContextMenuStrip { BackColor = Theme.BgCard, ForeColor = Theme.TextPrimary };
             var miEdit     = ctx.Items.Add("✏️ 編輯四維");
-            var miDelete   = ctx.Items.Add("🗑️ 刪除寵物");
+            var miDelete   = ctx.Items.Add("🗑️ 刪除此筆");
             var miTransfer = ctx.Items.Add("🔄 轉移帳號");
             miEdit.Click     += (_, __) => { if (ContextRow() >= 0) OpenEdit(ContextRow()); };
             miDelete.Click   += async (_, __) => { if (ContextRow() >= 0) await DeletePetAsync(ContextRow()); };
@@ -2319,7 +2319,7 @@ namespace SQ_Email_Tools
                     _dgv.Rows[ri].DefaultCellStyle.ForeColor = Color.FromArgb(255, 210, 60);
             }
             _lblHdr.Text =
-                $"🐾  {_playerName} 的寵物清單  —  共 {_pets.Count} 隻（依戰力排序，雙擊可編輯）";
+                $"📋  {_playerName} 的 capturepet 記錄  —  共 {_pets.Count} 筆（練寵活動等，非身上寵物；依戰力排序，雙擊可編輯）";
         }
 
         // ── 輔助 ──────────────────────────────────────────────────

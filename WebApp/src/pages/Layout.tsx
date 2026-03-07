@@ -93,18 +93,20 @@ export default function Layout() {
 
   const navLinkStyle = (isActive: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 10,
-    padding: isMobile ? '12px 14px' : '8px 10px',
-    borderRadius: 8, marginBottom: 2, fontSize: 14,
-    background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
+    padding: isMobile ? '12px 14px' : '8px 12px',
+    borderRadius: 12, marginBottom: 4, fontSize: 14,
+    background: isActive ? 'var(--neu-bg)' : 'transparent',
     color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-    fontWeight: isActive ? 700 : 400,
-    textDecoration: 'none', transition: 'background .12s, color .12s',
+    fontWeight: isActive ? 700 : 500,
+    textDecoration: 'none',
+    boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
+    transition: 'box-shadow .15s, color .15s',
   })
 
   const SidebarContent = () => (
     <>
       {/* Logo */}
-      <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div style={{ padding: '18px 16px 14px', flexShrink: 0, boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
         <div style={{ fontSize: 22, marginBottom: 2 }}>🍅</div>
         <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>{S.appName}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{S.appSub}</div>
@@ -116,22 +118,15 @@ export default function Layout() {
         <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <NavLink to={HOME_NAV.to} end title={HOME_NAV.title} style={({ isActive }) => ({
             ...navLinkStyle(isActive),
-            background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
-            color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            fontWeight: isActive ? 700 : 500,
           })}>
             <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>{HOME_NAV.icon}</span>
             <span>{HOME_NAV.label}</span>
           </NavLink>
           <NavLink to={RECHARGE_NAV.to} title={RECHARGE_NAV.title} style={({ isActive }) => ({
             ...navLinkStyle(isActive),
-            background: isActive
-              ? 'linear-gradient(90deg,rgba(74,222,128,.35),rgba(74,222,128,.15))'
-              : 'linear-gradient(90deg,rgba(74,222,128,.18),rgba(74,222,128,.06))',
-            color: isActive ? '#4ade80' : '#86efac',
-            border: `1px solid ${isActive ? 'rgba(74,222,128,.5)' : 'rgba(74,222,128,.25)'}`,
+            color: isActive ? 'var(--accent-green)' : 'var(--text-secondary)',
             fontWeight: 700,
-            boxShadow: isActive ? '0 0 10px rgba(74,222,128,.15)' : 'none',
+            boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : '4px 4px 8px #bebebe, -4px -4px 8px #ffffff',
           })}>
             <span style={{ fontSize: 18, width: 20, textAlign: 'center', flexShrink: 0 }}>{RECHARGE_NAV.icon}</span>
             <span>{RECHARGE_NAV.label}</span>
@@ -154,9 +149,9 @@ export default function Layout() {
       </nav>
 
       {/* 使用者 */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ padding: '14px 16px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>👤 {user}</span>
-        <button onClick={logout} style={{ background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', fontSize: 12, padding: '5px 12px', border: '1px solid rgba(245,101,101,.3)', borderRadius: 6 }}>
+        <button onClick={logout} className="danger" style={{ fontSize: 12, padding: '8px 14px', borderRadius: 10 }}>
           {S.navLogout}
         </button>
       </div>
@@ -167,9 +162,9 @@ export default function Layout() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
         {/* 頂部 Header */}
-        <header style={{ height: 56, background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, zIndex: 100 }}>
+        <header style={{ height: 56, background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, zIndex: 100 }}>
           <button onClick={() => setDrawerOpen(true)}
-            style={{ width: 40, height: 40, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+            style={{ width: 42, height: 42, background: 'var(--neu-bg)', boxShadow: '4px 4px 8px #bebebe, -4px -4px 8px #ffffff', borderRadius: 12, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
             ☰
           </button>
           <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🍅 {S.appName}</span>
@@ -192,19 +187,19 @@ export default function Layout() {
         {/* 側拉抽屜 — 關閉時加 pointerEvents:none 防止攔截觸控 */}
         <div ref={drawerRef} style={{
           position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
-          background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)',
+          background: 'var(--bg-sidebar)',
           display: 'flex', flexDirection: 'column',
           zIndex: 300,
           transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
-          boxShadow: drawerOpen ? '4px 0 24px rgba(0,0,0,.5)' : 'none',
+          boxShadow: drawerOpen ? '8px 0 24px rgba(0,0,0,.12), -2px 0 8px rgba(255,255,255,.4)' : 'none',
           pointerEvents: drawerOpen ? undefined : 'none',
         }}>
           {/* 關閉按鈕 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>🍅 {S.appName}</div>
             <button onClick={() => setDrawerOpen(false)}
-              style={{ width: 36, height: 36, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              style={{ width: 38, height: 38, background: 'var(--neu-bg)', boxShadow: 'inset 2px 2px 4px #bebebe, inset -2px -2px 4px #ffffff', borderRadius: 10, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
               ✕
             </button>
           </div>
@@ -214,19 +209,20 @@ export default function Layout() {
             <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
               <NavLink to={HOME_NAV.to} end style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '13px 14px', borderRadius: 8, fontSize: 15, fontWeight: isActive ? 700 : 500, textDecoration: 'none',
-                background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
+                padding: '13px 14px', borderRadius: 12, fontSize: 15, fontWeight: isActive ? 700 : 500, textDecoration: 'none',
+                background: isActive ? 'var(--neu-bg)' : 'transparent',
                 color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
               })}>
                 <span style={{ fontSize: 20 }}>{HOME_NAV.icon}</span>
                 {HOME_NAV.label}
               </NavLink>
               <NavLink to={RECHARGE_NAV.to} style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '13px 14px', borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: 'none',
-                background: isActive ? 'linear-gradient(90deg,rgba(74,222,128,.35),rgba(74,222,128,.15))' : 'linear-gradient(90deg,rgba(74,222,128,.18),rgba(74,222,128,.06))',
-                color: isActive ? '#4ade80' : '#86efac',
-                border: `1px solid ${isActive ? 'rgba(74,222,128,.5)' : 'rgba(74,222,128,.25)'}`,
+                padding: '13px 14px', borderRadius: 12, fontSize: 15, fontWeight: 700, textDecoration: 'none',
+                background: 'var(--neu-bg)',
+                color: isActive ? 'var(--accent-green)' : 'var(--text-secondary)',
+                boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : '4px 4px 8px #bebebe, -4px -4px 8px #ffffff',
               })}>
                 <span style={{ fontSize: 20 }}>{RECHARGE_NAV.icon}</span>
                 {RECHARGE_NAV.label}
@@ -239,10 +235,11 @@ export default function Layout() {
                 {g.items.map(n => (
                   <NavLink key={n.to} to={n.to} end={n.to === '/'} style={({ isActive }) => ({
                     display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '13px 14px', borderRadius: 8, marginBottom: 2, fontSize: 15,
-                    background: isActive ? 'rgba(74,158,255,.18)' : 'transparent',
+                    padding: '13px 14px', borderRadius: 12, marginBottom: 4, fontSize: 15,
+                    background: isActive ? 'var(--neu-bg)' : 'transparent',
                     color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
                     fontWeight: isActive ? 700 : 400, textDecoration: 'none',
+                    boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
                   })}>
                     <span style={{ fontSize: 18 }}>{n.icon}</span>
                     {n.label}
@@ -252,9 +249,9 @@ export default function Layout() {
             ))}
           </nav>
 
-          <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '14px 16px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>👤 {user}</span>
-            <button onClick={logout} style={{ background: 'rgba(245,101,101,.15)', color: 'var(--accent-red)', fontSize: 13, padding: '8px 14px', border: '1px solid rgba(245,101,101,.3)', borderRadius: 8 }}>
+            <button onClick={logout} className="danger" style={{ fontSize: 13, padding: '8px 14px', borderRadius: 10 }}>
               {S.navLogout}
             </button>
           </div>
@@ -270,11 +267,16 @@ export default function Layout() {
 
   // ── 桌機版 ──
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <aside style={{ width: 220, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)' }}>
+      <aside style={{
+        width: 240,
+        background: 'var(--bg-sidebar)',
+        display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
+        boxShadow: '6px 0 16px rgba(0,0,0,.06), -2px 0 4px rgba(255,255,255,.5)',
+      }}>
         <SidebarContent />
       </aside>
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
+      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)', padding: 2 }}>
         <Outlet />
       </main>
     </div>
