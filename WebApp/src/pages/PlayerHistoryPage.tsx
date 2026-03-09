@@ -28,7 +28,12 @@ interface HistoryResult {
   tradeSent: number;  tradeReceived: number
 }
 
-type Tab = 'trade' | 'street' | 'shop' | 'speed' | 'cost'
+/** 獎池紀錄 (poolitem)，是否為寶箱/骰子開出結果需對照遊戲確認 */
+interface PoolItemRecord {
+  cdkey: string; uid: string; itemId: number; itemName: string
+}
+
+type Tab = 'trade' | 'street' | 'shop' | 'speed' | 'cost' | 'poolitem'
 
 export default function PlayerHistoryPage() {
   const [sp] = useSearchParams()
@@ -47,6 +52,7 @@ export default function PlayerHistoryPage() {
   const [tab,   setTab]       = useState<Tab>('trade')
   const [limit, setLimit]     = useState(100)
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
+  const [poolItemList, setPoolItemList] = useState<PoolItemRecord[]>([])
 
   const searchRef = useRef<HTMLInputElement>(null) // kept for clickPlayer focus
 
@@ -71,12 +77,17 @@ export default function PlayerHistoryPage() {
 
   const doSearch = async (account: string) => {
     if (!account.trim()) return
-    setLoading(true); setMsg(''); setData(null)
+    setLoading(true); setMsg(''); setData(null); setPoolItemList([])
     setSelectedAccount(account.trim())
+    const enc = encodeURIComponent(account.trim())
     try {
-      const r = await api.get(`/players/${encodeURIComponent(account.trim())}/history`, { params: { limit } })
-      setData(r.data)
-      if (!r.data.trades.length && !r.data.street.length && !r.data.speed.length && !r.data.cost.length)
+      const [historyRes, poolRes] = await Promise.all([
+        api.get(`/players/${enc}/history`, { params: { limit } }),
+        api.get(`/players/${enc}/poolitem`, { params: { limit: 200 } }).catch(() => ({ data: [] as PoolItemRecord[] })),
+      ])
+      setData(historyRes.data)
+      setPoolItemList(Array.isArray(poolRes.data) ? poolRes.data : [])
+      if (!historyRes.data.trades.length && !historyRes.data.street.length && !historyRes.data.speed.length && !historyRes.data.cost.length && (Array.isArray(poolRes.data) ? poolRes.data.length : 0) === 0)
         setMsg('查無紀錄')
     } catch {
       setMsg('查詢失敗，請確認帳號是否正確')
@@ -204,12 +215,13 @@ export default function PlayerHistoryPage() {
         {data && (
           <>
             {/* 統計摘要 */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
               <StatCard label="交易送出" value={data.tradeSent}       color="var(--accent-orange)" />
               <StatCard label="交易收到" value={data.tradeReceived}   color="var(--accent-green)"  />
               <StatCard label="街頭商店" value={data.street.length}   color="var(--accent-blue)"   />
               <StatCard label="商城購買" value={data.shopLogs.length} color="var(--accent-purple, #b97cf3)" />
               <StatCard label="速度警告" value={data.speed.length}    color={data.speed.length > 0 ? 'var(--accent-red)' : 'var(--text-muted)'} />
+              <StatCard label="獎池(poolitem)" value={poolItemList.length} color="var(--text-muted)" />
             </div>
 
             {/* Tab 切換 */}
@@ -220,6 +232,7 @@ export default function PlayerHistoryPage() {
                 ['shop',   `🛒 商城購買（${data.shopLogs.length}）`],
                 ['speed',  `⚡ 速度異常（${data.speed.length}）`],
                 ['cost',   `💸 消費紀錄（${data.cost.length}）`],
+                ['poolitem', `🎁 獎池紀錄（${poolItemList.length}）`],
               ] as [Tab, string][]).map(([t, label]) => (
                 <button key={t} onClick={() => setTab(t)}
                   style={{ padding: '8px 16px', fontSize: 13, fontWeight: tab === t ? 700 : 400, cursor: 'pointer',
@@ -407,6 +420,35 @@ export default function PlayerHistoryPage() {
                         ))}
                       </tbody>
                     </table>
+              )}
+
+              {/* 獎池紀錄 (poolitem)，是否為開獎結果請對照遊戲確認 */}
+              {tab === 'poolitem' && (
+                <>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                    資料來源：poolitem。是否為寶箱/骰子開出結果請對照遊戲確認。
+                  </div>
+                  {poolItemList.length === 0
+                    ? <Empty text="無獎池紀錄" />
+                    : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-sidebar)', textAlign: 'left' }}>
+                            <TH>帳號 (cdkey)</TH><TH>uid</TH><TH style={{ textAlign: 'right' }}>道具ID</TH><TH>道具名稱</TH>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {poolItemList.map((p, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={TD}>{p.cdkey}</td>
+                              <td style={TD}>{p.uid || '—'}</td>
+                              <td style={{ ...TD, textAlign: 'right' }}>{p.itemId}</td>
+                              <td style={{ ...TD, fontWeight: 600 }}>{p.itemName || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                  }
+                </>
               )}
             </div>
           </>

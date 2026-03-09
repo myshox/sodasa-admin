@@ -288,6 +288,15 @@ public class PlayerHistoryResult
     public int TradeReceived { get; set; }
 }
 
+/// <summary>獎池/開獎紀錄 (poolitem)，是否為寶箱骰子開出結果需對照遊戲確認</summary>
+public class PoolItemRecordDto
+{
+    public string Cdkey    { get; set; } = "";
+    public string Uid      { get; set; } = "";
+    public int    ItemId   { get; set; }
+    public string ItemName { get; set; } = "";
+}
+
 // ── 攤位 & 商城查詢 DTO ──────────────────────────────────────
 public class StreetListingDto
 {

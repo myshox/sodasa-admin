@@ -2388,6 +2388,34 @@ public class DbService
         return result;
     }
 
+    // ── 獎池/開獎紀錄 (poolitem)：依玩家 cdkey 查詢，是否為寶箱/骰子開出結果需對照遊戲確認
+    public async Task<List<PoolItemRecordDto>> GetPlayerPoolItemAsync(string account, int limit = 200)
+    {
+        var list = new List<PoolItemRecordDto>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT cdkey, IFNULL(uid,'') uid, IFNULL(ITEM_ID,0) ITEM_ID, IFNULL(ITEM_NAME,'') ITEM_NAME
+                  FROM poolitem WHERE cdkey=@acc LIMIT @lim", db);
+            cmd.Parameters.AddWithValue("@acc", account);
+            cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 500));
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new PoolItemRecordDto
+                {
+                    Cdkey    = r.GetString(0),
+                    Uid      = r.IsDBNull(1) ? "" : r.GetString(1),
+                    ItemId   = r.GetInt32(2),
+                    ItemName = r.IsDBNull(3) ? "" : r.GetString(3),
+                });
+            }
+        }
+        catch { /* 表可能不存在或欄位不同 */ }
+        return list;
+    }
+
     // ── 取得所有目前有攤位的攤主清單 ──────────────────────────────
     public async Task<List<VendorSummaryDto>> GetAllVendorsAsync()
     {

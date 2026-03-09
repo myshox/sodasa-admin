@@ -349,6 +349,11 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> MailHistory(string account)
         => Ok(await _db.GetPlayerMailHistoryAsync(account));
 
+    /// <summary>獎池紀錄 (poolitem)，是否為寶箱/骰子開出結果請對照遊戲確認</summary>
+    [HttpGet("{account}/poolitem")]
+    public async Task<IActionResult> PoolItem(string account, [FromQuery] int limit = 200)
+        => Ok(await _db.GetPlayerPoolItemAsync(account ?? "", Math.Clamp(limit, 1, 500)));
+
     /// <summary>顯示 maildata 原始欄位（type/data/buff3）用於診斷無法領取問題</summary>
     [HttpGet("{account}/mail-raw")]
     public async Task<IActionResult> MailRaw(string account, [FromQuery] int limit = 50)
