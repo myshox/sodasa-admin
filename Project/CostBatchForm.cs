@@ -286,14 +286,14 @@ namespace SQ_Email_Tools
         // ── 批量選取 ──────────────────────────────────────────────
         private void SetAllChecked(bool val)
         {
+            _dgv.EndEdit();
             foreach (var r in _displayed) r.Selected = val;
-            foreach (DataGridViewRow row in _dgv.Rows)
-                if (row.Tag is CostRow r) row.Cells["colCheck"].Value = r.Selected;
-            UpdateSelStatus();
+            RefreshGrid();
         }
 
         private void SelectPending()
         {
+            _dgv.EndEdit();
             foreach (var r in _displayed)
             {
                 bool hasPending = false;
@@ -301,9 +301,7 @@ namespace SQ_Email_Tools
                     if (r.Point >= Milestones[i] && (r.Check & (1 << i)) == 0) { hasPending = true; break; }
                 r.Selected = hasPending;
             }
-            foreach (DataGridViewRow row in _dgv.Rows)
-                if (row.Tag is CostRow r) row.Cells["colCheck"].Value = r.Selected;
-            UpdateSelStatus();
+            RefreshGrid();
         }
 
         private void UpdateSelStatus()

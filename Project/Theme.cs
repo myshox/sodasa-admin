@@ -22,31 +22,30 @@ namespace SQ_Email_Tools
             return "Segoe UI";
         }
 
-        // ── Neumorphism / Soft UI 色系（淺灰基底，柔陰影感）────────────
-        //   側欄略深 → 頁面灰 → 卡片/輸入與基底同調，用邊框模擬柔邊
-        public static readonly Color BgSidebar = Color.FromArgb(209, 217, 230); // #d1d9e6 側欄
-        public static readonly Color BgDark    = Color.FromArgb(224, 229, 236); // #e0e5ec Header/Toolbar
-        public static readonly Color BgPage    = Color.FromArgb(224, 229, 236);  // #e0e5ec 頁面主底
-        public static readonly Color BgMid     = Color.FromArgb(220, 226, 235); // 次底
-        public static readonly Color BgCard    = Color.FromArgb(224, 229, 236); // 卡片（與頁面同，靠邊框區隔）
-        public static readonly Color BgLight   = Color.FromArgb(240, 243, 247); // #f0f3f7 輸入框（略亮，模擬凹陷）
+        // ── 深色主題（深灰底 + 白字，確保所有文字清晰可見）────────────
+        public static readonly Color BgSidebar = Color.FromArgb( 22,  27,  38); // 側欄（最深）
+        public static readonly Color BgDark    = Color.FromArgb( 28,  34,  46); // Header/Toolbar
+        public static readonly Color BgPage    = Color.FromArgb( 36,  43,  58); // 頁面主底
+        public static readonly Color BgMid     = Color.FromArgb( 44,  52,  68); // 次底/分隔
+        public static readonly Color BgCard    = Color.FromArgb( 44,  52,  68); // 卡片
+        public static readonly Color BgLight   = Color.FromArgb( 56,  66,  86); // 輸入框（略亮）
         public static readonly Color BgInput   = BgLight;
         public static readonly Color CardBg    = BgCard;
 
-        public static readonly Color Border    = Color.FromArgb(190, 198, 210); // 柔邊（模擬陰影邊）
-        public static readonly Color BorderHov = Color.FromArgb( 91, 124, 255);  // focus 藍
+        public static readonly Color Border    = Color.FromArgb( 72,  84, 108); // 邊框
+        public static readonly Color BorderHov = Color.FromArgb(100, 149, 255); // focus 藍
 
-        // 強調色（Soft UI 適中飽和）
-        public static readonly Color AccentBlue   = Color.FromArgb( 91, 124, 255);
-        public static readonly Color AccentGreen  = Color.FromArgb( 82, 199, 122);
-        public static readonly Color AccentRed    = Color.FromArgb(232,  93,  93);
-        public static readonly Color AccentOrange = Color.FromArgb(240, 167,  85);
-        public static readonly Color AccentPurple = Color.FromArgb(165, 120, 220);
+        // 強調色（深底上高飽和，保持鮮明可見）
+        public static readonly Color AccentBlue   = Color.FromArgb(100, 149, 255);
+        public static readonly Color AccentGreen  = Color.FromArgb( 80, 220, 130);
+        public static readonly Color AccentRed    = Color.FromArgb(255,  90,  90);
+        public static readonly Color AccentOrange = Color.FromArgb(255, 178,  80);
+        public static readonly Color AccentPurple = Color.FromArgb(190, 140, 255);
 
-        // 文字（深色在淺底上）
-        public static readonly Color TextPrimary   = Color.FromArgb( 45,  55,  72); // #2d3748
-        public static readonly Color TextSecondary = Color.FromArgb( 74,  85, 104); // #4a5568
-        public static readonly Color TextMuted     = Color.FromArgb(113, 128, 150); // #718096
+        // 文字（深底上確保高對比）
+        public static readonly Color TextPrimary   = Color.FromArgb(230, 235, 245); // 主要文字（近白）
+        public static readonly Color TextSecondary = Color.FromArgb(190, 198, 215); // 次要（淺灰）
+        public static readonly Color TextMuted     = Color.FromArgb(140, 152, 175); // 輔助（中灰，深底仍可讀）
 
         // ── 字體 ────────────────────────────────────────────────
         public static readonly Font FontTitle      = new Font(_ff, 15f,  FontStyle.Bold);
@@ -118,7 +117,7 @@ namespace SQ_Email_Tools
             return new Label
             {
                 Text      = text,
-                ForeColor = color ?? TextSecondary,
+                ForeColor = color ?? TextPrimary,
                 Font      = FontBody,
                 AutoSize  = true
             };
@@ -219,22 +218,23 @@ namespace SQ_Email_Tools
                 catch (ObjectDisposedException) { }
             };
 
-            // 資料列（Soft UI：與卡片同底）
+            // 資料列（深底 + 近白字，高對比）
             dgv.DefaultCellStyle.BackColor          = BgCard;
             dgv.DefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 215, 255);
-            dgv.DefaultCellStyle.SelectionForeColor = TextPrimary;
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 60, 90, 150);
+            dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
             dgv.DefaultCellStyle.Padding            = new Padding(8, 0, 8, 0);
 
-            // 交錯列（略亮）
-            dgv.AlternatingRowsDefaultCellStyle.BackColor          = Color.FromArgb(232, 236, 243);
+            // 交錯列
+            dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(200, 215, 255);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 60, 90, 150);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
 
-            // 欄位標題列（略深，Soft UI 區隔）
-            dgv.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(200, 208, 222);
-            dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextPrimary;
+            // 欄位標題列
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = BgDark;
+            dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextSecondary;
             dgv.ColumnHeadersDefaultCellStyle.Font      = FontSmall;
             dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
             dgv.ColumnHeadersHeight                     = 38;

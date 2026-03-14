@@ -16,7 +16,7 @@ namespace SQ_Email_Tools
         private int   _navScrollY = 0;
         private Panel   _playerPage;        // 玩家管理的所有控件放在此 Panel
         private Panel   _playerContent;     // 玩家管理右側內容區（DataGridView 等）
-        private Panel   _currentHubPanel;   // 目前嵌入的 Hub 面板
+        private Control _currentHubPanel;   // 目前嵌入的 Hub 控件
         private Button  _btnPlayerNav;      // 玩家管理導覽按鈕（用於 Hub 關閉後還原高亮）
         private Button  _playerSubActive;   // 玩家管理左側子選單目前選中項
         private Label   _lblDbDot, _lblDbText, _lblGmName;
@@ -267,8 +267,26 @@ namespace SQ_Email_Tools
                 SwitchToHub(new GmPetForm());
             };
 
-            var btnSpeedHack = MakeNavBtn("⚡", "加速外掛封禁", ref y);
-            navTip.SetToolTip(btnSpeedHack, "分析移動速度異常玩家，批量封號");
+            var btnPetRank = MakeNavBtn("🏆", "寵物排行榜", ref y);
+            navTip.SetToolTip(btnPetRank, "依戰力/血量/攻擊/防禦/敏捷查詢全服寵物排行");
+            btnPetRank.Click += (s, e) =>
+            {
+                SetActiveNav(btnPetRank);
+                if (!CheckConnected()) return;
+                SwitchToHub(new PetRankingForm());
+            };
+
+            var btnGuild = MakeNavBtn("\u2656", "\u5BB6\u65CF\u7BA1\u7406", ref y);
+            navTip.SetToolTip(btnGuild, "\u5BB6\u65CF\u5217\u8868\u3001\u6210\u54E1\u7BA1\u7406\u3001\u89E3\u6563\u5BB6\u65CF");
+            btnGuild.Click += (s, e) =>
+            {
+                SetActiveNav(btnGuild);
+                if (!CheckConnected()) return;
+                SwitchToHub(new GuildForm());
+            };
+
+            var btnSpeedHack = MakeNavBtn("\u26A1", "\u52A0\u901F\u5916\u639B\u5C01\u7981", ref y);
+            navTip.SetToolTip(btnSpeedHack, "\u5206\u6790\u79FB\u52D5\u901F\u5EA6\u7570\u5E38\u73A9\u5BB6\uFF0C\u6279\u91CF\u5C01\u865F");
             btnSpeedHack.Click += (s, e) =>
             {
                 SetActiveNav(btnSpeedHack);
@@ -646,7 +664,7 @@ namespace SQ_Email_Tools
         }
 
         // ── Hub 切換 ───────────────────────────────────────────
-        private void SwitchToHub(Form hub)
+        private void SwitchToHub(Control hub)
         {
             // 移除舊 Hub
             if (_currentHubPanel != null)
@@ -656,20 +674,24 @@ namespace SQ_Email_Tools
                 _currentHubPanel = null;
             }
 
-            // 隱藏玩家管理頁
-            _playerPage.Visible = false;
+            // 直接從 contentArea 移除 playerPage，避免 Z-order 問題
+            if (_playerPage.Parent == _contentArea)
+                _contentArea.Controls.Remove(_playerPage);
 
-            // 嵌入新 Hub
-            hub.TopLevel        = false;
-            hub.FormBorderStyle = FormBorderStyle.None;
-            hub.Dock            = DockStyle.Fill;
-            hub.BackColor       = Theme.BgPage;
-            hub.MinimumSize     = Size.Empty;   // 清除最小尺寸限制，避免 Fill 時裁剪
-            hub.Location        = Point.Empty;  // 強制從左上角開始，避免 CenterParent 偏移
+            // 若是 Form 子類別（其他頁面），需要設定 TopLevel=false 才能嵌入
+            if (hub is Form hubForm)
+            {
+                hubForm.TopLevel        = false;
+                hubForm.FormBorderStyle = FormBorderStyle.None;
+                hubForm.MinimumSize     = Size.Empty;
+                hubForm.Location        = Point.Empty;
+            }
 
-            _currentHubPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
-            _currentHubPanel.Controls.Add(hub);
-            _contentArea.Controls.Add(_currentHubPanel);
+            hub.Dock      = DockStyle.Fill;
+            hub.BackColor = Theme.BgPage;
+
+            _contentArea.Controls.Add(hub);
+            _currentHubPanel = hub;
             hub.Show();
         }
 
@@ -681,6 +703,9 @@ namespace SQ_Email_Tools
                 _currentHubPanel.Dispose();
                 _currentHubPanel = null;
             }
+            // 把 playerPage 加回來
+            if (_playerPage.Parent != _contentArea)
+                _contentArea.Controls.Add(_playerPage);
             _playerPage.Visible = true;
         }
 
@@ -830,6 +855,8 @@ namespace SQ_Email_Tools
             AddBtnCol("colMute",    "🔇 禁言",   Color.FromArgb(175,  82, 222), 64);  // Apple purple
             AddBtnCol("colDelete",  "🗑 刪除",   Color.FromArgb(142,  14,   0), 60);  // dark red
 
+            _dgv.Columns["colName"].ToolTipText = "來自資料庫；若應為英文（如 ying）卻顯示中文，請在「👤 資料」→「編輯角色名稱」修正。↑↓ 點標題可排序。";
+
             _dgv.CellClick       += Dgv_CellClick;
             _dgv.CellDoubleClick += (s, e) =>
             {
@@ -942,7 +969,10 @@ namespace SQ_Email_Tools
                     e.FormattingApplied   = true;
                 }
                 if (p.IsBanned)
-                    e.CellStyle.BackColor = Color.FromArgb(80, 18, 18); // 深色紅底（封禁警示）
+                {
+                    e.CellStyle.BackColor = Color.FromArgb(80, 18, 18);
+                    e.CellStyle.ForeColor = Color.White;
+                }
             };
 
             _dgv.Paint += (s, e) =>

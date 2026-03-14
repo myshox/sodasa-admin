@@ -3021,4 +3021,156 @@ public class DbService
         catch { return false; }
     }
 
+    // ══════════════════════════════════════════════════════════
+    // 家族查詢與管理
+    // ══════════════════════════════════════════════════════════
+
+    public async Task<List<GuildInfo>> GetGuildListAsync()
+    {
+        var list = new List<GuildInfo>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(@"
+                SELECT z.jiazuid, z.jiazu,
+                       COUNT(DISTINCT z.cdkey) AS memberCount,
+                       MAX(z.addtime) AS lastActive,
+                       IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint)
+                               FROM fameshop fs
+                               INNER JOIN (SELECT cdkey FROM zuzhanlog WHERE jiazuid = z.jiazuid GROUP BY cdkey) m2
+                                   ON fs.cdkey = m2.cdkey), 0) AS shopContrib
+                FROM zuzhanlog z
+                INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey) latest
+                    ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                WHERE z.jiazuid > 0
+                GROUP BY z.jiazuid, z.jiazu
+                ORDER BY memberCount DESC, shopContrib DESC", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new GuildInfo
+                {
+                    GuildId     = Convert.ToInt32(r["jiazuid"]),
+                    GuildName   = r["jiazu"]?.ToString() ?? "",
+                    MemberCount = Convert.ToInt32(r["memberCount"]),
+                    LastActive  = r["lastActive"] == DBNull.Value ? "" : Convert.ToDateTime(r["lastActive"]).ToString("yyyy-MM-dd HH:mm"),
+                    ShopContrib = Convert.ToInt64(r["shopContrib"])
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<List<GuildMember>> GetGuildMembersAsync(int guildId)
+    {
+        var list = new List<GuildMember>();
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(@"
+                SELECT z.cdkey, z.uname, z.addtime,
+                       IFNULL(c.OnlineName,'') onlineName,
+                       IFNULL(c.PayTotal,0) payTotal,
+                       IFNULL(c.VipPoint,0) gold,
+                       (c.Online = 1) isOnline,
+                       IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint) FROM fameshop fs WHERE fs.cdkey = z.cdkey), 0) shopContrib
+                FROM zuzhanlog z
+                INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid = @gid GROUP BY cdkey) latest
+                    ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                LEFT JOIN csalogin c ON c.Name = z.cdkey
+                WHERE z.jiazuid = @gid
+                ORDER BY shopContrib DESC, z.uname", db);
+            cmd.Parameters.AddWithValue("@gid", guildId);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new GuildMember
+                {
+                    Cdkey       = r["cdkey"]?.ToString() ?? "",
+                    CharName    = r["uname"]?.ToString() ?? "",
+                    OnlineName  = r["onlineName"]?.ToString() ?? "",
+                    JoinTime    = r["addtime"] == DBNull.Value ? "" : Convert.ToDateTime(r["addtime"]).ToString("yyyy-MM-dd HH:mm"),
+                    PayTotal    = Convert.ToInt32(r["payTotal"]),
+                    Gold        = Convert.ToInt64(r["gold"]),
+                    IsOnline    = Convert.ToBoolean(r["isOnline"]),
+                    ShopContrib = Convert.ToInt64(r["shopContrib"])
+                });
+        }
+        catch { }
+        return list;
+    }
+
+    public async Task<(bool ok, string msg)> DissolveGuildAsync(int guildId)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var tx = await db.BeginTransactionAsync();
+            try
+            {
+                await using (var c1 = new MySqlCommand(
+                    "UPDATE playerdata SET fmindex=0, fmname='' WHERE fmindex=@gid", db, tx))
+                { c1.Parameters.AddWithValue("@gid", guildId); await c1.ExecuteNonQueryAsync(); }
+
+                int n = 0;
+                await using (var c2 = new MySqlCommand(
+                    "DELETE FROM zuzhanlog WHERE jiazuid=@gid", db, tx))
+                { c2.Parameters.AddWithValue("@gid", guildId); n = await c2.ExecuteNonQueryAsync(); }
+
+                await tx.CommitAsync();
+                return (true, $"家族已解散，共刪除 {n} 筆記錄");
+            }
+            catch { await tx.RollbackAsync(); throw; }
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<(bool ok, string msg)> KickGuildMemberAsync(int guildId, string cdkey)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var tx = await db.BeginTransactionAsync();
+            try
+            {
+                int n = 0;
+                await using (var c1 = new MySqlCommand(
+                    "DELETE FROM zuzhanlog WHERE jiazuid=@gid AND cdkey=@ck", db, tx))
+                { c1.Parameters.AddWithValue("@gid", guildId); c1.Parameters.AddWithValue("@ck", cdkey); n = await c1.ExecuteNonQueryAsync(); }
+
+                await using (var c2 = new MySqlCommand(
+                    "UPDATE playerdata SET fmindex=0, fmname='' WHERE cdkey=@ck AND fmindex=@gid", db, tx))
+                { c2.Parameters.AddWithValue("@ck", cdkey); c2.Parameters.AddWithValue("@gid", guildId); await c2.ExecuteNonQueryAsync(); }
+
+                await tx.CommitAsync();
+                return n > 0 ? (true, $"已將 {cdkey} 移除") : (false, "未找到該成員");
+            }
+            catch { await tx.RollbackAsync(); throw; }
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
+    public async Task<(bool ok, string msg)> TransferGuildMemberAsync(string cdkey, int targetGuildId, string targetGuildName)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var tx = await db.BeginTransactionAsync();
+            try
+            {
+                await using (var c1 = new MySqlCommand(@"
+                    UPDATE zuzhanlog SET jiazuid=@tid, jiazu=@tname
+                    WHERE cdkey=@ck AND id=(SELECT mid FROM (SELECT MAX(id) mid FROM zuzhanlog WHERE cdkey=@ck) t)", db, tx))
+                { c1.Parameters.AddWithValue("@tid", targetGuildId); c1.Parameters.AddWithValue("@tname", targetGuildName); c1.Parameters.AddWithValue("@ck", cdkey); await c1.ExecuteNonQueryAsync(); }
+
+                await using (var c2 = new MySqlCommand(
+                    "UPDATE playerdata SET fmindex=@tid, fmname=@tname WHERE cdkey=@ck", db, tx))
+                { c2.Parameters.AddWithValue("@tid", targetGuildId); c2.Parameters.AddWithValue("@tname", targetGuildName); c2.Parameters.AddWithValue("@ck", cdkey); await c2.ExecuteNonQueryAsync(); }
+
+                await tx.CommitAsync();
+                return (true, $"已將 {cdkey} 轉移至家族「{targetGuildName}」");
+            }
+            catch { await tx.RollbackAsync(); throw; }
+        }
+        catch (Exception ex) { return (false, ex.Message); }
+    }
+
 }

@@ -24,6 +24,14 @@ namespace SQ_Email_Tools
         private Label  _fixStatusLbl;
         private Label  _descCountLbl;
 
+        // 複選玩家清除區
+        private DataGridView _playerDgv;
+        private TextBox      _playerSearchBox;
+        private Label        _batchStatusLbl;
+        private List<PlayerRow> _allPlayers = new();
+
+        private struct PlayerRow { public string Account; public string Name; public bool Online; }
+
         public MailClearForm()
         {
             BackColor       = Theme.BgPage;
@@ -268,6 +276,119 @@ namespace SQ_Email_Tools
             grpFix.Controls.Add(clearRow);
             fy += 44;
 
+            // ── 分隔線 ──────────────────────────────────────────────────
+            grpFix.Controls.Add(new Panel { Location = new Point(0, fy), Size = new Size(W, 1), BackColor = Color.FromArgb(80, 40, 40) });
+            fy += 10;
+
+            grpFix.Controls.Add(new Label
+            {
+                Text = "🎯 指定玩家清除郵件（可複選）",
+                ForeColor = Theme.AccentOrange, Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
+                AutoSize = true, Location = new Point(12, fy)
+            });
+            fy += 26;
+
+            // 搜尋列
+            var searchRow = new Panel { Location = new Point(12, fy), Size = new Size(W - 24, 30), BackColor = Color.Transparent };
+            _playerSearchBox = new TextBox
+            {
+                PlaceholderText = "搜尋角色名稱或帳號…",
+                Size = new Size(260, 26), Location = new Point(0, 2),
+                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall
+            };
+            var btnLoad = Theme.MakePrimaryButton("🔄 載入在線玩家", 120, 26);
+            btnLoad.Location = new Point(268, 2); btnLoad.Font = Theme.FontSmall;
+            var btnLoadAll = Theme.MakeButton("📋 載入全部玩家", Theme.BgLight, Theme.TextSecondary, 120, 26);
+            btnLoadAll.Location = new Point(396, 2); btnLoadAll.Font = Theme.FontSmall;
+            var btnSelAll = Theme.MakeButton("全選", Theme.BgLight, Theme.AccentBlue, 48, 26);
+            btnSelAll.Location = new Point(524, 2); btnSelAll.Font = Theme.FontSmall;
+            var btnSelNone = Theme.MakeButton("全不選", Theme.BgLight, Theme.TextMuted, 52, 26);
+            btnSelNone.Location = new Point(576, 2); btnSelNone.Font = Theme.FontSmall;
+
+            searchRow.Controls.AddRange(new Control[] { _playerSearchBox, btnLoad, btnLoadAll, btnSelAll, btnSelNone });
+            grpFix.Controls.Add(searchRow);
+            fy += 34;
+
+            // 玩家列表 DGV（有 Checkbox 欄）
+            _playerDgv = new DataGridView
+            {
+                Location = new Point(12, fy), Size = new Size(W - 24, 180),
+                BackgroundColor = Theme.BgCard, GridColor = Theme.Border,
+                BorderStyle = BorderStyle.None, CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                RowHeadersVisible = false, ReadOnly = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                AllowUserToAddRows = false, AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false, Font = Theme.FontSmall,
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+                ColumnHeadersHeight = 28,
+                RowTemplate = { Height = 26 }
+            };
+            _playerDgv.DefaultCellStyle.BackColor          = Theme.BgCard;
+            _playerDgv.DefaultCellStyle.ForeColor          = Theme.TextPrimary;
+            _playerDgv.DefaultCellStyle.SelectionBackColor = Theme.BgLight;
+            _playerDgv.DefaultCellStyle.SelectionForeColor = Theme.TextPrimary;
+            _playerDgv.ColumnHeadersDefaultCellStyle.BackColor = Theme.BgDark;
+            _playerDgv.ColumnHeadersDefaultCellStyle.ForeColor = Theme.TextMuted;
+            _playerDgv.EnableHeadersVisualStyles = false;
+
+            var chkCol = new DataGridViewCheckBoxColumn { Name = "chk", HeaderText = "✓", Width = 36, ReadOnly = false };
+            _playerDgv.Columns.Add(chkCol);
+            _playerDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "online", HeaderText = "狀態", Width = 52, ReadOnly = true });
+            _playerDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "name",    HeaderText = "角色名稱", Width = 160, ReadOnly = true });
+            _playerDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "account", HeaderText = "帳號", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
+
+            // 點列切換勾選
+            _playerDgv.CellClick += (s, e) =>
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+                if (e.ColumnIndex != 0)
+                {
+                    var cell = _playerDgv.Rows[e.RowIndex].Cells["chk"] as DataGridViewCheckBoxCell;
+                    if (cell != null) cell.Value = !(cell.Value is true);
+                }
+            };
+
+            grpFix.Controls.Add(_playerDgv);
+            fy += 184;
+
+            // 批量清除按鈕列
+            var batchRow = new FlowLayoutPanel
+            {
+                Location = new Point(12, fy), Size = new Size(W - 24, 36),
+                FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, WrapContents = false
+            };
+            var btnBatchUnclaimed = Theme.MakeButton("清除選定玩家未領取郵件", Color.FromArgb(60, 50, 10), Theme.AccentOrange, 190, 32);
+            btnBatchUnclaimed.Font = Theme.FontSmall; btnBatchUnclaimed.Margin = new Padding(0, 2, 8, 0);
+            btnBatchUnclaimed.Click += async (s, e) => await DoBatchClearAsync(true);
+
+            var btnBatchAll = Theme.MakeButton("清除選定玩家所有郵件", Color.FromArgb(70, 20, 20), Theme.AccentRed, 180, 32);
+            btnBatchAll.Font = Theme.FontSmall; btnBatchAll.Margin = new Padding(0, 2, 0, 0);
+            btnBatchAll.Click += async (s, e) => await DoBatchClearAsync(false);
+
+            batchRow.Controls.Add(btnBatchUnclaimed);
+            batchRow.Controls.Add(btnBatchAll);
+            grpFix.Controls.Add(batchRow);
+            fy += 38;
+
+            _batchStatusLbl = new Label
+            {
+                Location = new Point(14, fy), Size = new Size(W - 28, 40),
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = false
+            };
+            grpFix.Controls.Add(_batchStatusLbl);
+            fy += 44;
+
+            // 事件：搜尋過濾
+            _playerSearchBox.TextChanged += (s, e) => FilterPlayerDgv(_playerSearchBox.Text.Trim());
+
+            // 事件：載入玩家
+            btnLoad.Click    += async (s, e) => await LoadPlayersAsync(onlineOnly: true);
+            btnLoadAll.Click += async (s, e) => await LoadPlayersAsync(onlineOnly: false);
+
+            // 全選 / 全不選
+            btnSelAll.Click  += (s, e) => { foreach (DataGridViewRow r in _playerDgv.Rows) r.Cells["chk"].Value = true;  };
+            btnSelNone.Click += (s, e) => { foreach (DataGridViewRow r in _playerDgv.Rows) r.Cells["chk"].Value = false; };
+
             grpFix.Height = fy + 10;
             Controls.Add(grpFix);
         }
@@ -334,6 +455,86 @@ namespace SQ_Email_Tools
                     _btnQuickClearUnclaimed.Enabled = true;
                     _btnQuickClearAll.Enabled       = true;
                 }
+            }
+        }
+
+        // ── 載入玩家清單 ──────────────────────────────────────────────
+        private async Task LoadPlayersAsync(bool onlineOnly)
+        {
+            _batchStatusLbl.ForeColor = Theme.AccentOrange;
+            _batchStatusLbl.Text      = "載入中…";
+            _playerDgv.Rows.Clear();
+            _allPlayers.Clear();
+            try
+            {
+                var players = await DatabaseManager.Instance.GetPlayerListAsync(onlineOnly);
+                foreach (var p in players)
+                    _allPlayers.Add(new PlayerRow { Account = p.Account, Name = p.Name, Online = p.Online });
+                FilterPlayerDgv(_playerSearchBox.Text.Trim());
+                _batchStatusLbl.ForeColor = Theme.TextMuted;
+                _batchStatusLbl.Text      = $"已載入 {_allPlayers.Count} 位玩家";
+            }
+            catch (Exception ex)
+            {
+                _batchStatusLbl.ForeColor = Theme.AccentRed;
+                _batchStatusLbl.Text      = "✗ 載入失敗：" + ex.Message;
+            }
+        }
+
+        private void FilterPlayerDgv(string keyword)
+        {
+            _playerDgv.Rows.Clear();
+            var filtered = string.IsNullOrEmpty(keyword)
+                ? _allPlayers
+                : _allPlayers.Where(p =>
+                    p.Account.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                    p.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var p in filtered)
+            {
+                int idx = _playerDgv.Rows.Add();
+                _playerDgv.Rows[idx].Cells["chk"].Value     = false;
+                _playerDgv.Rows[idx].Cells["online"].Value  = p.Online ? "🟢" : "⚫";
+                _playerDgv.Rows[idx].Cells["name"].Value    = p.Name;
+                _playerDgv.Rows[idx].Cells["account"].Value = p.Account;
+            }
+        }
+
+        // ── 批量清除選定玩家 ──────────────────────────────────────────
+        private async Task DoBatchClearAsync(bool unclaimedOnly)
+        {
+            var selected = _playerDgv.Rows.Cast<DataGridViewRow>()
+                .Where(r => r.Cells["chk"].Value is true)
+                .Select(r => r.Cells["account"].Value?.ToString() ?? "")
+                .Where(a => !string.IsNullOrEmpty(a))
+                .ToList();
+
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("請先勾選至少一位玩家", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string typeLabel  = unclaimedOnly ? "未領取郵件" : "全部郵件";
+            string playerList = selected.Count <= 5
+                ? string.Join("、", selected)
+                : string.Join("、", selected.Take(5)) + $"…等 {selected.Count} 人";
+
+            if (MessageBox.Show(
+                $"確定清除以下 {selected.Count} 位玩家的【{typeLabel}】？\n{playerList}\n\n此操作不可逆！",
+                "確認批量清除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+
+            _batchStatusLbl.ForeColor = Theme.AccentOrange;
+            _batchStatusLbl.Text      = $"清除中（{selected.Count} 位玩家）…";
+            try
+            {
+                int count = await DatabaseManager.Instance.ClearPlayerMailBatchAsync(selected, unclaimedOnly);
+                _batchStatusLbl.ForeColor = Theme.AccentGreen;
+                _batchStatusLbl.Text      = $"✓ 已清除 {selected.Count} 位玩家的{typeLabel} {count} 封";
+            }
+            catch (Exception ex)
+            {
+                _batchStatusLbl.ForeColor = Theme.AccentRed;
+                _batchStatusLbl.Text      = "✗ 清除失敗：" + ex.Message;
             }
         }
 

@@ -1426,6 +1426,7 @@ namespace SQ_Email_Tools
                             dlg.StartPosition   = FormStartPosition.CenterParent;
                             dlg.MaximizeBox     = false;
                             dlg.BackColor       = Theme.BgPage;
+                            dlg.ForeColor       = Theme.TextPrimary;
                             var lbl = new Label { Text = isMd5 ? "輸入新明文密碼（自動轉 MD5 儲存）：" : "輸入新密碼：",
                                 ForeColor = Theme.TextSecondary, Font = Theme.FontBody, AutoSize = true, Location = new Point(16, 16) };
                             var tb  = Theme.MakeTextBox(340); tb.Location = new Point(16, 42); tb.PasswordChar = '●';
@@ -1452,21 +1453,26 @@ namespace SQ_Email_Tools
                                 _player.Account, newPwd, field);
                             if (ok)
                             {
-                                // 重新計算 MD5 以更新顯示
-                                using var md5 = System.Security.Cryptography.MD5.Create();
-                                string newHash = BitConverter.ToString(
-                                    md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(newPwd)))
-                                    .Replace("-", "").ToLower();
-                                actual = newHash;  // 更新 closure
+                                string stored;
+                                string fmtNote;
+                                if (field == "PassWord")
+                                {
+                                    using var md5 = System.Security.Cryptography.MD5.Create();
+                                    stored   = BitConverter.ToString(md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(newPwd))).Replace("-", "").ToLower();
+                                    fmtNote  = $"儲存格式（MD5）：{stored}\n\n";
+                                }
+                                else
+                                {
+                                    stored  = newPwd;  // SafePasswd 存明文
+                                    fmtNote = "";
+                                }
+                                actual = stored;
                                 pwdV.Text      = mask;
                                 pwdV.ForeColor = Theme.TextMuted;
                                 revealed       = false;
                                 btnToggle.Text = "👁 顯示";
                                 MessageBox.Show(
-                                    $"✅ 密碼已成功重設！\n\n" +
-                                    $"新密碼（明文）：{newPwd}\n" +
-                                    $"儲存格式（MD5）：{newHash}\n\n" +
-                                    "玩家下次登入時使用新密碼即可。",
+                                    $"✅ 密碼已成功重設！\n\n新密碼：{newPwd}\n{fmtNote}玩家下次使用新密碼即可。",
                                     "重設成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             else MessageBox.Show("重設失敗，請確認資料庫連線。", "失敗");
@@ -1479,8 +1485,75 @@ namespace SQ_Email_Tools
                     y += 24;
                 }
 
-                AddPasswordRow("登入密碼：",  _detail.Password,     "PassWord");
-                AddPasswordRow("安全密碼：",  _detail.SafePassword, "SafePasswd");
+                AddPasswordRow("角色密碼(MD5)：",   _detail.Password,     "PassWord");
+                AddPasswordRow("安全密碼(明文)：", _detail.SafePassword, "SafePasswd");
+
+                // ── 主帳號登入密碼（bcrypt，只能重設）─────────────────
+                if (!string.IsNullOrEmpty(_detail.MasterName))
+                {
+                    var lbMaster = new Label
+                    {
+                        Text      = "主帳號登入密碼：",
+                        ForeColor = Theme.TextMuted,
+                        Font      = Theme.FontSmall,
+                        Width     = 124,
+                        Location  = new Point(x + 4, y + 2),
+                        TextAlign = ContentAlignment.MiddleRight
+                    };
+                    var lbInfo = new Label
+                    {
+                        Text      = "bcrypt 加密（無法反查）",
+                        ForeColor = Color.FromArgb(120, 130, 160),
+                        Font      = Theme.FontSmall,
+                        AutoSize  = true,
+                        Location  = new Point(x + 130, y + 4)
+                    };
+                    var btnResetMaster = Theme.MakeButton("🔑 重設登入密碼", Color.FromArgb(80, 30, 30), Color.FromArgb(255, 120, 120), 110, 22);
+                    btnResetMaster.Location = new Point(x + 320, y + 1);
+                    btnResetMaster.Font     = Theme.FontSmall;
+                    btnResetMaster.Click   += async (s, e) =>
+                    {
+                        string newPwd = "";
+                        using (var dlg = new Form())
+                        {
+                            dlg.Text            = $"🔑 重設主帳號登入密碼 — {_detail.MasterName}";
+                            dlg.Size            = new Size(420, 170);
+                            dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                            dlg.StartPosition   = FormStartPosition.CenterParent;
+                            dlg.MaximizeBox     = false;
+                            dlg.BackColor       = Theme.BgPage;
+                            dlg.ForeColor       = Theme.TextPrimary;
+                            var lbl = new Label { Text = "輸入新登入密碼（明文，自動 bcrypt 加密後儲存）：",
+                                ForeColor = Theme.TextSecondary, Font = Theme.FontBody, AutoSize = true, Location = new Point(16, 16) };
+                            var tb  = Theme.MakeTextBox(370); tb.Location = new Point(16, 42); tb.PasswordChar = '●';
+                            var ok  = Theme.MakePrimaryButton("✓ 確認", 90, 32); ok.Location = new Point(200, 86);
+                            var can = Theme.MakeButton("✕ 取消", Theme.BgLight, Theme.TextSecondary, 80, 32); can.Location = new Point(300, 86);
+                            ok.Click  += (_, __) => { dlg.DialogResult = DialogResult.OK; };
+                            can.Click += (_, __) => { dlg.DialogResult = DialogResult.Cancel; };
+                            dlg.Controls.AddRange(new Control[] { lbl, tb, ok, can });
+                            dlg.AcceptButton = ok; dlg.CancelButton = can;
+                            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                            newPwd = tb.Text;
+                        }
+                        if (string.IsNullOrWhiteSpace(newPwd)) return;
+                        if (newPwd.Length < 4) { MessageBox.Show("密碼至少需要 4 個字元"); return; }
+                        btnResetMaster.Enabled = false;
+                        try
+                        {
+                            bool ok = await DatabaseManager.Instance.ResetMasterPasswordAsync(_detail.MasterName, newPwd);
+                            if (ok)
+                                MessageBox.Show(
+                                    $"✅ 主帳號登入密碼已重設！\n\n主帳號：{_detail.MasterName}\n新密碼（明文）：{newPwd}\n\n玩家下次登入時使用新密碼即可。",
+                                    "重設成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            else
+                                MessageBox.Show("重設失敗，請確認資料庫連線。", "失敗");
+                        }
+                        catch (Exception ex) { MessageBox.Show("錯誤：" + ex.Message); }
+                        finally { if (!IsDisposed) btnResetMaster.Enabled = true; }
+                    };
+                    _bodyPanel.Controls.AddRange(new Control[] { lbMaster, lbInfo, btnResetMaster });
+                    y += 24;
+                }
             }
 
             // MAC 旁加「查找同MAC」按鈕
@@ -1738,19 +1811,19 @@ namespace SQ_Email_Tools
             infoBox.Controls.Add(new Label
             {
                 Text      = "累積充值（台幣，實際付款） — 1 台幣 = 100 元寶",
-                ForeColor = Color.FromArgb(150, 165, 200), Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 6)
+                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 6)
             });
             infoBox.Controls.Add(new Label
             {
                 Text      = $"NT$ {currentPayTotal:N0}",
-                ForeColor = Color.FromArgb(255, 200, 80),
+                ForeColor = Color.FromArgb(180, 120, 0),
                 Font      = new Font(Theme.FontFamily, 12f, FontStyle.Bold),
                 AutoSize  = true, Location = new Point(10, 22)
             });
             infoBox.Controls.Add(new Label
             {
                 Text      = "← 遊戲內「累積充值獎勵」讀取此值",
-                ForeColor = Color.FromArgb(110, 150, 220), Font = Theme.FontSmall, AutoSize = true, Location = new Point(165, 28)
+                ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(165, 28)
             });
             bool sameLifetime = _lifetimeTotal == currentPayTotal;
             infoBox.Controls.Add(new Label
@@ -1758,14 +1831,14 @@ namespace SQ_Email_Tools
                 Text      = sameLifetime
                     ? $"歷史總累儲（永不歸零）：NT$ {_lifetimeTotal:N0}（尚無重置記錄）"
                     : $"歷史總累儲（永不歸零）：NT$ {_lifetimeTotal:N0}（跨越 {_lifetimeTotal / CYCLE} 個循環）",
-                ForeColor = Color.FromArgb(100, 210, 255), Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 48)
+                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 48)
             });
             string curCycStr = curCycle == 0
                 ? $"第 1 循環 · 本循環 NT${curIn:N0} / $25,000 · 還差 NT${curRemain:N0}"
                 : $"第 {curCycle + 1} 循環（完成 {curCycle} 次）· 本循環 NT${curIn:N0} / $25,000 · 還差 NT${curRemain:N0}";
             infoBox.Controls.Add(new Label
             {
-                Text = curCycStr, ForeColor = Color.FromArgb(110, 175, 255), Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 66)
+                Text = curCycStr, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 66)
             });
             var barBg0 = new Panel { Location = new Point(10, 80), Size = new Size(W - 70, 8), BackColor = Theme.BgCard };
             barBg0.Controls.Add(new Panel
@@ -1775,7 +1848,7 @@ namespace SQ_Email_Tools
                 BackColor = curPct >= 80 ? Color.FromArgb(50, 220, 120) : curPct >= 40 ? Color.FromArgb(255, 190, 60) : Color.FromArgb(80, 140, 255)
             });
             infoBox.Controls.Add(barBg0);
-            infoBox.Controls.Add(new Label { Text = $"{curPct}%", ForeColor = Color.FromArgb(80, 110, 160), Font = Theme.FontSmall, AutoSize = true, Location = new Point(W - 54, 78) });
+            infoBox.Controls.Add(new Label { Text = $"{curPct}%", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(W - 54, 78) });
             Controls.Add(infoBox);
             y += 104;
 
@@ -1784,7 +1857,7 @@ namespace SQ_Email_Tools
             Controls.Add(new Label
             {
                 Text = "STEP 1  選擇充值套餐（台幣）— 金幣依加成率自動計算：",
-                ForeColor = Color.FromArgb(100, 180, 255), Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                ForeColor = Theme.AccentBlue, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                 AutoSize = true, Location = new Point(x, y)
             });
             y += 22;
@@ -1799,7 +1872,7 @@ namespace SQ_Email_Tools
                 {
                     Text      = label,
                     BackColor = Theme.BgCard,
-                    ForeColor = Color.FromArgb(200, 215, 255),
+                    ForeColor = Theme.TextPrimary,
                     FlatStyle = FlatStyle.Flat,
                     Font      = new Font(Theme.FontFamily, 7.5f),
                     Size      = new Size(82, 52),
@@ -1808,7 +1881,7 @@ namespace SQ_Email_Tools
                     UseVisualStyleBackColor = false,
                     Tag       = (twd, gold)
                 };
-                btn.FlatAppearance.BorderColor = Color.FromArgb(40, 55, 90);
+                btn.FlatAppearance.BorderColor = Theme.Border;
                 btn.Click += (s, e) =>
                 {
                     _nudTwd.Value   = Math.Min(captTwd, _nudTwd.Maximum);
@@ -1828,7 +1901,7 @@ namespace SQ_Email_Tools
             Controls.Add(new Label
             {
                 Text      = "STEP 2  選擇優惠加成%（贈金加成，累積儲值進度只計台幣，贈金不計入進度）：",
-                ForeColor = Color.FromArgb(100, 220, 100), Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 2)
+                ForeColor = Theme.AccentGreen, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 2)
             });
             y += 22;
 
@@ -1870,7 +1943,7 @@ namespace SQ_Email_Tools
             Controls.Add(new Label
             {
                 Text = "STEP 2  或手動輸入台幣金額（金幣以基礎率 ×100 計算，無套餐加成）：",
-                ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 4)
+                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 4)
             });
             y += 22;
 
@@ -1889,13 +1962,13 @@ namespace SQ_Email_Tools
             _nudTwd.ValueChanged += (s, e) => { RefreshTierButtons(-1); _selectedGold = -1; UpdateGoldPreview(); UpdateCycleAfter(); };
             Controls.Add(_nudTwd);
 
-            Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
+            Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
             y += 32;
 
             _lblGoldCalc = new Label
             {
                 Text      = "→ 金幣：10,000（套餐加成）",
-                ForeColor = Color.FromArgb(180, 240, 140),
+                ForeColor = Theme.TextPrimary,
                 Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                 AutoSize  = false,
                 Size      = new Size(W, 22),
@@ -1909,14 +1982,14 @@ namespace SQ_Email_Tools
             Controls.Add(new Label
             {
                 Text = "新增後累儲進度預覽：",
-                ForeColor = Color.FromArgb(140, 220, 140), Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                 AutoSize = true, Location = new Point(x, y)
             });
             y += 22;
 
             _lblCycleAfter = new Label
             {
-                Text = "", ForeColor = Color.FromArgb(80, 200, 255),
+                Text = "", ForeColor = Theme.AccentBlue,
                 Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
                 AutoSize = true, Location = new Point(x, y)
             };
@@ -1935,27 +2008,27 @@ namespace SQ_Email_Tools
             opBox.Controls.Add(new Label
             {
                 Text      = "⚠ STEP 3  操作類型（必填）— 請明確選擇，系統不設預設值：",
-                ForeColor = Color.FromArgb(255, 200, 80), Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                ForeColor = Theme.AccentOrange, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                 AutoSize = true, Location = new Point(10, 8)
             });
             _rbOnlyProgress = new RadioButton
             {
                 Text      = "🔘  【僅增加累儲進度】— 不發放金幣（補資料 / 賽季轉移用）",
-                ForeColor = Color.FromArgb(160, 210, 255), Font = new Font(Theme.FontFamily, 9.5f),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
                 AutoSize = true, Location = new Point(10, 32), Checked = false, Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             _rbWithGold = new RadioButton
             {
                 Text      = "🟡  【增加累儲進度 ＋ 同步發放金幣】— 正常補單使用",
-                ForeColor = Color.FromArgb(200, 240, 170), Font = new Font(Theme.FontFamily, 9.5f),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
                 AutoSize = true, Location = new Point(10, 58), Checked = false, Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
             _rbOnlyGold = new RadioButton
             {
                 Text      = "💰  【只增加金幣，不充值累積】— 發金幣但不計入累積儲值進度",
-                ForeColor = Color.FromArgb(255, 220, 100), Font = new Font(Theme.FontFamily, 9.5f),
+                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
                 AutoSize = true, Location = new Point(10, 86), Checked = false, Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
             };
@@ -2000,7 +2073,7 @@ namespace SQ_Email_Tools
                 utilPanel.Controls.Add(new Label
                 {
                     Text = "← 修復：補 check bits；發放：標記本輪已領",
-                    ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true,
+                    ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, AutoSize = true,
                     Location = new Point(ux, 6)
                 });
                 Controls.Add(utilPanel);
@@ -2117,9 +2190,9 @@ namespace SQ_Email_Tools
             {
                 var (twd, _) = ((long, long))btn.Tag;
                 bool sel = twd == selectedTwd;
-                btn.BackColor = sel ? Color.FromArgb(40, 90, 200) : Color.FromArgb(28, 38, 62);
-                btn.ForeColor = sel ? Color.White : Color.FromArgb(200, 215, 255);
-                btn.FlatAppearance.BorderColor = sel ? Color.FromArgb(80, 140, 255) : Color.FromArgb(40, 55, 90);
+                btn.BackColor = sel ? Theme.AccentBlue : Theme.BgCard;
+                btn.ForeColor = sel ? Color.White : Theme.TextPrimary;
+                btn.FlatAppearance.BorderColor = sel ? Theme.AccentBlue : Theme.Border;
             }
         }
 
@@ -2139,9 +2212,7 @@ namespace SQ_Email_Tools
             _lblGoldCalc.Text = _bonusPct > 0
                 ? $"→ 共 {totalGold:N0} 金幣　（{baseGold:N0}{bonusNote}　{rateNote}）"
                 : $"→ {baseGold:N0} 金幣　（{rateNote}）";
-            _lblGoldCalc.ForeColor = _bonusPct > 0
-                ? Color.FromArgb(80, 230, 130)
-                : (_selectedGold >= 0 ? Color.FromArgb(120, 240, 120) : Color.FromArgb(200, 200, 120));
+            _lblGoldCalc.ForeColor = Theme.TextPrimary;
         }
 
         private void RefreshBonusBtns()
@@ -2150,11 +2221,9 @@ namespace SQ_Email_Tools
             {
                 int pct = (int)btn.Tag;
                 bool sel = pct == _bonusPct;
-                btn.BackColor = sel ? (pct > 0 ? Color.FromArgb(25, 70, 35) : Theme.BgCard) : Theme.BgInput;
-                btn.ForeColor = sel ? (pct > 0 ? Color.FromArgb(80, 220, 100) : Theme.TextPrimary) : Theme.TextSecondary;
-                btn.FlatAppearance.BorderColor = sel
-                    ? (pct > 0 ? Color.FromArgb(60, 180, 80) : Color.FromArgb(80, 100, 140))
-                    : Theme.Border;
+                btn.BackColor = sel ? (pct > 0 ? Theme.AccentGreen : Theme.BgCard) : Theme.BgInput;
+                btn.ForeColor = sel ? (pct > 0 ? Color.White : Theme.TextPrimary) : Theme.TextPrimary;
+                btn.FlatAppearance.BorderColor = sel ? (pct > 0 ? Theme.AccentGreen : Theme.Border) : Theme.Border;
             }
         }
 
@@ -2170,7 +2239,7 @@ namespace SQ_Email_Tools
             _lblCycleAfter.Text = gained > 0
                 ? $"🎉 完成 {gained} 個循環！  →  第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $25,000"
                 : $"第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $25,000  |  還差 NT${CYCLE - newIn:N0}";
-            _lblCycleAfter.ForeColor = gained > 0 ? Color.FromArgb(80, 220, 130) : Color.FromArgb(80, 200, 255);
+            _lblCycleAfter.ForeColor = gained > 0 ? Theme.AccentGreen : Theme.AccentBlue;
 
             if (_barFillAfter?.Parent != null)
             {

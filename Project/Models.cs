@@ -532,4 +532,49 @@ namespace SQ_Email_Tools
         public int OfflineMasters => TotalMasters - OnlineMasters;
     }
 
+    // ══════════════════════════════════════════════════════════
+    // 寵物排行榜資料列
+    // ══════════════════════════════════════════════════════════
+    public class PetRankRow
+    {
+        public int    Rank       { get; set; }
+        public string Cdkey      { get; set; } = "";
+        public string Author     { get; set; } = "";
+        public string PetName    { get; set; } = "";
+        public string PetType    { get; set; } = "";
+        public int    PetId      { get; set; }
+        public int    Lv         { get; set; }
+        public int    Hp         { get; set; }
+        public int    Attack     { get; set; }
+        public int    Def        { get; set; }
+        public int    Quick      { get; set; }
+        public double Sum        { get; set; }
+        public string PlayerName { get; set; } = "";
+        public bool   Online     { get; set; }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // 家族相關模型
+    // ══════════════════════════════════════════════════════════
+    public class FamilyInfo
+    {
+        public int    FamilyId    { get; set; }
+        public string FamilyName  { get; set; } = "";
+        public int    MemberCount { get; set; }
+        public string LastActive  { get; set; } = "";
+        public long   ShopContrib { get; set; }
+    }
+
+    public class FamilyMember
+    {
+        public string Cdkey       { get; set; } = "";
+        public string CharName    { get; set; } = "";
+        public string OnlineName  { get; set; } = "";
+        public string JoinTime    { get; set; } = "";
+        public int    PayTotal    { get; set; }
+        public long   Gold        { get; set; }
+        public bool   IsOnline    { get; set; }
+        public long   ShopContrib { get; set; }
+    }
+
 }

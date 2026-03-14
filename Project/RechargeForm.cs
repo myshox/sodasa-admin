@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -403,7 +403,7 @@ namespace SQ_Email_Tools
                 var btn = new Button
                 {
                     Text = label + "\n" + sub,
-                    BackColor = Theme.BgCard, ForeColor = Color.FromArgb(200, 215, 255),
+                    BackColor = Theme.BgCard, ForeColor = Theme.TextPrimary,
                     FlatStyle = FlatStyle.Flat, Font = new Font(Theme.FontFamily, 7.5f),
                     Size = new Size(80, 52), Location = new Point(bx, y),
                     Cursor = Cursors.Hand, UseVisualStyleBackColor = false

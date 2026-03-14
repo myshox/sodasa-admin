@@ -31,16 +31,23 @@ namespace SQ_Email_Tools
         private static readonly Color ATotalRev  = Color.FromArgb(234, 179,   8);
         private static readonly Color AOrders    = Color.FromArgb( 74, 222, 128);
 
+        private Action _logHandler;
+
         public DashboardForm()
         {
             InitUI();
             _ = RefreshAsync();
 
-            GmLogger.Instance.LogUpdated += () =>
+            _logHandler = () =>
             {
-                if (InvokeRequired) BeginInvoke(new Action(RefreshLog));
+                if (IsDisposed) return;
+                if (InvokeRequired) { try { BeginInvoke(new Action(RefreshLog)); } catch { } }
                 else RefreshLog();
             };
+            GmLogger.Instance.LogUpdated += _logHandler;
+
+            // Dispose 時取消訂閱，避免對已銷毀的 DGV 呼叫 Rows.Add()
+            Disposed += (s, e) => GmLogger.Instance.LogUpdated -= _logHandler;
         }
 
         // ══════════════════════════════════════════════════════════════

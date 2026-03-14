@@ -10,7 +10,7 @@ namespace SQ_Email_Tools
         private Button       _btnSearch;
         private Label        _statusLbl;
         private TabControl   _tabs;
-        private DataGridView _dgvTrade, _dgvStreet, _dgvShop, _dgvSpeed, _dgvCost;
+        private DataGridView _dgvTrade, _dgvStreet, _dgvShop, _dgvSpeed, _dgvCost, _dgvStorage;
         private string       _currentAccount = "";
 
         public PlayerHistoryForm()
@@ -40,7 +40,7 @@ namespace SQ_Email_Tools
             var header = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Theme.BgDark };
             header.Controls.Add(new Label
             {
-                Text      = "  🔍  玩家活動歷程  —  交易 / 攤位 / 商城 / 速度 / 消費",
+                Text      = "  🔍  玩家活動歷程  —  交易 / 攤位 / 商城 / 速度 / 消費 / 倉庫",
                 ForeColor = Theme.AccentBlue,
                 Font      = Theme.FontHeader,
                 Dock      = DockStyle.Fill,
@@ -81,17 +81,19 @@ namespace SQ_Email_Tools
             };
             _tabs.DrawMode = TabDrawMode.Normal;
 
-            _dgvTrade  = MakeDgv(); SetupTradeCols();
-            _dgvStreet = MakeDgv(); SetupStreetCols();
-            _dgvShop   = MakeDgv(); SetupShopCols();
-            _dgvSpeed  = MakeDgv(); SetupSpeedCols();
-            _dgvCost   = MakeDgv(); SetupCostCols();
+            _dgvTrade   = MakeDgv(); SetupTradeCols();
+            _dgvStreet  = MakeDgv(); SetupStreetCols();
+            _dgvShop    = MakeDgv(); SetupShopCols();
+            _dgvSpeed   = MakeDgv(); SetupSpeedCols();
+            _dgvCost    = MakeDgv(); SetupCostCols();
+            _dgvStorage = MakeDgv(); SetupStorageCols();
 
             _tabs.TabPages.Add(MakeTabPage("📊 交易紀錄",  _dgvTrade));
             _tabs.TabPages.Add(MakeTabPage("🏪 攤位交易",  _dgvStreet));
             _tabs.TabPages.Add(MakeTabPage("🛒 商城購買",  _dgvShop));
             _tabs.TabPages.Add(MakeTabPage("⚡ 速度日誌",  _dgvSpeed));
             _tabs.TabPages.Add(MakeTabPage("💸 消費記錄",  _dgvCost));
+            _tabs.TabPages.Add(MakeTabPage("🏦 倉庫",      _dgvStorage));
 
             // ── 組合 ────────────────────────────────────────────────
             Controls.Add(_tabs);
@@ -173,6 +175,22 @@ namespace SQ_Email_Tools
                 Col("time",  "時間",    150),
                 Col("name",  "項目",    240, fill: true),
                 Col("point", "點數",     90));
+        }
+
+        private void SetupStorageCols()
+        {
+            _dgvStorage.Columns.AddRange(
+                Col("getTime",    "取得時間",  145),
+                Col("expireTime", "到期時間",  145),
+                Col("itemId",     "道具ID",     70),
+                Col("itemName",   "道具名稱",  180, fill: true),
+                Col("typecode",   "類型",        90),
+                Col("pile",       "數量",         60),
+                Col("atk",        "攻擊",         60),
+                Col("def",        "防禦",         60),
+                Col("hp",         "HP",           60),
+                Col("luck",       "幸運",         60),
+                Col("locked",     "鎖定",         50));
         }
 
         // ── 搜尋（先用關鍵字找帳號）────────────────────────────────
@@ -267,14 +285,32 @@ namespace SQ_Email_Tools
                 row.Cells["point"].Value = t.point.ToString("N0");
             }
 
-            SetStatus($"「{account}」｜交易 {trades.Count} 筆 ／攤位 {streets.Count} 筆 ／商城 {shops.Count} 筆 ／速度 {speeds.Count} 筆 ／消費 {costs.Count} 筆");
+            // 倉庫 (poolitem 全部)
+            var storageItems = await db.GetPlayerStorageAsync(account, 1000);
+            foreach (var t in storageItems)
+            {
+                var row = _dgvStorage.Rows[_dgvStorage.Rows.Add()];
+                row.Cells["getTime"].Value    = t.GetTime;
+                row.Cells["expireTime"].Value = t.ExpireTime.Length > 0 ? t.ExpireTime : "永久";
+                row.Cells["itemId"].Value     = t.ItemId;
+                row.Cells["itemName"].Value   = t.ItemName;
+                row.Cells["typecode"].Value   = t.TypeCode;
+                row.Cells["pile"].Value       = t.Pile > 1 ? t.Pile.ToString() : "";
+                row.Cells["atk"].Value        = t.Atk  != 0 ? t.Atk.ToString()  : "";
+                row.Cells["def"].Value        = t.Def  != 0 ? t.Def.ToString()  : "";
+                row.Cells["hp"].Value         = t.Hp   != 0 ? t.Hp.ToString()   : "";
+                row.Cells["luck"].Value       = t.Luck != 0 ? t.Luck.ToString() : "";
+                row.Cells["locked"].Value     = t.Locked ? "🔒" : "";
+            }
 
-            // 更新各 Tab 標題顯示筆數
+            SetStatus($"「{account}」｜交易 {trades.Count} ／攤位 {streets.Count} ／商城 {shops.Count} ／速度 {speeds.Count} ／消費 {costs.Count} ／倉庫 {storageItems.Count} 筆");
+
             _tabs.TabPages[0].Text = $"📊 交易紀錄（{trades.Count}）";
             _tabs.TabPages[1].Text = $"🏪 攤位交易（{streets.Count}）";
             _tabs.TabPages[2].Text = $"🛒 商城購買（{shops.Count}）";
             _tabs.TabPages[3].Text = $"⚡ 速度日誌（{speeds.Count}）";
             _tabs.TabPages[4].Text = $"💸 消費記錄（{costs.Count}）";
+            _tabs.TabPages[5].Text = $"🏦 倉庫（{storageItems.Count}）";
         }
 
         private void ClearAll()
@@ -284,6 +320,7 @@ namespace SQ_Email_Tools
             _dgvShop.Rows.Clear();
             _dgvSpeed.Rows.Clear();
             _dgvCost.Rows.Clear();
+            _dgvStorage.Rows.Clear();
         }
 
         private void SetStatus(string msg)

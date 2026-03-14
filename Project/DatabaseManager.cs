@@ -23,6 +23,7 @@ namespace SQ_Email_Tools
 
         // ── csalogin 欄位偵測快取（null=尚未偵測，true/false=偵測結果）──
         private bool? _csaloginHasId     = null;   // 是否有 id 欄位（自動遞增主鍵）
+        private bool? _csaloginHasBelong = null;  // 是否有 Belong 欄位（輩份）
         private readonly SemaphoreSlim _schemaSem = new SemaphoreSlim(1, 1);
 
         /// <summary>
@@ -36,7 +37,6 @@ namespace SQ_Email_Tools
             try
             {
                 if (_csaloginHasId.HasValue) return _csaloginHasId.Value;
-                // 優先使用傳入的既有連線，避免多開連線
                 bool ownsConn = existingConn == null;
                 var conn = existingConn ?? GetConnection();
                 try
@@ -53,6 +53,32 @@ namespace SQ_Email_Tools
             catch { _csaloginHasId = false; }
             finally { _schemaSem.Release(); }
             return _csaloginHasId.Value;
+        }
+
+        /// <summary>偵測 csalogin 是否有 Belong 欄位（輩份），欄位不存在時查詢不選取，避免 Unknown column 錯誤。</summary>
+        private async Task<bool> CsaloginHasBelongAsync(MySqlConnection existingConn = null)
+        {
+            if (_csaloginHasBelong.HasValue) return _csaloginHasBelong.Value;
+            await _schemaSem.WaitAsync();
+            try
+            {
+                if (_csaloginHasBelong.HasValue) return _csaloginHasBelong.Value;
+                bool ownsConn = existingConn == null;
+                var conn = existingConn ?? GetConnection();
+                try
+                {
+                    if (ownsConn) await conn.OpenAsync();
+                    using var cmd = new MySqlCommand(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS " +
+                        "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='csalogin' AND COLUMN_NAME='Belong'", conn);
+                    var r = await cmd.ExecuteScalarAsync();
+                    _csaloginHasBelong = r != null && Convert.ToInt32(r) > 0;
+                }
+                finally { if (ownsConn) conn.Dispose(); }
+            }
+            catch { _csaloginHasBelong = false; }
+            finally { _schemaSem.Release(); }
+            return _csaloginHasBelong.Value;
         }
 
         public string LoadSavedConnectionString()
@@ -117,6 +143,7 @@ namespace SQ_Email_Tools
             _connectionString = connectionString;
             // 每次重新連線時清除欄位快取，確保重新偵測
             _csaloginHasId = null;
+            _csaloginHasBelong = null;
             try
             {
                 using var conn = new MySqlConnection(_connectionString);
@@ -150,11 +177,15 @@ namespace SQ_Email_Tools
             // limit <= 0 代表不限筆數
             string limitClause = limit > 0 ? $"LIMIT {limit}" : "";
 
+            // 強制以 UTF-8 解讀：若資料表為 latin1/big5 但實際存的是 UTF-8 位元組，可避免顯示成亂碼或錯誤中文
+            string nameUtf8  = "CONVERT(CONVERT(c.`Name` USING binary) USING utf8mb4)";
+            string onameUtf8 = "CONVERT(CONVERT(c.OnlineName USING binary) USING utf8mb4)";
+            string mnameUtf8 = "IFNULL(CONVERT(CONVERT(m.`Name` USING binary) USING utf8mb4),'')";
             string sql = string.IsNullOrWhiteSpace(query)
-                ? $@"SELECT c.MasterId, c.`Name`, c.OnlineName, c.Online, c.LoginTime, c.ServerId,
+                ? $@"SELECT c.MasterId, {nameUtf8} AS `Name`, {onameUtf8} AS OnlineName, c.Online, c.LoginTime, c.ServerId,
                            IFNULL(p.point, 0)   AS PayTotal,
                            IFNULL(pet.cnt, 0)   AS PetCount,
-                           IFNULL(m.`Name`,'')  AS MasterName
+                           {mnameUtf8}  AS MasterName
                            {idCol}
                     FROM csalogin c
                     LEFT JOIN paydata p          ON p.cdkey = c.`Name`
@@ -162,10 +193,10 @@ namespace SQ_Email_Tools
                     LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
                            ON pet.cdkey = c.`Name`
                     ORDER BY c.Online DESC, c.LoginTime DESC {limitClause}"
-                : $@"SELECT c.MasterId, c.`Name`, c.OnlineName, c.Online, c.LoginTime, c.ServerId,
+                : $@"SELECT c.MasterId, {nameUtf8} AS `Name`, {onameUtf8} AS OnlineName, c.Online, c.LoginTime, c.ServerId,
                            IFNULL(p.point, 0)   AS PayTotal,
                            IFNULL(pet.cnt, 0)   AS PetCount,
-                           IFNULL(m.`Name`,'')  AS MasterName
+                           {mnameUtf8}  AS MasterName
                            {idCol},
                            CASE WHEN m.`Name` = @exact OR c.OnlineName = @exact OR c.`Name` = @exact
                                 THEN 0 ELSE 1 END AS _rank
@@ -459,6 +490,51 @@ namespace SQ_Email_Tools
             string scope = !string.IsNullOrWhiteSpace(account) ? account : (onlineOnly ? "在線玩家" : "全部玩家");
             string type  = unclaimedOnly ? "未領取郵件" : "全部郵件";
             await GmLogger.Instance.LogAsync("清除郵件", scope, $"清除{type} {count} 封", true);
+            return count;
+        }
+
+        /// <summary>取得玩家帳號清單（用於批量操作選擇）</summary>
+        public async Task<List<(string Account, string Name, bool Online)>> GetPlayerListAsync(bool onlineOnly)
+        {
+            var list = new List<(string, string, bool)>();
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            string where = onlineOnly ? " WHERE Online=1" : "";
+            string sql = $"SELECT `Name`, `NickName`, Online FROM csalogin{where} ORDER BY Online DESC, `Name` ASC LIMIT 3000";
+            using var cmd = new MySqlCommand(sql, conn);
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                string account = r.IsDBNull(0) ? "" : r.GetString(0);
+                string name    = r.IsDBNull(1) ? "" : r.GetString(1);
+                bool   online  = !r.IsDBNull(2) && r.GetInt32(2) == 1;
+                if (!string.IsNullOrEmpty(account))
+                    list.Add((account, name, online));
+            }
+            return list;
+        }
+
+        /// <summary>批量清除指定多個帳號的郵件</summary>
+        public async Task<int> ClearPlayerMailBatchAsync(IEnumerable<string> accounts, bool unclaimedOnly)
+        {
+            var accs = accounts.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()).ToList();
+            if (accs.Count == 0) return 0;
+
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            string checkFilter = unclaimedOnly ? " AND `check`=0" : "";
+            // 用 IN 一次清除多個帳號
+            var pNames = accs.Select((_, i) => $"@a{i}").ToList();
+            string sql = $"UPDATE maildata SET deleamill=1 WHERE cdkey IN ({string.Join(",", pNames)}) AND deleamill=0{checkFilter}";
+
+            using var cmd = new MySqlCommand(sql, conn);
+            for (int i = 0; i < accs.Count; i++)
+                cmd.Parameters.AddWithValue($"@a{i}", accs[i]);
+
+            int count = await cmd.ExecuteNonQueryAsync();
+            string type = unclaimedOnly ? "未領取郵件" : "全部郵件";
+            await GmLogger.Instance.LogAsync("批量清除郵件", $"{accs.Count} 個玩家", $"清除{type} {count} 封", true);
             return count;
         }
 
@@ -1556,10 +1632,20 @@ namespace SQ_Email_Tools
             using var conn = GetConnection();
             await conn.OpenAsync();
             var detail = new PlayerDetail();
+            bool hasId = await CsaloginHasIdAsync(conn);
+            bool hasBelong = await CsaloginHasBelongAsync(conn);
+            string idSel = hasId ? ", c.id" : "";
+            string belongSel = hasBelong ? ", c.Belong" : "";
 
-            // csalogin 主資料 + LEFT JOIN csaloginmaster 取主帳號名
+            // csalogin 主資料 + 主帳號名；強制以 UTF-8 解讀帳號/角色名/主帳號；Belong 欄位若不存在則不選取
             using (var cmd = new MySqlCommand(
-                @"SELECT c.*, IFNULL(m.`Name`,'') AS MasterName
+                $@"SELECT CONVERT(CONVERT(c.`Name` USING binary) USING utf8mb4) AS `Name`,
+                         CONVERT(CONVERT(c.OnlineName USING binary) USING utf8mb4) AS OnlineName,
+                         c.MasterId, c.IP, c.RegIP, c.RegTime, c.LoginTime, c.Online, c.Offline,
+                         c.GroupId, c.GroupName, c.NeiCe, c.ServerId, c.ServerName,
+                         c.VipPoint, c.PetPoint, c.PayPoint, c.RmbPoint, IFNULL(c.PayTotal,0) AS PayTotal,
+                         c.QQ, c.uid, c.MAC1, c.PassWord, c.SafePasswd{belongSel}{idSel},
+                         IFNULL(CONVERT(CONVERT(m.`Name` USING binary) USING utf8mb4),'') AS MasterName
                   FROM csalogin c
                   LEFT JOIN csaloginmaster m ON m.Id = c.MasterId
                   WHERE c.`Name`=@acc", conn))
@@ -1592,10 +1678,13 @@ namespace SQ_Email_Tools
                     detail.Password     = r["PassWord"]?.ToString() ?? "";
                     detail.SafePassword = r["SafePasswd"]?.ToString() ?? "";
                     detail.MasterName = r["MasterName"]?.ToString() ?? "";
-                    // 輩份欄位（Belong），若欄位不存在則保留 -1
-                    try { detail.Belong = r["Belong"] == DBNull.Value ? 0 : Convert.ToInt32(r["Belong"]); }
-                    catch { detail.Belong = -1; }
-                    // csalogin 自動遞增主鍵 id（直接用快取值，避免在 DataReader 開啟時再執行 SQL）
+                    // 輩份欄位（Belong），僅在資料表有此欄位時讀取
+                    if (hasBelong)
+                        try { detail.Belong = r["Belong"] == DBNull.Value ? 0 : Convert.ToInt32(r["Belong"]); }
+                        catch { detail.Belong = -1; }
+                    else
+                        detail.Belong = -1;
+                    // csalogin 自動遞增主鍵 id
                     if (_csaloginHasId == true)
                         try { detail.CharDbId = r["id"] == DBNull.Value ? 0 : Convert.ToInt32(r["id"]); }
                         catch { detail.CharDbId = 0; }
@@ -1766,12 +1855,15 @@ namespace SQ_Email_Tools
 
             bool hasId2 = await CsaloginHasIdAsync(conn);
             string idCol2 = hasId2 ? ", c.`id` AS CharDbId" : ", 0 AS CharDbId";
-            // 累積儲值使用 csalogin.PayTotal（與網頁版、AdjustPayDataPointAsync 一致），不用 paydata.point
+            // 強制以 UTF-8 解讀帳號/角色名/主帳號（與 SearchPlayersAsync 一致）
+            string n2 = "CONVERT(CONVERT(c.`Name` USING binary) USING utf8mb4)";
+            string o2 = "CONVERT(CONVERT(c.OnlineName USING binary) USING utf8mb4)";
+            string m2 = "IFNULL(CONVERT(CONVERT(m.`Name` USING binary) USING utf8mb4),'')";
             string sql = $@"
-                SELECT c.MasterId, c.`Name`, c.OnlineName, c.Online, c.LoginTime, c.ServerId,
+                SELECT c.MasterId, {n2} AS `Name`, {o2} AS OnlineName, c.Online, c.LoginTime, c.ServerId,
                        IFNULL(c.PayTotal, 0) AS PayTotal,
                        IFNULL(pet.cnt, 0)   AS PetCount,
-                       IFNULL(m.`Name`,'')  AS MasterName
+                       {m2}  AS MasterName
                        {idCol2}
                 FROM csalogin c
                 LEFT JOIN csaloginmaster m  ON m.Id    = c.MasterId
@@ -1932,27 +2024,57 @@ namespace SQ_Email_Tools
         // 玩家密碼重設
         // ══════════════════════════════════════════════════════════
         /// <summary>
-        /// 重設玩家登入密碼。newPassword 為明文，自動以 MD5 轉換後存入 PassWord 欄位。
+        /// 重設角色密碼（csalogin）。
+        /// PassWord 欄位以 MD5 儲存；SafePasswd 欄位儲存明文。
         /// </summary>
         public async Task<bool> ResetPlayerPasswordAsync(string account, string newPassword, string field = "PassWord")
         {
-            // MD5 轉換（小寫 32 位十六進位）
-            string md5Hash;
-            using (var md5 = System.Security.Cryptography.MD5.Create())
+            string storedValue;
+            if (field == "PassWord")
             {
-                var bytes = System.Text.Encoding.UTF8.GetBytes(newPassword);
-                md5Hash = BitConverter.ToString(md5.ComputeHash(bytes)).Replace("-", "").ToLower();
+                // PassWord 用 MD5 (小寫 32 位)
+                using var md5 = System.Security.Cryptography.MD5.Create();
+                storedValue = BitConverter.ToString(
+                    md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(newPassword)))
+                    .Replace("-", "").ToLower();
+            }
+            else
+            {
+                // SafePasswd 存明文
+                storedValue = newPassword;
             }
 
             using var conn = GetConnection();
             await conn.OpenAsync();
             using var cmd = new MySqlCommand(
                 $"UPDATE csalogin SET `{field}`=@pwd WHERE `Name`=@name", conn);
-            cmd.Parameters.AddWithValue("@pwd",  md5Hash);
+            cmd.Parameters.AddWithValue("@pwd",  storedValue);
             cmd.Parameters.AddWithValue("@name", account);
             bool ok = await cmd.ExecuteNonQueryAsync() > 0;
-            if (ok) await GmLogger.Instance.LogAsync("重設玩家密碼",
-                account, $"欄位：{field}（已 MD5 加密）", true);
+            string fmt = field == "PassWord" ? "（MD5 加密）" : "（明文）";
+            if (ok) await GmLogger.Instance.LogAsync("重設角色密碼",
+                account, $"欄位：{field}{fmt}", true);
+            return ok;
+        }
+
+        /// <summary>
+        /// 重設主帳號登入密碼（csaloginmaster）。
+        /// 使用 bcrypt 雜湊，與網頁登入相容。
+        /// masterName 為 csaloginmaster.Name（主帳號名稱，非角色 UID）。
+        /// </summary>
+        public async Task<bool> ResetMasterPasswordAsync(string masterName, string newPassword)
+        {
+            string bcryptHash = BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 10);
+
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            using var cmd = new MySqlCommand(
+                "UPDATE csaloginmaster SET PassWord=@pwd WHERE `Name`=@name", conn);
+            cmd.Parameters.AddWithValue("@pwd",  bcryptHash);
+            cmd.Parameters.AddWithValue("@name", masterName);
+            bool ok = await cmd.ExecuteNonQueryAsync() > 0;
+            if (ok) await GmLogger.Instance.LogAsync("重設主帳號密碼",
+                masterName, "bcrypt 加密", true);
             return ok;
         }
 
@@ -3175,6 +3297,496 @@ namespace SQ_Email_Tools
 
         /// <summary>交易量摘要統計</summary>
         // ══════════════════════════════════════════════════════════
+        // 資料庫表探索
+        // ══════════════════════════════════════════════════════════
+        /// <summary>列出所有資料表名稱與估計筆數，供探索未知表使用</summary>
+        public async Task<List<(string table, long rows, string columns)>> GetAllTablesInfoAsync()
+        {
+            var list = new List<(string, long, string)>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                // 先取得所有表名
+                var tables = new List<string>();
+                using (var cmd = new MySqlCommand("SHOW TABLES", conn))
+                using (var r   = await cmd.ExecuteReaderAsync())
+                    while (await r.ReadAsync()) tables.Add(r.GetString(0));
+
+                // 查每個表的精確筆數與欄位
+                foreach (var tbl in tables)
+                {
+                    long rowCnt = 0;
+                    string colStr = "";
+                    try
+                    {
+                        using var c1 = new MySqlCommand($"SELECT COUNT(*) FROM `{tbl}`", conn);
+                        var rr = await c1.ExecuteScalarAsync();
+                        rowCnt = rr == DBNull.Value || rr == null ? 0 : Convert.ToInt64(rr);
+                    }
+                    catch { }
+                    try
+                    {
+                        var cols = new List<string>();
+                        using var c2 = new MySqlCommand($"SHOW COLUMNS FROM `{tbl}`", conn);
+                        using var r2 = await c2.ExecuteReaderAsync();
+                        while (await r2.ReadAsync()) cols.Add(r2.GetString(0));
+                        colStr = string.Join(", ", cols.Take(8)) + (cols.Count > 8 ? "…" : "");
+                    }
+                    catch { }
+                    list.Add((tbl, rowCnt, colStr));
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>讀取任意表的前 N 筆資料（動態欄位），供探索使用</summary>
+        public async Task<(List<string> cols, List<Dictionary<string, string>> rows)> PreviewTableAsync(string tableName, int limit = 50)
+        {
+            var cols = new List<string>();
+            var rows = new List<Dictionary<string, string>>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand($"SELECT * FROM `{tableName}` LIMIT @n", conn);
+                cmd.Parameters.AddWithValue("@n", Math.Clamp(limit, 1, 200));
+                using var r = await cmd.ExecuteReaderAsync();
+                for (int i = 0; i < r.FieldCount; i++) cols.Add(r.GetName(i));
+                while (await r.ReadAsync())
+                {
+                    var row = new Dictionary<string, string>();
+                    for (int i = 0; i < r.FieldCount; i++)
+                        row[cols[i]] = r.IsDBNull(i) ? "" : r.GetValue(i)?.ToString() ?? "";
+                    rows.Add(row);
+                }
+            }
+            catch { }
+            return (cols, rows);
+        }
+
+        // capturepet 欄位探索
+        // ══════════════════════════════════════════════════════════
+        /// <summary>回傳任意表所有欄位名稱（小寫），找不到回傳空集合</summary>
+        public async Task<HashSet<string>> GetTableColumnsAsync(string tableName)
+        {
+            var cols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand($"SHOW COLUMNS FROM `{tableName}`", conn);
+                using var r   = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    cols.Add(r.GetString(0).ToLower());
+            }
+            catch { }
+            return cols;
+        }
+
+        /// <summary>回傳 capturepet 所有欄位名稱（小寫）</summary>
+        public Task<HashSet<string>> GetCapturePetColumnsAsync() => GetTableColumnsAsync("capturepet");
+
+        /// <summary>自動偵測寵物主表名稱（capturepet / PETNO / petno 等）</summary>
+        public async Task<string> DetectPetTableAsync()
+        {
+            var candidates = new[] { "petbilling", "capturepet", "PETNO", "petno", "petdata",
+                                     "petinfo", "pet_info", "csapet", "playerpet" };
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                var exist = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var cmd = new MySqlCommand("SHOW TABLES", conn))
+                using (var r   = await cmd.ExecuteReaderAsync())
+                    while (await r.ReadAsync()) exist.Add(r.GetString(0));
+
+                foreach (var c in candidates)
+                    if (exist.Contains(c))
+                    {
+                        // 確認有資料
+                        using var cnt = new MySqlCommand($"SELECT COUNT(*) FROM `{c}`", conn);
+                        long n = Convert.ToInt64(await cnt.ExecuteScalarAsync() ?? 0L);
+                        if (n > 0) return c;
+                    }
+                // 最後 fallback：找第一個有 hp 或 attack 欄位且有資料的表
+                foreach (var tbl in exist)
+                {
+                    try
+                    {
+                        var cols = new List<string>();
+                        using var cc = new MySqlCommand($"SHOW COLUMNS FROM `{tbl}`", conn);
+                        using var rc = await cc.ExecuteReaderAsync();
+                        while (await rc.ReadAsync()) cols.Add(rc.GetString(0).ToLower());
+                        if ((cols.Contains("hp") || cols.Contains("attack")) && cols.Contains("cdkey"))
+                        {
+                            using var cnt2 = new MySqlCommand($"SELECT COUNT(*) FROM `{tbl}`", conn);
+                            long n2 = Convert.ToInt64(await cnt2.ExecuteScalarAsync() ?? 0L);
+                            if (n2 > 1) return tbl;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>取得指定寵物種類(petId)的各項排行前 N 名，帶全欄位</summary>
+        public async Task<List<Dictionary<string, object>>> GetPetSpeciesRankAsync(int petId, int topN = 10)
+        {
+            var list = new List<Dictionary<string, object>>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                string where = petId > 0 ? "WHERE p.id=@pid" : "";
+                string sql = $@"
+                    SELECT p.*, IFNULL(c.OnlineName, p.cdkey) AS _playerName, IFNULL(c.Online,0) AS _online
+                    FROM capturepet p
+                    LEFT JOIN csalogin c ON c.`Name` = p.cdkey
+                    {where}
+                    ORDER BY p.sum DESC
+                    LIMIT @n";
+                using var cmd = new MySqlCommand(sql, conn);
+                if (petId > 0) cmd.Parameters.AddWithValue("@pid", petId);
+                cmd.Parameters.AddWithValue("@n", Math.Clamp(topN, 1, 500));
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var row = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    for (int i = 0; i < r.FieldCount; i++)
+                        row[r.GetName(i)] = r.IsDBNull(i) ? null : r.GetValue(i);
+                    list.Add(row);
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        // 寵物排行榜（capturepet）
+        // ══════════════════════════════════════════════════════════
+        /// <summary>依指定欄位取得寵物排行（sum/hp/attack/def/quick），可依 petId 篩選特定寵物種類</summary>
+        public async Task<(List<PetRankRow> rows, string error)> GetPetRankingAsync(string orderCol, int topN = 100, int petId = 0, string tableName = "capturepet")
+        {
+            var safe = new HashSet<string> { "sum", "hp", "attack", "def", "quick" };
+            if (!safe.Contains(orderCol)) orderCol = "sum";
+
+            var list = new List<PetRankRow>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                // 先確認表是否存在且有資料
+                long count = 0;
+                using (var cntCmd = new MySqlCommand($"SELECT COUNT(*) FROM `{tableName}`", conn))
+                    count = Convert.ToInt64(await cntCmd.ExecuteScalarAsync() ?? 0L);
+
+                if (count == 0) return (list, $"{tableName} 表存在但筆數為 0");
+
+                // 動態偵測欄位（不同表欄位名可能不同）
+                var tblCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var cc = new MySqlCommand($"SHOW COLUMNS FROM `{tableName}`", conn))
+                using (var rr = await cc.ExecuteReaderAsync())
+                    while (await rr.ReadAsync()) tblCols.Add(rr.GetString(0));
+
+                // 找欄位：找不到時用 NULL（避免 Unknown column 錯誤）
+                string Pick(string alias, params string[] names)
+                {
+                    var found = names.FirstOrDefault(n => tblCols.Contains(n));
+                    return found != null ? $"p.`{found}` AS `{alias}`" : $"NULL AS `{alias}`";
+                }
+                string PickOrder(params string[] names) => names.FirstOrDefault(n => tblCols.Contains(n));
+
+                string colId     = (new[]{"id","petid","pet_id","PetId"}).FirstOrDefault(n => tblCols.Contains(n)) ?? "id";
+                string colCdkey  = (new[]{"cdkey","account","uid"}).FirstOrDefault(n => tblCols.Contains(n)) ?? "cdkey";
+
+                // 若 orderCol 欄位不存在，改用第一個存在的數值欄
+                if (!tblCols.Contains(orderCol))
+                {
+                    orderCol = (new[]{"sum","power","combat","total","hp","attack","def","quick"})
+                               .FirstOrDefault(n => tblCols.Contains(n)) ?? tblCols.First();
+                }
+
+                string where = petId > 0 ? $"WHERE p.`{colId}`=@pid " : "";
+                string sql = $@"
+                    SELECT {Pick("cdkey",   "cdkey","account","uid")},
+                           {Pick("author",  "author","capturer","cdkey")},
+                           {Pick("petName", "name","petname","pet_name","pname")},
+                           {Pick("type",    "type","pettype","pet_type")},
+                           p.`{colId}` AS petId,
+                           {Pick("lv",      "lv","level","petlv")},
+                           {Pick("hp",      "hp","HP")},
+                           {Pick("attack",  "attack","atk","ATK")},
+                           {Pick("def",     "def","DEF","defense")},
+                           {Pick("quick",   "quick","spd","speed","agility")},
+                           {Pick("sum",     "sum","power","combat","total","billing","score")},
+                           IFNULL(c.OnlineName, p.`{colCdkey}`) AS playerName, c.Online
+                    FROM `{tableName}` p
+                    LEFT JOIN csalogin c ON c.`Name` = p.cdkey
+                    {where}
+                    ORDER BY p.`{orderCol}` DESC
+                    LIMIT @n";
+                using var cmd = new MySqlCommand(sql, conn);
+                if (petId > 0) cmd.Parameters.AddWithValue("@pid", petId);
+                cmd.Parameters.AddWithValue("@n", Math.Clamp(topN, 1, 500));
+                using var r = await cmd.ExecuteReaderAsync();
+                int rank = 1;
+                while (await r.ReadAsync())
+                {
+                    list.Add(new PetRankRow
+                    {
+                        Rank       = rank++,
+                        Cdkey      = r["cdkey"]?.ToString()     ?? "",
+                        Author     = r["author"]?.ToString()    ?? "",
+                        PetName    = r["petName"]?.ToString()   ?? "",
+                        PetType    = r["type"]?.ToString()      ?? "",
+                        PetId      = Convert.ToInt32(r["petId"]),
+                        Lv         = r["lv"]   == DBNull.Value ? 0 : Convert.ToInt32(r["lv"]),
+                        Hp         = r["hp"]   == DBNull.Value ? 0 : Convert.ToInt32(r["hp"]),
+                        Attack     = r["attack"]== DBNull.Value ? 0 : Convert.ToInt32(r["attack"]),
+                        Def        = r["def"]  == DBNull.Value ? 0 : Convert.ToInt32(r["def"]),
+                        Quick      = r["quick"]== DBNull.Value ? 0 : Convert.ToInt32(r["quick"]),
+                        Sum        = r["sum"]  == DBNull.Value ? 0.0 : Convert.ToDouble(r["sum"]),
+                        PlayerName = r["playerName"]?.ToString() ?? "",
+                        Online     = r["Online"] != DBNull.Value && Convert.ToInt32(r["Online"]) == 1,
+                    });
+                }
+                return (list, null);
+            }
+            catch (Exception ex)
+            {
+                return (list, ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 嘗試讀取遊戲原生寵物排行榜表（SELECT *，原始欄位）。
+        /// 已知可能的表名：rankpet / petrank / pet_rank / petranking
+        /// 若找到則回傳 (tableName, cols, rows)；找不到回傳 (null, empty, empty)
+        /// </summary>
+        public async Task<(string tableName, List<string> cols, List<Dictionary<string,string>> rows)> GetGamePetRankRawAsync(int limit = 500)
+        {
+            var candidates = new[] { "petbilling", "petrank", "rankpet", "pet_rank", "petranking",
+                                     "PETNO", "petno", "PetNo", "pet_no" };
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                var existTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var chk = new MySqlCommand("SHOW TABLES", conn))
+                using (var rr  = await chk.ExecuteReaderAsync())
+                    while (await rr.ReadAsync()) existTables.Add(rr.GetString(0));
+
+                string found = candidates.FirstOrDefault(t => existTables.Contains(t));
+                if (found == null) return (null, new(), new());
+
+                // 找出 petbilling 欄位，偵測帳號欄（cdkey / account / userid）
+                var petCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var cc = new MySqlCommand($"SHOW COLUMNS FROM `{found}`", conn))
+                using (var cr = await cc.ExecuteReaderAsync())
+                    while (await cr.ReadAsync()) petCols.Add(cr.GetString(0));
+
+                string cdkeyCol = petCols.FirstOrDefault(c =>
+                    c.Equals("cdkey", StringComparison.OrdinalIgnoreCase) ||
+                    c.Equals("account", StringComparison.OrdinalIgnoreCase) ||
+                    c.Equals("userid", StringComparison.OrdinalIgnoreCase)) ?? "";
+
+                // 如果有帳號欄且 csalogin 存在，就 JOIN 取得玩家暱稱
+                bool hasLogin = !string.IsNullOrEmpty(cdkeyCol) && existTables.Contains("csalogin");
+
+                string sql;
+                if (hasLogin)
+                {
+                    // 偵測 csalogin 實際有哪些「暱稱」欄位可用
+                    var loginCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var lc = new MySqlCommand("SHOW COLUMNS FROM `csalogin`", conn))
+                    using (var lr = await lc.ExecuteReaderAsync())
+                        while (await lr.ReadAsync()) loginCols.Add(lr.GetString(0));
+
+                    // 依優先順序選名稱欄：OnlineName > NickName > Name
+                    string nameExpr = loginCols.Contains("OnlineName") ? "l.OnlineName"
+                                    : loginCols.Contains("NickName")   ? "l.NickName"
+                                    : "l.Name";
+                    string onlineExpr = loginCols.Contains("Online")
+                        ? "IF(l.Online IS NOT NULL AND l.Online != 0, '🟢', '⚫')"
+                        : "'⚫'";
+
+                    sql = $@"SELECT p.*,
+                                    COALESCE({nameExpr}, l.Name, p.`{cdkeyCol}`) AS _playerName,
+                                    {onlineExpr} AS _online
+                             FROM `{found}` p
+                             LEFT JOIN `csalogin` l ON l.Name = p.`{cdkeyCol}`
+                             LIMIT @n";
+                }
+                else
+                {
+                    sql = $"SELECT * FROM `{found}` LIMIT @n";
+                }
+
+                var cols = new List<string>();
+                var rows = new List<Dictionary<string,string>>();
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@n", Math.Clamp(limit, 1, 2000));
+                using var r = await cmd.ExecuteReaderAsync();
+                for (int i = 0; i < r.FieldCount; i++) cols.Add(r.GetName(i));
+                while (await r.ReadAsync())
+                {
+                    var row = new Dictionary<string,string>();
+                    for (int i = 0; i < r.FieldCount; i++)
+                        row[cols[i]] = r.IsDBNull(i) ? "" : r.GetValue(i)?.ToString() ?? "";
+                    rows.Add(row);
+                }
+                return (found, cols, rows);
+            }
+            catch (Exception ex) { return ("ERROR: " + ex.Message, new(), new()); }
+        }
+
+        /// <summary>
+        /// 重置 petbilling 排行記錄。
+        /// nameFilter / typeFilter 為空時刪除全部；否則只刪除符合條件的列。
+        /// cols 為已知欄位清單（用來猜測 name / type 欄位名稱）。
+        /// 回傳影響筆數。
+        /// </summary>
+        /// <param name="cols">表所有欄位（用來驗證 filterCol 是否合法）</param>
+        /// <param name="filterCol">要篩選的欄位名稱（空=刪全部）</param>
+        /// <param name="filterVal">要篩選的值</param>
+        public async Task<int> ResetPetBillingAsync(List<string> cols, string filterCol, string filterVal)
+        {
+            bool hasFilter = !string.IsNullOrEmpty(filterCol) && !string.IsNullOrEmpty(filterVal)
+                             && cols.Any(c => c.Equals(filterCol, StringComparison.OrdinalIgnoreCase));
+            string realCol = hasFilter ? cols.First(c => c.Equals(filterCol, StringComparison.OrdinalIgnoreCase)) : "";
+
+            string sql = hasFilter
+                ? $"DELETE FROM `petbilling` WHERE `{realCol}` = @val"
+                : "DELETE FROM `petbilling`";
+
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            using var cmd = new MySqlCommand(sql, conn);
+            if (hasFilter) cmd.Parameters.AddWithValue("@val", filterVal);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>
+        /// 嘗試讀取遊戲原生寵物排行榜表（自動偵測表名）。
+        /// 已知可能的表名：rankpet / petrank / pet_rank / petranking
+        /// 若找到則回傳 (tableName, rows)；找不到回傳 (null, empty)
+        /// </summary>
+        public async Task<(string tableName, List<PetRankRow> rows)> GetGamePetRankAsync(int limit = 200)
+        {
+            var candidates = new[] { "rankpet", "petrank", "pet_rank", "petranking", "rank_pet", "pet_ranking" };
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                // 查出當前 DB 中存在的表名
+                var existTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                using (var chk = new MySqlCommand("SHOW TABLES", conn))
+                using (var rr  = await chk.ExecuteReaderAsync())
+                    while (await rr.ReadAsync())
+                        existTables.Add(rr.GetString(0));
+
+                string found = candidates.FirstOrDefault(t => existTables.Contains(t));
+                if (found == null) return (null, new());
+
+                // 讀出欄位名稱
+                var cols = new List<string>();
+                using (var cc = new MySqlCommand($"SHOW COLUMNS FROM `{found}`", conn))
+                using (var rc = await cc.ExecuteReaderAsync())
+                    while (await rc.ReadAsync())
+                        cols.Add(rc.GetString(0).ToLower());
+
+                // 動態建立 SELECT，盡量對應已知欄位
+                string Pick(params string[] names) => names.FirstOrDefault(n => cols.Contains(n)) ?? "";
+
+                string colCdkey  = Pick("cdkey", "account", "name");
+                string colName   = Pick("petname", "pet_name", "name", "pname");
+                string colType   = Pick("type", "ptype", "pettype");
+                string colLv     = Pick("lv", "level", "petlv");
+                string colHp     = Pick("hp");
+                string colAtk    = Pick("attack", "atk");
+                string colDef    = Pick("def", "defense");
+                string colQck    = Pick("quick", "speed", "spd", "agility");
+                string colSum    = Pick("sum", "power", "combat");
+                string colRank   = Pick("rank", "rankno", "rank_no");
+                string colAuthor = Pick("author", "capturer");
+
+                var selParts = new List<string>();
+                if (colCdkey  != "") selParts.Add($"`{colCdkey}` AS cdkey");
+                if (colName   != "") selParts.Add($"`{colName}`  AS petName");
+                if (colType   != "") selParts.Add($"`{colType}`  AS petType");
+                if (colLv     != "") selParts.Add($"`{colLv}`    AS lv");
+                if (colHp     != "") selParts.Add($"`{colHp}`    AS hp");
+                if (colAtk    != "") selParts.Add($"`{colAtk}`   AS attack");
+                if (colDef    != "") selParts.Add($"`{colDef}`   AS def");
+                if (colQck    != "") selParts.Add($"`{colQck}`   AS quick");
+                if (colSum    != "") selParts.Add($"`{colSum}`   AS sum");
+                if (colRank   != "") selParts.Add($"`{colRank}`  AS rankno");
+                if (colAuthor != "") selParts.Add($"`{colAuthor}` AS author");
+
+                if (selParts.Count == 0) return (found, new());
+
+                string orderBy = colSum != "" ? $"`{colSum}` DESC" : colRank != "" ? $"`{colRank}` ASC" : "1";
+                string sql = $"SELECT {string.Join(", ", selParts)} FROM `{found}` ORDER BY {orderBy} LIMIT @n";
+                using var cmd = new MySqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@n", Math.Clamp(limit, 1, 2000));
+                using var r = await cmd.ExecuteReaderAsync();
+
+                var list = new List<PetRankRow>();
+                int rank = 1;
+                while (await r.ReadAsync())
+                {
+                    list.Add(new PetRankRow
+                    {
+                        Rank       = rank++,
+                        Cdkey      = r.HasColumn("cdkey")   ? r["cdkey"]?.ToString()   ?? "" : "",
+                        Author     = r.HasColumn("author")  ? r["author"]?.ToString()  ?? "" : "",
+                        PetName    = r.HasColumn("petName") ? r["petName"]?.ToString() ?? "" : "",
+                        PetType    = r.HasColumn("petType") ? r["petType"]?.ToString() ?? "" : "",
+                        Lv         = r.HasColumn("lv")     && r["lv"]     != DBNull.Value ? Convert.ToInt32(r["lv"])     : 0,
+                        Hp         = r.HasColumn("hp")     && r["hp"]     != DBNull.Value ? Convert.ToInt32(r["hp"])     : 0,
+                        Attack     = r.HasColumn("attack") && r["attack"] != DBNull.Value ? Convert.ToInt32(r["attack"]) : 0,
+                        Def        = r.HasColumn("def")    && r["def"]    != DBNull.Value ? Convert.ToInt32(r["def"])    : 0,
+                        Quick      = r.HasColumn("quick")  && r["quick"]  != DBNull.Value ? Convert.ToInt32(r["quick"])  : 0,
+                        Sum        = r.HasColumn("sum")    && r["sum"]    != DBNull.Value ? Convert.ToDouble(r["sum"])   : 0,
+                        PlayerName = r.HasColumn("cdkey")  ? r["cdkey"]?.ToString()   ?? "" : "",
+                    });
+                }
+                return (found, list);
+            }
+            catch { return (null, new()); }
+        }
+
+        /// <summary>取得 capturepet 中所有不重複的寵物種類 (id, name, type)，供篩選下拉使用</summary>
+        public async Task<List<(int id, string name, string type)>> GetPetKindsAsync()
+        {
+            var list = new List<(int, string, string)>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT id, name, type, COUNT(*) AS cnt
+                      FROM capturepet
+                      GROUP BY id, name, type
+                      ORDER BY cnt DESC", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        r["id"]  == DBNull.Value ? 0  : Convert.ToInt32(r["id"]),
+                        r["name"]?.ToString() ?? "",
+                        r["type"]?.ToString() ?? ""));
+            }
+            catch { }
+            return list;
+        }
+
         // 寵物 CRUD（capturepet）
         // ══════════════════════════════════════════════════════════
         public async Task<bool> UpdatePetAsync(PetInfo pet)
@@ -3488,6 +4100,75 @@ namespace SQ_Email_Tools
             return list;
         }
 
+        /// <summary>獎池紀錄 (poolitem)，是否為寶箱/骰子開出結果需對照遊戲確認</summary>
+        public class PoolItemDto
+        {
+            public string Cdkey      { get; set; } = "";
+            public string Uid        { get; set; } = "";
+            public int    ItemId     { get; set; }
+            public string ItemName   { get; set; } = "";
+            public string TypeCode   { get; set; } = "";
+            public int    Pile       { get; set; }
+            public int    Atk        { get; set; }
+            public int    Def        { get; set; }
+            public int    Hp         { get; set; }
+            public int    Luck       { get; set; }
+            public bool   Locked     { get; set; }
+            public string GetTime    { get; set; } = "";  // 取得時間（ITEM_UNIQUECODE 前半部）
+            public string ExpireTime { get; set; } = "";  // 到期時間（ITEM_USETIME，0 = 永久）
+        }
+
+        private static PoolItemDto ReadPoolItemDto(MySqlDataReader r)
+        {
+            string uniqueCode = r["ITEM_UNIQUECODE"]?.ToString() ?? "";
+            string getTime = "";
+            if (!string.IsNullOrEmpty(uniqueCode))
+            {
+                var parts = uniqueCode.Split('i');
+                if (parts.Length > 0 && long.TryParse(parts[0], out long ts) && ts > 0)
+                    getTime = DateTimeOffset.FromUnixTimeSeconds(ts).LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            int useTime = r["ITEM_USETIME"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_USETIME"]);
+            string expireTime = useTime > 0
+                ? DateTimeOffset.FromUnixTimeSeconds(useTime).LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")
+                : "";
+            return new PoolItemDto
+            {
+                ItemId     = r["ITEM_ID"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_ID"]),
+                ItemName   = r["ITEM_NAME"]?.ToString() ?? "",
+                TypeCode   = r["ITEM_TYPECODE"]?.ToString() ?? "",
+                Pile       = r["ITEM_USEPILENUMS"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_USEPILENUMS"]),
+                Atk        = r["ITEM_MODIFYATTACK"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_MODIFYATTACK"]),
+                Def        = r["ITEM_MODIFYDEFENCE"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_MODIFYDEFENCE"]),
+                Hp         = r["ITEM_MODIFYHP"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_MODIFYHP"]),
+                Luck       = r["ITEM_MODIFYLUCK"] == DBNull.Value ? 0 : Convert.ToInt32(r["ITEM_MODIFYLUCK"]),
+                Locked     = r["ITEM_LOCKED"] != DBNull.Value && Convert.ToInt32(r["ITEM_LOCKED"]) == 1,
+                GetTime    = getTime,
+                ExpireTime = expireTime,
+            };
+        }
+
+        public async Task<List<PoolItemDto>> GetPlayerStorageAsync(string account, int limit = 1000)
+        {
+            var list = new List<PoolItemDto>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT IFNULL(ITEM_ID,0) ITEM_ID,
+                             IFNULL(ITEM_NAME,'') ITEM_NAME, IFNULL(ITEM_TYPECODE,'') ITEM_TYPECODE,
+                             ITEM_USEPILENUMS, ITEM_MODIFYATTACK, ITEM_MODIFYDEFENCE,
+                             ITEM_MODIFYHP, ITEM_MODIFYLUCK, IFNULL(ITEM_LOCKED,0) ITEM_LOCKED,
+                             IFNULL(ITEM_UNIQUECODE,'') ITEM_UNIQUECODE, IFNULL(ITEM_USETIME,0) ITEM_USETIME
+                      FROM poolitem WHERE cdkey=@a LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@a", account);
+                cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 2000));
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(ReadPoolItemDto(r));
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/Storage] " + ex.Message); }
+            return list;
+        }
         // ══════════════════════════════════════════════════════════
         // 累計消費達成獎勵（costdata）
         // ══════════════════════════════════════════════════════════
@@ -4114,6 +4795,207 @@ namespace SQ_Email_Tools
             }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/MasterStats] " + ex.Message); }
             return stats;
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // 家族查詢與管理
+        // ══════════════════════════════════════════════════════════
+
+        /// <summary>取得家族列表（含成員數、家族商店總貢獻）</summary>
+        public async Task<List<FamilyInfo>> GetFamilyListAsync()
+        {
+            var list = new List<FamilyInfo>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT z.jiazuid, z.jiazu,
+                           COUNT(DISTINCT z.cdkey) AS memberCount,
+                           MAX(z.addtime) AS lastActive,
+                           IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint)
+                                   FROM fameshop fs
+                                   INNER JOIN (SELECT cdkey FROM zuzhanlog WHERE jiazuid = z.jiazuid GROUP BY cdkey) m2
+                                       ON fs.cdkey = m2.cdkey), 0) AS shopContrib
+                    FROM zuzhanlog z
+                    INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey) latest
+                        ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                    WHERE z.jiazuid > 0
+                    GROUP BY z.jiazuid, z.jiazu
+                    ORDER BY memberCount DESC, shopContrib DESC", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    list.Add(new FamilyInfo
+                    {
+                        FamilyId     = Convert.ToInt32(r["jiazuid"]),
+                        FamilyName   = r["jiazu"]?.ToString() ?? "",
+                        MemberCount  = Convert.ToInt32(r["memberCount"]),
+                        LastActive   = r["lastActive"] == DBNull.Value ? "" : Convert.ToDateTime(r["lastActive"]).ToString("yyyy-MM-dd HH:mm"),
+                        ShopContrib  = Convert.ToInt64(r["shopContrib"])
+                    });
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/FamilyList] " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>取得指定家族的成員列表</summary>
+        public async Task<List<FamilyMember>> GetFamilyMembersAsync(int familyId)
+        {
+            var list = new List<FamilyMember>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT z.cdkey, z.uname, z.addtime,
+                           IFNULL(c.OnlineName,'') onlineName,
+                           IFNULL(c.PayTotal,0) payTotal,
+                           IFNULL(c.VipPoint,0) gold,
+                           (c.Online = 1) isOnline,
+                           IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint) FROM fameshop fs WHERE fs.cdkey = z.cdkey), 0) shopContrib
+                    FROM zuzhanlog z
+                    INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid = @fid GROUP BY cdkey) latest
+                        ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                    LEFT JOIN csalogin c ON c.Name = z.cdkey
+                    WHERE z.jiazuid = @fid
+                    ORDER BY shopContrib DESC, z.uname", conn);
+                cmd.Parameters.AddWithValue("@fid", familyId);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    list.Add(new FamilyMember
+                    {
+                        Cdkey       = r["cdkey"]?.ToString() ?? "",
+                        CharName    = r["uname"]?.ToString() ?? "",
+                        OnlineName  = r["onlineName"]?.ToString() ?? "",
+                        JoinTime    = r["addtime"] == DBNull.Value ? "" : Convert.ToDateTime(r["addtime"]).ToString("yyyy-MM-dd HH:mm"),
+                        PayTotal    = Convert.ToInt32(r["payTotal"]),
+                        Gold        = Convert.ToInt64(r["gold"]),
+                        IsOnline    = Convert.ToBoolean(r["isOnline"]),
+                        ShopContrib = Convert.ToInt64(r["shopContrib"])
+                    });
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/FamilyMembers] " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>踢出成員（從 zuzhanlog 中刪除指定家族的指定成員，並重置 playerdata.fmindex/fmname）</summary>
+        public async Task<(bool ok, string msg)> KickFamilyMemberAsync(int familyId, string cdkey)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                try
+                {
+                    int n = 0;
+                    // 刪除 zuzhanlog 中的記錄
+                    using (var c1 = new MySqlCommand(
+                        "DELETE FROM zuzhanlog WHERE jiazuid = @fid AND cdkey = @ck", conn, tx))
+                    {
+                        c1.Parameters.AddWithValue("@fid", familyId);
+                        c1.Parameters.AddWithValue("@ck", cdkey);
+                        n = await c1.ExecuteNonQueryAsync();
+                    }
+                    // 重置 playerdata.fmindex / fmname（若有的話）
+                    using (var c2 = new MySqlCommand(
+                        "UPDATE playerdata SET fmindex=0, fmname='' WHERE cdkey = @ck AND fmindex = @fid", conn, tx))
+                    {
+                        c2.Parameters.AddWithValue("@ck", cdkey);
+                        c2.Parameters.AddWithValue("@fid", familyId);
+                        await c2.ExecuteNonQueryAsync();
+                    }
+                    await tx.CommitAsync();
+                    return n > 0 ? (true, $"\u5DF2\u5c07 {cdkey} \u5f9e\u5bb6\u65cf\u79fb\u9664") : (false, "\u672a\u627e\u5230\u8a72\u6210\u54e1");
+                }
+                catch { await tx.RollbackAsync(); throw; }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>解散家族（刪除所有 zuzhanlog 記錄，重置所有成員的 playerdata.fmindex/fmname）</summary>
+        public async Task<(bool ok, string msg)> DissolveFamilyAsync(int familyId)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                try
+                {
+                    int n = 0;
+                    // 重置 playerdata 先
+                    using (var c1 = new MySqlCommand(
+                        "UPDATE playerdata SET fmindex=0, fmname='' WHERE fmindex = @fid", conn, tx))
+                    {
+                        c1.Parameters.AddWithValue("@fid", familyId);
+                        await c1.ExecuteNonQueryAsync();
+                    }
+                    // 刪除 zuzhanlog
+                    using (var c2 = new MySqlCommand(
+                        "DELETE FROM zuzhanlog WHERE jiazuid = @fid", conn, tx))
+                    {
+                        c2.Parameters.AddWithValue("@fid", familyId);
+                        n = await c2.ExecuteNonQueryAsync();
+                    }
+                    await tx.CommitAsync();
+                    return (true, $"\u5bb6\u65cf\u5df2\u89e3\u6563\uff0c\u5171\u522a\u9664 {n} \u7b46\u8a18\u9304");
+                }
+                catch { await tx.RollbackAsync(); throw; }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>將成員轉移到另一個家族（更新 zuzhanlog 的 jiazuid/jiazu，並更新 playerdata.fmindex/fmname）</summary>
+        public async Task<(bool ok, string msg)> TransferMemberAsync(string cdkey, int targetFamilyId, string targetFamilyName)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                try
+                {
+                    // 更新 zuzhanlog 最新記錄
+                    using (var c1 = new MySqlCommand(@"
+                        UPDATE zuzhanlog SET jiazuid = @tid, jiazu = @tname
+                        WHERE cdkey = @ck AND id = (SELECT mid FROM (SELECT MAX(id) mid FROM zuzhanlog WHERE cdkey = @ck) t)", conn, tx))
+                    {
+                        c1.Parameters.AddWithValue("@tid", targetFamilyId);
+                        c1.Parameters.AddWithValue("@tname", targetFamilyName);
+                        c1.Parameters.AddWithValue("@ck", cdkey);
+                        await c1.ExecuteNonQueryAsync();
+                    }
+                    // 更新 playerdata
+                    using (var c2 = new MySqlCommand(
+                        "UPDATE playerdata SET fmindex = @tid, fmname = @tname WHERE cdkey = @ck", conn, tx))
+                    {
+                        c2.Parameters.AddWithValue("@tid", targetFamilyId);
+                        c2.Parameters.AddWithValue("@tname", targetFamilyName);
+                        c2.Parameters.AddWithValue("@ck", cdkey);
+                        await c2.ExecuteNonQueryAsync();
+                    }
+                    await tx.CommitAsync();
+                    return (true, $"\u5df2\u5c07 {cdkey} \u8f49\u79fb\u81f3\u5bb6\u65cf\u300c{targetFamilyName}\u300d");
+                }
+                catch { await tx.RollbackAsync(); throw; }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+    }
+
+    // ── 擴充：DataReader 是否含指定欄位 ──────────────────────────
+    internal static class DataReaderExtensions
+    {
+        public static bool HasColumn(this MySqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
     }
 }

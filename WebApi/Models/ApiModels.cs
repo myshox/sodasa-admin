@@ -458,3 +458,31 @@ public class RemovePetRequest
 {
     public string Unicode { get; set; } = "";
 }
+
+public class GuildInfo
+{
+    public int    GuildId     { get; set; }
+    public string GuildName   { get; set; } = "";
+    public int    MemberCount { get; set; }
+    public string LastActive  { get; set; } = "";
+    public long   ShopContrib { get; set; }
+}
+
+public class GuildMember
+{
+    public string Cdkey       { get; set; } = "";
+    public string CharName    { get; set; } = "";
+    public string OnlineName  { get; set; } = "";
+    public string JoinTime    { get; set; } = "";
+    public int    PayTotal    { get; set; }
+    public long   Gold        { get; set; }
+    public bool   IsOnline    { get; set; }
+    public long   ShopContrib { get; set; }
+}
+
+public class TransferMemberRequest
+{
+    public string Cdkey           { get; set; } = "";
+    public int    TargetGuildId   { get; set; }
+    public string TargetGuildName { get; set; } = "";
+}

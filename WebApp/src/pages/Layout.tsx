@@ -28,6 +28,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/batchops', icon: '📦', label: '批量工具',     title: '批量發送道具、金幣、或全服廣播郵件' },
       { to: '/speedban', icon: '⚡', label: '加速外掛封禁', title: '分析加速行為異常玩家，批量封號' },
+      { to: '/guild',    icon: '♖', label: '家族管理',     title: '家族列表、成員管理、解散家族、轉移成員' },
       { to: '/petcmd',   icon: '🐾', label: S.navPetCmd,    title: '產生 GM 寵物製作指令（petmake / petmakeabi）' },
       { to: '/recycle',  icon: '🗑', label: S.navRecycle,   title: '查看並還原被刪除的角色' },
       { to: '/sql',      icon: '💻', label: S.navSql,       title: '執行唯讀 SQL 查詢（SELECT / SHOW / DESCRIBE）' },
