@@ -3035,13 +3035,19 @@ public class DbService
                 SELECT z.jiazuid, z.jiazu,
                        COUNT(DISTINCT z.cdkey) AS memberCount,
                        MAX(z.addtime) AS lastActive,
-                       IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint)
-                               FROM fameshop fs
-                               INNER JOIN (SELECT cdkey FROM zuzhanlog WHERE jiazuid = z.jiazuid GROUP BY cdkey) m2
-                                   ON fs.cdkey = m2.cdkey), 0) AS shopContrib
+                       IFNULL(sc.shopContrib, 0) AS shopContrib
                 FROM zuzhanlog z
                 INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey) latest
                     ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                LEFT JOIN (
+                    SELECT mem.jiazuid,
+                           SUM(fs.oldpoint - fs.newpoint) AS shopContrib
+                    FROM fameshop fs
+                    INNER JOIN (SELECT cdkey, jiazuid FROM zuzhanlog
+                                WHERE id IN (SELECT MAX(id) FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey)) mem
+                        ON fs.cdkey = mem.cdkey
+                    GROUP BY mem.jiazuid
+                ) sc ON sc.jiazuid = z.jiazuid
                 WHERE z.jiazuid > 0
                 GROUP BY z.jiazuid, z.jiazu
                 ORDER BY memberCount DESC, shopContrib DESC", db);

@@ -31,8 +31,15 @@ namespace SQ_Email_Tools
         public GuildForm()
         {
             BuildUI();
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
             _ = LoadFamiliesAsync();
         }
+
+        public void TriggerLoad() => _ = LoadFamiliesAsync();
 
         // ══════════════════════════════════════════════════════════
         // UI 建置
@@ -253,18 +260,29 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         private async Task LoadFamiliesAsync()
         {
+            if (IsDisposed) return;
+            if (!DatabaseManager.Instance.IsConnected)
+            {
+                if (_lblFamilyStatus != null)
+                    _lblFamilyStatus.Text = "\u672a\u9023\u7dda\u8cc7\u6599\u5eab";
+                return;
+            }
             _btnRefresh.Enabled   = false;
             _lblFamilyStatus.Text = "\u8F09\u5165\u4E2D...";
             try
             {
                 _families = await DatabaseManager.Instance.GetFamilyListAsync();
+                if (IsDisposed) return;
                 FilterFamilies();
+                if (_families.Count == 0)
+                    _lblFamilyStatus.Text = "\u76ee\u524d\u7121\u5bb6\u65cf\u8cc7\u6599\uff08zuzhanlog \u70ba\u7a7a\uff09";
             }
             catch (Exception ex)
             {
-                _lblFamilyStatus.Text = "\u8F09\u5165\u5931\u6557\uFF1A" + ex.Message;
+                if (!IsDisposed)
+                    _lblFamilyStatus.Text = "\u8F09\u5165\u5931\u6557\uFF1A" + ex.Message;
             }
-            finally { _btnRefresh.Enabled = true; }
+            finally { if (!IsDisposed) _btnRefresh.Enabled = true; }
         }
 
         private void FilterFamilies()

@@ -693,6 +693,8 @@ namespace SQ_Email_Tools
             _contentArea.Controls.Add(hub);
             _currentHubPanel = hub;
             hub.Show();
+
+            if (hub is GuildForm gf) gf.TriggerLoad();
         }
 
         private void SwitchToPlayers()
