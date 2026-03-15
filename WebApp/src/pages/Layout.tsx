@@ -31,7 +31,8 @@ const navGroups: NavGroup[] = [
       { to: '/guild',    icon: '♖', label: '家族管理',     title: '家族列表、成員管理、解散家族、轉移成員' },
       { to: '/petcmd',   icon: '🐾', label: S.navPetCmd,    title: '產生 GM 寵物製作指令（petmake / petmakeabi）' },
       { to: '/recycle',  icon: '🗑', label: S.navRecycle,   title: '查看並還原被刪除的角色' },
-      { to: '/sql',      icon: '💻', label: S.navSql,       title: '執行唯讀 SQL 查詢（SELECT / SHOW / DESCRIBE）' },
+      { to: '/sql',         icon: '💻', label: S.navSql,       title: '執行唯讀 SQL 查詢（SELECT / SHOW / DESCRIBE）' },
+      { to: '/db-browser',  icon: '🗄', label: '資料庫瀏覽',  title: '點選任意資料表即可查看內容，支援搜尋/翻頁' },
     ]
   },
   {

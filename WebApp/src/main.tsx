@@ -9,6 +9,7 @@ import VipPage       from './pages/VipPage'
 import PetCmdPage    from './pages/PetCmdPage'
 import RecyclePage   from './pages/RecyclePage'
 import SqlQueryPage  from './pages/SqlQueryPage'
+import DbBrowserPage from './pages/DbBrowserPage'
 import GmAdminPage   from './pages/GmAdminPage'
 import BatchOpsPage  from './pages/BatchOpsPage'
 import PlayerHistoryPage from './pages/PlayerHistoryPage'
@@ -67,6 +68,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="petcmd"    element={<PetCmdPage />} />
         <Route path="recycle"   element={<RecyclePage />} />
         <Route path="sql"       element={<SqlQueryPage />} />
+        <Route path="db-browser" element={<DbBrowserPage />} />
         <Route path="gmadmin"   element={<GmAdminPage />} />
 
         {/* ── 舊路由（向後相容） ── */}

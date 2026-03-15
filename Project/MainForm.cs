@@ -181,6 +181,26 @@ namespace SQ_Email_Tools
                 SwitchToPlayers();
             };
 
+            var btnGuild = MakeNavBtn("⚔", "家族管理", ref y);
+            navTip.SetToolTip(btnGuild, "家族列表、成員管理、解散家族");
+            btnGuild.Click += (s, e) =>
+            {
+                SetActiveNav(btnGuild);
+                if (!CheckConnected()) return;
+                SwitchToHub(new GuildForm());
+            };
+
+            var btnDbBrowser = MakeNavBtn("🗄", "資料庫瀏覽", ref y);
+            navTip.SetToolTip(btnDbBrowser, "點選任意資料表即可查看內容，支援搜尋/翻頁");
+            btnDbBrowser.Click += (s, e) =>
+            {
+                SetActiveNav(btnDbBrowser);
+                if (!CheckConnected()) return;
+                var hub = new DbBrowserForm();
+                SwitchToHub(hub);
+                hub.TriggerLoad();
+            };
+
             var btnMaster = MakeNavBtn("👑", "主帳號查詢", ref y);
             navTip.SetToolTip(btnMaster, "以主帳號查詢旗下所有子角色，可分帳充值");
             btnMaster.Click += (s, e) =>
@@ -274,15 +294,6 @@ namespace SQ_Email_Tools
                 SetActiveNav(btnPetRank);
                 if (!CheckConnected()) return;
                 SwitchToHub(new PetRankingForm());
-            };
-
-            var btnGuild = MakeNavBtn("\u2656", "\u5BB6\u65CF\u7BA1\u7406", ref y);
-            navTip.SetToolTip(btnGuild, "\u5BB6\u65CF\u5217\u8868\u3001\u6210\u54E1\u7BA1\u7406\u3001\u89E3\u6563\u5BB6\u65CF");
-            btnGuild.Click += (s, e) =>
-            {
-                SetActiveNav(btnGuild);
-                if (!CheckConnected()) return;
-                SwitchToHub(new GuildForm());
             };
 
             var btnSpeedHack = MakeNavBtn("\u26A1", "\u52A0\u901F\u5916\u639B\u5C01\u7981", ref y);

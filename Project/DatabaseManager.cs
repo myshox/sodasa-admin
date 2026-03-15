@@ -160,7 +160,7 @@ namespace SQ_Email_Tools
             catch (Exception ex) { IsConnected = false; return (false, ex.Message); }
         }
 
-        private MySqlConnection GetConnection() => new MySqlConnection(_connectionString);
+        public MySqlConnection GetConnection() => new MySqlConnection(_connectionString);
 
         // ══════════════════════════════════════════════════════════
         // 玩家查詢
@@ -4810,24 +4810,20 @@ namespace SQ_Email_Tools
                 using var conn = GetConnection();
                 await conn.OpenAsync();
                 using var cmd = new MySqlCommand(@"
-                    SELECT z.jiazuid, z.jiazu,
-                           COUNT(DISTINCT z.cdkey) AS memberCount,
-                           MAX(z.addtime) AS lastActive,
+                    SELECT g.jiazuid, g.jiazu,
+                           COUNT(*) AS memberCount,
+                           MAX(g.addtime) AS lastActive,
                            IFNULL(sc.shopContrib, 0) AS shopContrib
-                    FROM zuzhanlog z
-                    INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey) latest
-                        ON z.cdkey = latest.cdkey AND z.id = latest.mid
+                    FROM gm_family_members g
                     LEFT JOIN (
                         SELECT mem.jiazuid,
                                SUM(fs.oldpoint - fs.newpoint) AS shopContrib
                         FROM fameshop fs
-                        INNER JOIN (SELECT cdkey, jiazuid FROM zuzhanlog
-                                    WHERE id IN (SELECT MAX(id) FROM zuzhanlog WHERE jiazuid > 0 GROUP BY cdkey)) mem
+                        INNER JOIN (SELECT cdkey, jiazuid FROM gm_family_members) mem
                             ON fs.cdkey = mem.cdkey
                         GROUP BY mem.jiazuid
-                    ) sc ON sc.jiazuid = z.jiazuid
-                    WHERE z.jiazuid > 0
-                    GROUP BY z.jiazuid, z.jiazu
+                    ) sc ON sc.jiazuid = g.jiazuid
+                    GROUP BY g.jiazuid, g.jiazu
                     ORDER BY memberCount DESC, shopContrib DESC", conn);
                 using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync())
@@ -4855,22 +4851,21 @@ namespace SQ_Email_Tools
                 using var conn = GetConnection();
                 await conn.OpenAsync();
                 using var cmd = new MySqlCommand(@"
-                    SELECT z.cdkey, z.uname, z.addtime,
+                    SELECT g.cdkey, g.uname, g.addtime, g.role,
                            IFNULL(c.OnlineName,'') onlineName,
                            IFNULL(c.PayTotal,0) payTotal,
                            IFNULL(c.VipPoint,0) gold,
                            (c.Online = 1) isOnline,
-                           IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint) FROM fameshop fs WHERE fs.cdkey = z.cdkey), 0) shopContrib
-                    FROM zuzhanlog z
-                    INNER JOIN (SELECT cdkey, MAX(id) mid FROM zuzhanlog WHERE jiazuid = @fid GROUP BY cdkey) latest
-                        ON z.cdkey = latest.cdkey AND z.id = latest.mid
-                    LEFT JOIN csalogin c ON c.Name = z.cdkey
-                    WHERE z.jiazuid = @fid
-                    ORDER BY shopContrib DESC, z.uname", conn);
+                           IFNULL((SELECT SUM(fs.oldpoint - fs.newpoint) FROM fameshop fs WHERE fs.cdkey = g.cdkey), 0) shopContrib
+                    FROM gm_family_members g
+                    LEFT JOIN csalogin c ON c.Name = g.cdkey
+                    WHERE g.jiazuid = @fid
+                    ORDER BY g.role DESC, shopContrib DESC, g.uname", conn);
                 cmd.Parameters.AddWithValue("@fid", familyId);
                 using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync())
                 {
+                    int role = r.HasColumn("role") ? Convert.ToInt32(r["role"]) : 0;
                     list.Add(new FamilyMember
                     {
                         Cdkey       = r["cdkey"]?.ToString() ?? "",
@@ -4880,7 +4875,9 @@ namespace SQ_Email_Tools
                         PayTotal    = Convert.ToInt32(r["payTotal"]),
                         Gold        = Convert.ToInt64(r["gold"]),
                         IsOnline    = Convert.ToBoolean(r["isOnline"]),
-                        ShopContrib = Convert.ToInt64(r["shopContrib"])
+                        ShopContrib = Convert.ToInt64(r["shopContrib"]),
+                        IsLeader    = role == 1,
+                        Role        = role
                     });
                 }
             }
@@ -4888,7 +4885,46 @@ namespace SQ_Email_Tools
             return list;
         }
 
-        /// <summary>踢出成員（從 zuzhanlog 中刪除指定家族的指定成員，並重置 playerdata.fmindex/fmname）</summary>
+        /// <summary>設定族長：將 familyId 家族的 cdkey 設為族長（role=1），其他人全設 role=0）</summary>
+        public async Task<(bool ok, string msg)> SetFamilyLeaderAsync(int familyId, string cdkey)
+            => await SetFamilyRoleAsync(familyId, cdkey, 1);
+
+        /// <summary>設定成員職位：role 0=成員, 1=族長, 2=長老。族長唯一（設新族長會取消舊族長）</summary>
+        public async Task<(bool ok, string msg)> SetFamilyRoleAsync(int familyId, string cdkey, int role)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+                try
+                {
+                    // 若設為族長，先清除所有人的族長身份
+                    if (role == 1)
+                    {
+                        using var c0 = new MySqlCommand(
+                            "UPDATE gm_family_members SET role=0 WHERE jiazuid=@fid AND role=1", conn, tx);
+                        c0.Parameters.AddWithValue("@fid", familyId);
+                        await c0.ExecuteNonQueryAsync();
+                    }
+                    using var c1 = new MySqlCommand(
+                        "UPDATE gm_family_members SET role=@role WHERE jiazuid=@fid AND cdkey=@ck", conn, tx);
+                    c1.Parameters.AddWithValue("@role", role);
+                    c1.Parameters.AddWithValue("@fid", familyId);
+                    c1.Parameters.AddWithValue("@ck", cdkey);
+                    int n = await c1.ExecuteNonQueryAsync();
+                    if (n == 0) { await tx.RollbackAsync(); return (false, "未找到成員或該成員不屬於此家族"); }
+
+                    await tx.CommitAsync();
+                    string roleLabel = role == 1 ? "族長" : role == 2 ? "長老" : "一般成員";
+                    return (true, $"已將 {cdkey} 設為{roleLabel}");
+                }
+                catch { await tx.RollbackAsync(); throw; }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>踢出成員（從 gm_family_members 中刪除，並重置 csalogin.GroupId）</summary>
         public async Task<(bool ok, string msg)> KickFamilyMemberAsync(int familyId, string cdkey)
         {
             try
@@ -4899,31 +4935,29 @@ namespace SQ_Email_Tools
                 try
                 {
                     int n = 0;
-                    // 刪除 zuzhanlog 中的記錄
                     using (var c1 = new MySqlCommand(
-                        "DELETE FROM zuzhanlog WHERE jiazuid = @fid AND cdkey = @ck", conn, tx))
+                        "DELETE FROM gm_family_members WHERE jiazuid = @fid AND cdkey = @ck", conn, tx))
                     {
                         c1.Parameters.AddWithValue("@fid", familyId);
                         c1.Parameters.AddWithValue("@ck", cdkey);
                         n = await c1.ExecuteNonQueryAsync();
                     }
-                    // 重置 playerdata.fmindex / fmname（若有的話）
+                    // 清除 csalogin GroupId
                     using (var c2 = new MySqlCommand(
-                        "UPDATE playerdata SET fmindex=0, fmname='' WHERE cdkey = @ck AND fmindex = @fid", conn, tx))
+                        "UPDATE csalogin SET GroupId=0, GroupName='' WHERE Name=@ck", conn, tx))
                     {
                         c2.Parameters.AddWithValue("@ck", cdkey);
-                        c2.Parameters.AddWithValue("@fid", familyId);
                         await c2.ExecuteNonQueryAsync();
                     }
                     await tx.CommitAsync();
-                    return n > 0 ? (true, $"\u5DF2\u5c07 {cdkey} \u5f9e\u5bb6\u65cf\u79fb\u9664") : (false, "\u672a\u627e\u5230\u8a72\u6210\u54e1");
+                    return n > 0 ? (true, $"已將 {cdkey} 從家族移除") : (false, "未找到該成員");
                 }
                 catch { await tx.RollbackAsync(); throw; }
             }
             catch (Exception ex) { return (false, ex.Message); }
         }
 
-        /// <summary>解散家族（刪除所有 zuzhanlog 記錄，重置所有成員的 playerdata.fmindex/fmname）</summary>
+        /// <summary>解散家族（刪除 gm_family_members 所有記錄，清除 csalogin.GroupId）</summary>
         public async Task<(bool ok, string msg)> DissolveFamilyAsync(int familyId)
         {
             try
@@ -4933,30 +4967,36 @@ namespace SQ_Email_Tools
                 using var tx = await conn.BeginTransactionAsync();
                 try
                 {
-                    int n = 0;
-                    // 重置 playerdata 先
-                    using (var c1 = new MySqlCommand(
-                        "UPDATE playerdata SET fmindex=0, fmname='' WHERE fmindex = @fid", conn, tx))
+                    // 取得所有成員 cdkey
+                    var cdkeys = new List<string>();
+                    using (var cq = new MySqlCommand("SELECT cdkey FROM gm_family_members WHERE jiazuid=@fid", conn, tx))
                     {
-                        c1.Parameters.AddWithValue("@fid", familyId);
-                        await c1.ExecuteNonQueryAsync();
+                        cq.Parameters.AddWithValue("@fid", familyId);
+                        using var rq = await cq.ExecuteReaderAsync();
+                        while (await rq.ReadAsync()) cdkeys.Add(rq.GetString(0));
                     }
-                    // 刪除 zuzhanlog
-                    using (var c2 = new MySqlCommand(
-                        "DELETE FROM zuzhanlog WHERE jiazuid = @fid", conn, tx))
+                    int n = 0;
+                    using (var c2 = new MySqlCommand("DELETE FROM gm_family_members WHERE jiazuid=@fid", conn, tx))
                     {
                         c2.Parameters.AddWithValue("@fid", familyId);
                         n = await c2.ExecuteNonQueryAsync();
                     }
+                    // 清除所有成員的 csalogin GroupId
+                    foreach (var ck in cdkeys)
+                    {
+                        using var c3 = new MySqlCommand("UPDATE csalogin SET GroupId=0, GroupName='' WHERE Name=@ck", conn, tx);
+                        c3.Parameters.AddWithValue("@ck", ck);
+                        await c3.ExecuteNonQueryAsync();
+                    }
                     await tx.CommitAsync();
-                    return (true, $"\u5bb6\u65cf\u5df2\u89e3\u6563\uff0c\u5171\u522a\u9664 {n} \u7b46\u8a18\u9304");
+                    return (true, $"家族已解散，共刪除 {n} 位成員");
                 }
                 catch { await tx.RollbackAsync(); throw; }
             }
             catch (Exception ex) { return (false, ex.Message); }
         }
 
-        /// <summary>將成員轉移到另一個家族（更新 zuzhanlog 的 jiazuid/jiazu，並更新 playerdata.fmindex/fmname）</summary>
+        /// <summary>將成員轉移到另一個家族</summary>
         public async Task<(bool ok, string msg)> TransferMemberAsync(string cdkey, int targetFamilyId, string targetFamilyName)
         {
             try
@@ -4966,29 +5006,80 @@ namespace SQ_Email_Tools
                 using var tx = await conn.BeginTransactionAsync();
                 try
                 {
-                    // 更新 zuzhanlog 最新記錄
-                    using (var c1 = new MySqlCommand(@"
-                        UPDATE zuzhanlog SET jiazuid = @tid, jiazu = @tname
-                        WHERE cdkey = @ck AND id = (SELECT mid FROM (SELECT MAX(id) mid FROM zuzhanlog WHERE cdkey = @ck) t)", conn, tx))
+                    // 更新 GM 管理表
+                    using (var c1 = new MySqlCommand(
+                        "UPDATE gm_family_members SET jiazuid=@tid, jiazu=@tname WHERE cdkey=@ck", conn, tx))
                     {
                         c1.Parameters.AddWithValue("@tid", targetFamilyId);
                         c1.Parameters.AddWithValue("@tname", targetFamilyName);
                         c1.Parameters.AddWithValue("@ck", cdkey);
-                        await c1.ExecuteNonQueryAsync();
+                        int n = await c1.ExecuteNonQueryAsync();
+                        if (n == 0)
+                        {
+                            await tx.RollbackAsync();
+                            return (false, $"在 GM 名冊中找不到帳號「{cdkey}」，請先確認該成員已在家族名冊中");
+                        }
                     }
-                    // 更新 playerdata
+                    // 同步更新 csalogin.GroupId（遊戲讀取的家族欄位）
                     using (var c2 = new MySqlCommand(
-                        "UPDATE playerdata SET fmindex = @tid, fmname = @tname WHERE cdkey = @ck", conn, tx))
+                        "UPDATE csalogin SET GroupId=@tid, GroupName=@tname WHERE Name=@ck", conn, tx))
                     {
                         c2.Parameters.AddWithValue("@tid", targetFamilyId);
                         c2.Parameters.AddWithValue("@tname", targetFamilyName);
                         c2.Parameters.AddWithValue("@ck", cdkey);
                         await c2.ExecuteNonQueryAsync();
                     }
+                    // 同步更新 zuzhanlog 最新記錄
+                    using (var c3 = new MySqlCommand(@"
+                        UPDATE zuzhanlog SET jiazuid=@tid, jiazu=@tname
+                        WHERE cdkey=@ck
+                          AND id=(SELECT mid FROM (SELECT MAX(id) mid FROM zuzhanlog WHERE cdkey=@ck) t)", conn, tx))
+                    {
+                        c3.Parameters.AddWithValue("@tid", targetFamilyId);
+                        c3.Parameters.AddWithValue("@tname", targetFamilyName);
+                        c3.Parameters.AddWithValue("@ck", cdkey);
+                        await c3.ExecuteNonQueryAsync();
+                    }
                     await tx.CommitAsync();
-                    return (true, $"\u5df2\u5c07 {cdkey} \u8f49\u79fb\u81f3\u5bb6\u65cf\u300c{targetFamilyName}\u300d");
+                    return (true, $"已將 {cdkey} 轉移至家族「{targetFamilyName}」");
                 }
                 catch { await tx.RollbackAsync(); throw; }
+            }
+            catch (Exception ex) { return (false, ex.Message); }
+        }
+
+        /// <summary>手動新增成員到家族（gm_family_members）</summary>
+        public async Task<(bool ok, string msg)> AddFamilyMemberAsync(int familyId, string familyName, string cdkey, string charName, int role = 0)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                // 從 csalogin 取角色名稱（若未提供）
+                using var chk = new MySqlCommand("SELECT IFNULL(OnlineName,'') FROM csalogin WHERE Name=@ck LIMIT 1", conn);
+                chk.Parameters.AddWithValue("@ck", cdkey);
+                var onlineName = await chk.ExecuteScalarAsync();
+                if (onlineName == null) return (false, $"帳號「{cdkey}」不存在");
+                if (string.IsNullOrWhiteSpace(charName))
+                    charName = onlineName.ToString() ?? cdkey;
+
+                using var ins = new MySqlCommand(@"
+                    INSERT INTO gm_family_members (jiazuid, jiazu, cdkey, uname, role)
+                    VALUES (@fid, @fname, @ck, @uname, @role)
+                    ON DUPLICATE KEY UPDATE jiazu=@fname, uname=@uname, role=@role, addtime=NOW()", conn);
+                ins.Parameters.AddWithValue("@fid",   familyId);
+                ins.Parameters.AddWithValue("@fname", familyName);
+                ins.Parameters.AddWithValue("@ck",    cdkey);
+                ins.Parameters.AddWithValue("@uname", charName);
+                ins.Parameters.AddWithValue("@role",  role);
+                await ins.ExecuteNonQueryAsync();
+                // 同步更新 csalogin GroupId
+                using var upd = new MySqlCommand("UPDATE csalogin SET GroupId=@fid, GroupName=@fname WHERE Name=@ck", conn);
+                upd.Parameters.AddWithValue("@fid",   familyId);
+                upd.Parameters.AddWithValue("@fname", familyName);
+                upd.Parameters.AddWithValue("@ck",    cdkey);
+                await upd.ExecuteNonQueryAsync();
+                return (true, $"已將 {cdkey}（{charName}）加入家族「{familyName}」");
             }
             catch (Exception ex) { return (false, ex.Message); }
         }

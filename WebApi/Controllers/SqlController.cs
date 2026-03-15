@@ -18,4 +18,54 @@ public class SqlController : ControllerBase
         if (!ok) return BadRequest(new { error, rows = (object?)null });
         return Ok(new { rows, error = (string?)null });
     }
+
+    // 列出所有資料表
+    [HttpGet("tables")]
+    public async Task<IActionResult> GetTables()
+    {
+        var (ok, rows, error) = await _db.ExecuteReadOnlyQueryAsync("SHOW TABLES");
+        if (!ok) return BadRequest(new { error });
+        var tables = rows.Select(r => r.Values.FirstOrDefault()?.ToString() ?? "").Where(s => s != "").ToList();
+        return Ok(tables);
+    }
+
+    // 查詢指定表的資料（帶翻頁 & 搜尋）
+    [HttpGet("browse")]
+    public async Task<IActionResult> Browse(
+        [FromQuery] string table,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        if (string.IsNullOrWhiteSpace(table) || table.Contains("`") || table.Contains(";"))
+            return BadRequest(new { error = "無效的表名" });
+        if (pageSize > 500) pageSize = 500;
+        if (page < 1) page = 1;
+
+        // 取欄位
+        var (colOk, colRows, colErr) = await _db.ExecuteReadOnlyQueryAsync($"DESCRIBE `{table}`");
+        if (!colOk) return BadRequest(new { error = colErr });
+        var columns = colRows.Select(r => r.ContainsKey("Field") ? r["Field"]?.ToString() ?? "" : r.Values.FirstOrDefault()?.ToString() ?? "").Where(s => s != "").ToList();
+
+        // WHERE 條件
+        string where = "";
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var parts = columns.Select(c => $"CAST(`{c}` AS CHAR) LIKE '%{search.Replace("'", "\\'")}%'");
+            where = "WHERE " + string.Join(" OR ", parts);
+        }
+
+        // 總筆數
+        var (cntOk, cntRows, cntErr) = await _db.ExecuteReadOnlyQueryAsync($"SELECT COUNT(*) AS cnt FROM `{table}` {where}");
+        if (!cntOk) return BadRequest(new { error = cntErr });
+        int total = cntRows.Count > 0 && cntRows[0].ContainsKey("cnt") ? Convert.ToInt32(cntRows[0]["cnt"]) : 0;
+
+        // 資料
+        int offset = (page - 1) * pageSize;
+        var (dataOk, dataRows, dataErr) = await _db.ExecuteReadOnlyQueryAsync(
+            $"SELECT * FROM `{table}` {where} LIMIT {pageSize} OFFSET {offset}");
+        if (!dataOk) return BadRequest(new { error = dataErr });
+
+        return Ok(new { columns, rows = dataRows, total, page, pageSize });
+    }
 }
