@@ -41,6 +41,22 @@ export interface DashboardStats {
   newToday: number; totalGold: number; totalCrystal: number
 }
 
+/** 同IP帳號一筆 */
+export interface SharedIpAccount {
+  account: string; charName: string; ip: string; regIp: string
+  isOnline: boolean; payTotal: number; loginTime: string; regTime: string
+}
+
+/** 封禁記錄一筆 */
+export interface BanLogEntry {
+  banEndTime: string; isPermanent: boolean; reason: string
+}
+
+/** 家族資訊 */
+export interface PlayerFamily {
+  guildId: number; guildName: string; memberCount: number
+}
+
 /** 玩家寵物（capturepet）一筆 */
 export interface PetInfo {
   unicode: string; id: number; name: string; type: string

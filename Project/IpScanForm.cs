@@ -202,35 +202,52 @@ namespace SQ_Email_Tools
             _dgvMembers = BuildDgv();
 
             // 右鍵選單
-            var ctxMenu = new ContextMenuStrip { BackColor = Theme.BgCard, ForeColor = Theme.TextPrimary };
-            var copyItem = new ToolStripMenuItem("複製選取儲存格 (Ctrl+C)") { ForeColor = Theme.TextPrimary };
-            copyItem.Click += (s, e) => CopyDgvSelection();
-            ctxMenu.Items.Add(copyItem);
-            var copyRowItem = new ToolStripMenuItem("複製整列") { ForeColor = Theme.TextPrimary };
-            copyRowItem.Click += (s, e) => CopyDgvRows();
-            ctxMenu.Items.Add(copyRowItem);
+            var ctxMenu = new ContextMenuStrip { BackColor = Theme.BgCard, ForeColor = Theme.TextPrimary, Font = Theme.FontCell9 };
+
+            var copyCell = new ToolStripMenuItem("複製儲存格") { ForeColor = Theme.TextPrimary };
+            copyCell.Click += (s, e) => CopyDgvSelection();
+            ctxMenu.Items.Add(copyCell);
+
+            var copyRow = new ToolStripMenuItem("複製整列") { ForeColor = Theme.TextPrimary };
+            copyRow.Click += (s, e) => CopyDgvRows();
+            ctxMenu.Items.Add(copyRow);
+
+            var copyAll = new ToolStripMenuItem("複製全部（含標題）") { ForeColor = Theme.TextPrimary };
+            copyAll.Click += (s, e) => CopyDgvAll();
+            ctxMenu.Items.Add(copyAll);
+
             ctxMenu.Items.Add(new ToolStripSeparator());
+
             var queryOwnerItem = new ToolStripMenuItem("🔎 查詢此 IP 的原始主人") { ForeColor = Color.FromArgb(248, 185, 90) };
             queryOwnerItem.Click += (s, e) => QueryIpOwnerFromContext();
             ctxMenu.Items.Add(queryOwnerItem);
-            _dgvMembers.ContextMenuStrip = ctxMenu;
 
-            // Ctrl+C 複製
-            _dgvMembers.KeyDown += (s, e) => { if (e.Control && e.KeyCode == Keys.C) { CopyDgvSelection(); e.Handled = true; } };
-
-            // 雙擊 IP 欄位查原始主人
-            _dgvMembers.CellDoubleClick += DgvMembers_CellDoubleClick;
-
-            // 滑鼠移到 IP 欄位改變游標提示
-            _dgvMembers.CellMouseEnter += (s, e) =>
+            // 開啟右鍵選單前，動態決定「查原始主人」是否啟用
+            ctxMenu.Opening += (s, e) =>
             {
-                if (e.RowIndex >= 0 && (e.ColumnIndex == 4 || e.ColumnIndex == 5))
-                    _dgvMembers.Cursor = Cursors.Hand;
-                else
-                    _dgvMembers.Cursor = Cursors.Default;
+                var cell = _dgvMembers.CurrentCell;
+                queryOwnerItem.Enabled = cell != null && cell.RowIndex >= 0
+                    && (cell.ColumnIndex == 4 || cell.ColumnIndex == 5)
+                    && !string.IsNullOrWhiteSpace(cell.Value?.ToString());
+                queryOwnerItem.Text = queryOwnerItem.Enabled
+                    ? $"🔎 查 IP 原始主人：{cell!.Value}"
+                    : "🔎 查 IP 原始主人（請先點選IP欄位）";
             };
 
-            rightLayout.Controls.Add(_dgvMembers, 0, 1);        }
+            _dgvMembers.ContextMenuStrip = ctxMenu;
+
+            // Ctrl+C 複製選取儲存格（覆蓋預設行為，避免複製到表頭）
+            _dgvMembers.KeyDown += (s, e) =>
+            {
+                if (e.Control && e.KeyCode == Keys.C)
+                {
+                    CopyDgvSelection();
+                    e.Handled = true;
+                }
+            };
+
+            rightLayout.Controls.Add(_dgvMembers, 0, 1);
+        }
 
         // ══════════════════════════════════════════════════════
         // 掃描
@@ -433,10 +450,20 @@ namespace SQ_Email_Tools
         {
             if (_dgvMembers.SelectedRows.Count == 0) return;
             var sb = new StringBuilder();
-            // 標題
             sb.AppendLine(string.Join("\t", _dgvMembers.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText)));
             foreach (DataGridViewRow row in _dgvMembers.SelectedRows)
                 sb.AppendLine(string.Join("\t", row.Cells.Cast<DataGridViewCell>().Select(c => c.Value ?? "")));
+            Clipboard.SetText(sb.ToString());
+        }
+
+        private void CopyDgvAll()
+        {
+            if (_dgvMembers.Rows.Count == 0) return;
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join("\t", _dgvMembers.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText)));
+            foreach (DataGridViewRow row in _dgvMembers.Rows)
+                if (!row.IsNewRow)
+                    sb.AppendLine(string.Join("\t", row.Cells.Cast<DataGridViewCell>().Select(c => c.Value ?? "")));
             Clipboard.SetText(sb.ToString());
         }
 
@@ -572,7 +599,7 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill, BackgroundColor = Theme.BgPage,
                 BorderStyle = BorderStyle.None, GridColor = Color.FromArgb(55, 63, 80),
                 RowHeadersVisible = false, AllowUserToResizeRows = false,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                SelectionMode = DataGridViewSelectionMode.CellSelect,
                 MultiSelect = true, ReadOnly = true, AllowUserToAddRows = false,
                 ColumnHeadersHeight = 26,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,

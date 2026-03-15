@@ -575,6 +575,9 @@ namespace SQ_Email_Tools
         public long   Gold        { get; set; }
         public bool   IsOnline    { get; set; }
         public long   ShopContrib { get; set; }
+        public bool   IsLeader    { get; set; }
+        public int    Role        { get; set; }  // 0=成員, 1=族長, 2=長老
+        public string RoleLabel => Role == 1 ? "\u2654 \u65cf\u9577" : Role == 2 ? "\u2605 \u9577\u8001" : "\u6210\u54e1";
     }
 
 }

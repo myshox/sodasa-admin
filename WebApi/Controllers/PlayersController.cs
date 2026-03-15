@@ -407,6 +407,21 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> SpeedHackers([FromQuery] int min = 1, [FromQuery] int limit = 200)
         => Ok(await _db.GetSpeedHackPlayersAsync(min, limit));
 
+    /// <summary>查詢與指定帳號共用相同 IP 的其他帳號</summary>
+    [HttpGet("{account}/shared-ip")]
+    public async Task<IActionResult> SharedIp(string account)
+        => Ok(await _db.GetSharedIpAccountsAsync(account));
+
+    /// <summary>查詢指定帳號的封禁歷史記錄</summary>
+    [HttpGet("{account}/ban-log")]
+    public async Task<IActionResult> BanLog(string account)
+        => Ok(await _db.GetBanLogAsync(account));
+
+    /// <summary>查詢指定帳號的家族資訊</summary>
+    [HttpGet("{account}/family")]
+    public async Task<IActionResult> Family(string account)
+        => Ok(await _db.GetPlayerFamilyAsync(account));
+
     /// <summary>批量封禁玩家</summary>
     [HttpPost("batch-ban")]
     public async Task<IActionResult> BatchBan([FromBody] BatchBanRequest req)

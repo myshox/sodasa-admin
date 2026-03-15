@@ -201,6 +201,15 @@ namespace SQ_Email_Tools
                 hub.TriggerLoad();
             };
 
+            var btnIpScan = MakeNavBtn("🔍", "重複IP偵測", ref y);
+            navTip.SetToolTip(btnIpScan, "掃描全服共用相同 IP 的帳號群組，找出多開/小號");
+            btnIpScan.Click += (s, e) =>
+            {
+                SetActiveNav(btnIpScan);
+                if (!CheckConnected()) return;
+                SwitchToHub(new IpScanForm());
+            };
+
             var btnMaster = MakeNavBtn("👑", "主帳號查詢", ref y);
             navTip.SetToolTip(btnMaster, "以主帳號查詢旗下所有子角色，可分帳充值");
             btnMaster.Click += (s, e) =>

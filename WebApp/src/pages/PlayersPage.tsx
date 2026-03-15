@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api'
-import type { PlayerRow, PlayerDetail, PetInfo } from '../api'
+import type { PlayerRow, PlayerDetail, PetInfo, SharedIpAccount, BanLogEntry, PlayerFamily } from '../api'
 import { S } from '../strings'
 import useIsMobile from '../hooks/useIsMobile'
 
@@ -139,6 +139,42 @@ export default function PlayersPage() {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
+  // ── 關聯帳號（同IP）──────────────────────────────────────────────
+  const [sharedIp, setSharedIp] = useState<SharedIpAccount[] | null>(null)
+  const [loadingSharedIp, setLoadingSharedIp] = useState(false)
+  const loadSharedIp = async (account: string) => {
+    setLoadingSharedIp(true); setSharedIp(null)
+    try {
+      const r = await api.get(`/players/${encodeURIComponent(account)}/shared-ip`)
+      setSharedIp(Array.isArray(r.data) ? r.data : [])
+    } catch { setSharedIp([]) }
+    finally { setLoadingSharedIp(false) }
+  }
+
+  // ── 封禁記錄 ────────────────────────────────────────────────────
+  const [banLog, setBanLog] = useState<BanLogEntry[] | null>(null)
+  const [loadingBanLog, setLoadingBanLog] = useState(false)
+  const loadBanLog = async (account: string) => {
+    setLoadingBanLog(true); setBanLog(null)
+    try {
+      const r = await api.get(`/players/${encodeURIComponent(account)}/ban-log`)
+      setBanLog(Array.isArray(r.data) ? r.data : [])
+    } catch { setBanLog([]) }
+    finally { setLoadingBanLog(false) }
+  }
+
+  // ── 家族資訊 ────────────────────────────────────────────────────
+  const [family, setFamily] = useState<PlayerFamily | null | undefined>(undefined)
+  const [loadingFamily, setLoadingFamily] = useState(false)
+  const loadFamily = async (account: string) => {
+    setLoadingFamily(true); setFamily(undefined)
+    try {
+      const r = await api.get(`/players/${encodeURIComponent(account)}/family`)
+      setFamily(r.data ?? null)
+    } catch { setFamily(null) }
+    finally { setLoadingFamily(false) }
+  }
+
   // 如果本地過濾結果為 0，才向伺服器補充搜尋
   const search = async () => {
     if (!q.trim()) { setPlayers(allPlayers); return }
@@ -170,6 +206,7 @@ export default function PlayersPage() {
     const d = r.data as PlayerDetail
     setDetail(d)
     setPlayerPets(null) // 切換玩家時收合寵物清單
+    setSharedIp(null); setBanLog(null); setFamily(undefined)
     setGoldVal(String(d.gold))
     setCrysVal(String(d.crystal))
     setShowBan(false); setShowRecharge(false); setShowRename(false)
@@ -610,8 +647,24 @@ export default function PlayersPage() {
               </div>
               <Row label={S.regTime} value={detail.regTime} />
               <Row label={S.loginTime} value={detail.loginTime} />
-              <Row label={S.regIP} value={detail.regIP} />
-              <Row label={S.lastIP} value={detail.ip} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>{S.regIP}</span>
+                <span
+                  style={{ color: detail.regIP ? 'var(--accent-blue)' : 'var(--text-primary)', cursor: detail.regIP ? 'pointer' : 'default', textDecoration: detail.regIP ? 'underline dotted' : 'none' }}
+                  title={detail.regIP ? '點擊查詢同IP帳號' : undefined}
+                  onClick={() => detail.regIP && loadSharedIp(detail.account)}>
+                  {detail.regIP || S.em}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <span style={{ color: 'var(--text-muted)' }}>{S.lastIP}</span>
+                <span
+                  style={{ color: detail.ip ? 'var(--accent-blue)' : 'var(--text-primary)', cursor: detail.ip ? 'pointer' : 'default', textDecoration: detail.ip ? 'underline dotted' : 'none' }}
+                  title={detail.ip ? '點擊查詢同IP帳號' : undefined}
+                  onClick={() => detail.ip && loadSharedIp(detail.account)}>
+                  {detail.ip || S.em}
+                </span>
+              </div>
               <Row label="UID" value={detail.uid || '—'} />
             </div>
 
@@ -658,6 +711,89 @@ export default function PlayersPage() {
                   </div>
                 </div>
               )}
+
+            {/* ── 關聯帳號（同IP）區塊 ── */}
+            <SectionLabel label="🔗 關聯帳號（同IP小號偵測）" />
+            <div style={{ marginBottom: 12 }}>
+              {sharedIp === null ? (
+                <button onClick={() => loadSharedIp(detail.account)} disabled={loadingSharedIp}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 0', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent-blue)' }}>
+                  {loadingSharedIp ? '查詢中…' : '🔍 查詢同IP帳號'}
+                </button>
+              ) : sharedIp.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>✓ 未查到共用IP的其他帳號</div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--accent-orange)', marginBottom: 6 }}>⚠️ 發現 {sharedIp.length} 個共用IP帳號</div>
+                  <div style={{ maxHeight: 200, overflowY: 'auto', background: 'var(--bg-input)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {sharedIp.map(a => (
+                      <div key={a.account} onClick={() => loadDetail(a.account)}
+                        style={{ padding: '5px 8px', borderBottom: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: 600, color: a.isOnline ? 'var(--accent-green)' : 'var(--text-primary)' }}>
+                            {a.isOnline ? '🟢 ' : ''}{a.charName || a.account}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 6 }}>{a.account}</span>
+                        </div>
+                        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>
+                          {a.payTotal > 0 && <span style={{ color: 'var(--accent-orange)' }}>NT${a.payTotal.toLocaleString()} </span>}
+                          {a.loginTime}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setSharedIp(null)} style={{ marginTop: 4, fontSize: 11, padding: '2px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)' }}>收合</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── 封禁記錄區塊 ── */}
+            <SectionLabel label="📋 封禁歷史記錄" />
+            <div style={{ marginBottom: 12 }}>
+              {banLog === null ? (
+                <button onClick={() => loadBanLog(detail.account)} disabled={loadingBanLog}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 0', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent-red)' }}>
+                  {loadingBanLog ? '查詢中…' : '📋 查詢封禁記錄'}
+                </button>
+              ) : banLog.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>✓ 無封禁記錄</div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--accent-red)', marginBottom: 6 }}>共 {banLog.length} 筆封禁記錄</div>
+                  <div style={{ maxHeight: 160, overflowY: 'auto', background: 'var(--bg-input)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {banLog.map((b, i) => (
+                      <div key={i} style={{ padding: '5px 8px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                        <span style={{ color: b.isPermanent ? 'var(--accent-red)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                          {b.isPermanent ? '🔒 永久' : `⏱ 至 ${b.banEndTime}`}
+                        </span>
+                        {b.reason && <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>— {b.reason}</span>}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setBanLog(null)} style={{ marginTop: 4, fontSize: 11, padding: '2px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)' }}>收合</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── 家族資訊區塊 ── */}
+            <SectionLabel label="🏰 家族資訊" />
+            <div style={{ marginBottom: 12 }}>
+              {family === undefined ? (
+                <button onClick={() => loadFamily(detail.account)} disabled={loadingFamily}
+                  style={{ width: '100%', fontSize: 12, padding: '5px 0', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent-blue)' }}>
+                  {loadingFamily ? '查詢中…' : '🏰 查詢家族'}
+                </button>
+              ) : family === null ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>— 無家族（散人）</div>
+              ) : (
+                <div style={{ background: 'var(--bg-input)', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--accent-blue)', marginBottom: 4 }}>🏰 {family.guildName}</div>
+                  <Row label="家族 ID" value={String(family.guildId)} />
+                  <Row label="家族成員數" value={`${family.memberCount} 人`} />
+                  <button onClick={() => setFamily(undefined)} style={{ marginTop: 4, fontSize: 11, padding: '2px 8px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)' }}>收合</button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

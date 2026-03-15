@@ -25,6 +25,7 @@ namespace SQ_Email_Tools
         private Button       _btnDissolve;
         private Button       _btnKick;
         private Button       _btnTransfer;
+        private Button       _btnAddMember;
         private Label        _lblFamilyName;
         private Panel        _detailPanel;
 
@@ -228,19 +229,86 @@ namespace SQ_Email_Tools
             _btnTransfer.Click  += BtnTransfer_Click;
             btnBar.Controls.Add(_btnTransfer);
 
+            var sep3 = new Panel { Width = 8, Height = 1, BackColor = Color.Transparent };
+            btnBar.Controls.Add(sep3);
+
+            var btnSetLeader = MakeBtn("\u8a2d\u70ba\u65cf\u9577", Color.FromArgb(100, 60, 180));
+            btnSetLeader.Width   = 90;
+            btnSetLeader.Enabled = false;
+            btnSetLeader.Name    = "btnSetLeader";
+            btnSetLeader.Click  += BtnSetLeader_Click;
+            btnBar.Controls.Add(btnSetLeader);
+
+            var sep4 = new Panel { Width = 8, Height = 1, BackColor = Color.Transparent };
+            btnBar.Controls.Add(sep4);
+
+            var btnSetElder = MakeBtn("\u8a2d\u70ba\u9577\u8001", Color.FromArgb(60, 110, 60));
+            btnSetElder.Width   = 90;
+            btnSetElder.Enabled = false;
+            btnSetElder.Name    = "btnSetElder";
+            btnSetElder.Click  += (s, e) => _ = SetRoleAsync(2);
+            btnBar.Controls.Add(btnSetElder);
+
+            var sep5 = new Panel { Width = 8, Height = 1, BackColor = Color.Transparent };
+            btnBar.Controls.Add(sep5);
+
+            var btnSetMember = MakeBtn("恢復成員", Color.FromArgb(70, 72, 80));
+            btnSetMember.Width   = 90;
+            btnSetMember.Enabled = false;
+            btnSetMember.Name    = "btnSetMember";
+            btnSetMember.Click  += (s, e) => _ = SetRoleAsync(0);
+            btnBar.Controls.Add(btnSetMember);
+
+            var sep6 = new Panel { Width = 16, Height = 1, BackColor = Color.Transparent };
+            btnBar.Controls.Add(sep6);
+
+            _btnAddMember = MakeBtn("＋ 新增成員", Color.FromArgb(10, 140, 80));
+            _btnAddMember.Width   = 110;
+            _btnAddMember.Enabled = false;
+            _btnAddMember.Click  += BtnAddMember_Click;
+            btnBar.Controls.Add(_btnAddMember);
+
+            // 成員 DataGridView 右鍵選單
+            var ctxMenu = new ContextMenuStrip { BackColor = Theme.BgCard, ForeColor = Theme.TextPrimary };
+            var menuSetLeader = new ToolStripMenuItem("\u2654 \u8a2d\u70ba\u65cf\u9577") { BackColor = Theme.BgCard, ForeColor = Color.FromArgb(200, 160, 255) };
+            var menuSetElder  = new ToolStripMenuItem("\u2605 \u8a2d\u70ba\u9577\u8001")  { BackColor = Theme.BgCard, ForeColor = Color.FromArgb(130, 210, 130) };
+            var menuSetMember = new ToolStripMenuItem("\u25a1 \u6062\u5fa9\u6210\u54e1")  { BackColor = Theme.BgCard, ForeColor = Color.FromArgb(180, 180, 180) };
+            var menuKick      = new ToolStripMenuItem("\u274c \u8e22\u9664\u6210\u54e1")  { BackColor = Theme.BgCard, ForeColor = Color.FromArgb(255, 120, 100) };
+            var menuTransfer  = new ToolStripMenuItem("\u27a1 \u8f49\u79fb\u81f3\u5176\u4ed6\u5bb6\u65cf") { BackColor = Theme.BgCard, ForeColor = Color.FromArgb(100, 180, 255) };
+            menuSetLeader.Click += BtnSetLeader_Click;
+            menuSetElder.Click  += (s, e) => _ = SetRoleAsync(2);
+            menuSetMember.Click += (s, e) => _ = SetRoleAsync(0);
+            menuKick.Click      += BtnKick_Click;
+            menuTransfer.Click  += BtnTransfer_Click;
+            ctxMenu.Items.AddRange(new ToolStripItem[] { menuSetLeader, menuSetElder, menuSetMember, new ToolStripSeparator(), menuKick, new ToolStripSeparator(), menuTransfer });
+
             // 成員 DataGridView
             _dgvMember = BuildDgv();
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MOnline",  HeaderText = "\u7DDA\u4E0A",    Width = 45,  ReadOnly = true });
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MName",    HeaderText = "\u89D2\u8272\u540D",    AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MCdkey",   HeaderText = "\u5E33\u865F",    Width = 140, ReadOnly = true });
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MShop",    HeaderText = "\u8CA2\u737B",    Width = 80,  ReadOnly = true });
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MPay",     HeaderText = "\u7D2F\u8A08\u5132\u5024", Width = 75, ReadOnly = true });
-            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MJoin",    HeaderText = "\u52A0\u5165\u6642\u9593", Width = 118, ReadOnly = true });
+            _dgvMember.ContextMenuStrip = ctxMenu;
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MRole",   HeaderText = "\u8077\u4f4d",   Width = 55,  ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MOnline", HeaderText = "\u7DDA\u4E0A",   Width = 45,  ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MName",   HeaderText = "\u89D2\u8272\u540D", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MCdkey",  HeaderText = "\u5E33\u865F",   Width = 140, ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MShop",   HeaderText = "\u8CA2\u737B",   Width = 80,  ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MPay",    HeaderText = "\u7D2F\u8A08\u5132\u5024", Width = 75, ReadOnly = true });
+            _dgvMember.Columns.Add(new DataGridViewTextBoxColumn { Name = "C_MJoin",   HeaderText = "\u52A0\u5165\u6642\u9593", Width = 118, ReadOnly = true });
             _dgvMember.SelectionChanged += (s, e) =>
             {
-                bool hasSel = _dgvMember.SelectedRows.Count > 0;
+                bool hasSel  = _dgvMember.SelectedRows.Count > 0;
+                bool oneOnly = _dgvMember.SelectedRows.Count == 1;
                 _btnKick.Enabled     = hasSel && _selected != null;
-                _btnTransfer.Enabled = hasSel && _selected != null && _families.Count > 1;
+                _btnTransfer.Enabled = _selected != null && _families.Count > 1;
+                bool roleOk = oneOnly && _selected != null;
+                foreach (string n in new[] { "btnSetLeader", "btnSetElder", "btnSetMember" })
+                {
+                    var b = btnBar.Controls[n] as Button;
+                    if (b != null) b.Enabled = roleOk;
+                }
+                menuSetLeader.Enabled = roleOk;
+                menuSetElder.Enabled  = roleOk;
+                menuSetMember.Enabled = roleOk;
+                menuKick.Enabled      = hasSel && _selected != null;
+                menuTransfer.Enabled  = _selected != null && _families.Count > 1;
             };
             detailLayout.Controls.Add(_dgvMember, 0, 2);
 
@@ -324,6 +392,7 @@ namespace SQ_Email_Tools
                     int i = _dgvMember.Rows.Add();
                     var row = _dgvMember.Rows[i];
                     row.Tag = m;
+                    row.Cells["C_MRole"].Value   = m.RoleLabel;
                     row.Cells["C_MOnline"].Value = m.IsOnline ? "\u2022 \u7DDA\u4E0A" : "\u96E2\u7DDA";
                     row.Cells["C_MName"].Value   = string.IsNullOrEmpty(m.CharName) ? m.OnlineName : m.CharName;
                     row.Cells["C_MCdkey"].Value  = m.Cdkey;
@@ -331,8 +400,12 @@ namespace SQ_Email_Tools
                     row.Cells["C_MPay"].Value    = m.PayTotal > 0 ? m.PayTotal.ToString("N0") : "-";
                     row.Cells["C_MJoin"].Value   = m.JoinTime;
 
-                    if (m.IsOnline)
-                        row.DefaultCellStyle.ForeColor = Color.FromArgb(80, 220, 100);
+                    if (m.Role == 1)
+                        row.DefaultCellStyle.ForeColor = Color.FromArgb(220, 180, 255);  // 族長：紫色
+                    else if (m.Role == 2)
+                        row.DefaultCellStyle.ForeColor = Color.FromArgb(130, 210, 130);  // 長老：綠色
+                    else if (m.IsOnline)
+                        row.DefaultCellStyle.ForeColor = Color.FromArgb(80, 220, 100);   // 在線：亮綠
                 }
                 _dgvMember.ResumeLayout();
                 _lblMemberStatus.Text = $"\u5171 {_members.Count} \u4EBA";
@@ -352,9 +425,58 @@ namespace SQ_Email_Tools
             var row = _dgvFamily.SelectedRows[0];
             if (row.Tag is not FamilyInfo fi) return;
             _selected             = fi;
-            _lblFamilyName.Text   = $"\u300C{fi.FamilyName}\u300D  ID: {fi.FamilyId}  \u4EBA\u6578: {fi.MemberCount}";
+            _lblFamilyName.Text   = $"「{fi.FamilyName}」  ID: {fi.FamilyId}  人數: {fi.MemberCount}";
             _btnDissolve.Enabled  = true;
+            _btnTransfer.Enabled  = _families.Count > 1;
+            _btnAddMember.Enabled = true;
             await LoadMembersAsync(fi.FamilyId);
+        }
+
+        private async void BtnSetLeader_Click(object? sender, EventArgs e)
+        {
+            if (_selected == null || _dgvMember.SelectedRows.Count != 1) return;
+            var row = _dgvMember.SelectedRows[0];
+            if (row.Tag is not FamilyMember m) return;
+
+            string name = string.IsNullOrEmpty(m.CharName) ? m.Cdkey : m.CharName;
+            if (m.Role == 1)
+            {
+                MessageBox.Show($"\u300c{name}\u300d \u5df2\u7d93\u662f\u65cf\u9577\u4e86\u3002", "\u63d0\u793a", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var ans = MessageBox.Show(
+                $"\u78ba\u5b9a\u8981\u5c07\u300c{name}\u300d\u8a2d\u70ba\u5bb6\u65cf\u300c{_selected.FamilyName}\u300d\u7684\u65b0\u65cf\u9577\uff1f\n\u539f\u65cf\u9577\u5c07\u8b8a\u6210\u4e00\u822c\u6210\u54e1\u3002",
+                "\u65cf\u9577\u8f49\u79fb", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (ans != DialogResult.Yes) return;
+
+            var (ok, msg) = await DatabaseManager.Instance.SetFamilyRoleAsync(_selected.FamilyId, m.Cdkey, 1);
+            MessageBox.Show(msg, ok ? "\u6210\u529f" : "\u5931\u6557",
+                MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+            if (ok) await LoadMembersAsync(_selected.FamilyId);
+        }
+
+        private async Task SetRoleAsync(int role)
+        {
+            if (_selected == null || _dgvMember.SelectedRows.Count != 1) return;
+            var row = _dgvMember.SelectedRows[0];
+            if (row.Tag is not FamilyMember m) return;
+
+            string name      = string.IsNullOrEmpty(m.CharName) ? m.Cdkey : m.CharName;
+            string roleLabel = role == 1 ? "\u65cf\u9577" : role == 2 ? "\u9577\u8001" : "\u4e00\u822c\u6210\u54e1";
+            if (m.Role == role)
+            {
+                MessageBox.Show($"\u300c{name}\u300d \u5df2\u7d93\u662f{roleLabel}\u4e86\u3002", "\u63d0\u793a", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var ans = MessageBox.Show(
+                $"\u78ba\u5b9a\u8981\u5c07\u300c{name}\u300d\u7684\u8077\u4f4d\u6539\u70ba\u300c{roleLabel}\u300d\uff1f",
+                "\u66f4\u6539\u8077\u4f4d", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (ans != DialogResult.Yes) return;
+
+            var (ok, msg) = await DatabaseManager.Instance.SetFamilyRoleAsync(_selected.FamilyId, m.Cdkey, role);
+            MessageBox.Show(msg, ok ? "\u6210\u529f" : "\u5931\u6557",
+                MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+            if (ok) await LoadMembersAsync(_selected.FamilyId);
         }
 
         private async void BtnDissolve_Click(object? sender, EventArgs e)
@@ -405,36 +527,63 @@ namespace SQ_Email_Tools
 
         private async void BtnTransfer_Click(object? sender, EventArgs e)
         {
-            if (_selected == null || _dgvMember.SelectedRows.Count == 0) return;
-            var members = _dgvMember.SelectedRows.Cast<DataGridViewRow>()
-                .Where(r => r.Tag is FamilyMember)
-                .Select(r => (FamilyMember)r.Tag!)
-                .ToList();
-            if (members.Count == 0) return;
+            if (_selected == null) return;
+
+            // 若沒選成員 → 詢問是否轉移整個家族
+            var members = _dgvMember.SelectedRows.Count > 0
+                ? _dgvMember.SelectedRows.Cast<DataGridViewRow>()
+                    .Where(r => r.Tag is FamilyMember)
+                    .Select(r => (FamilyMember)r.Tag!)
+                    .ToList()
+                : new List<FamilyMember>();
+
+            if (members.Count == 0)
+            {
+                // 沒選成員：詢問是否轉移全部
+                var ans = MessageBox.Show(
+                    $"\u60a8\u6c92\u6709\u9078\u64c7\u6210\u54e1\u3002\n\u662f\u5426\u8981\u5c07\u5bb6\u65cf\u300c{_selected.FamilyName}\u300d\u7684\u5168\u90e8 {_members.Count} \u4f4d\u6210\u54e1\u8f49\u79fb\u81f3\u5176\u4ed6\u5bb6\u65cf\uff1f",
+                    "\u8f49\u79fb\u5168\u90e8\u6210\u54e1", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (ans != DialogResult.Yes) return;
+                members = new List<FamilyMember>(_members);
+            }
+
+            if (members.Count == 0)
+            {
+                MessageBox.Show("\u6b64\u5bb6\u65cf\u6c92\u6709\u6210\u54e1\u53ef\u8f49\u79fb\u3002", "\u63d0\u793a", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
 
             // 選擇目標家族
             var targets = _families.Where(f => f.FamilyId != _selected.FamilyId).ToList();
             if (targets.Count == 0)
             {
-                MessageBox.Show("\u6c92\u6709\u5176\u4ed6\u5bb6\u65cf\u53ef\u4ee5\u8f49\u79fb\u3002", "\u63d0\u793a", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("\u6c92\u6709\u5176\u4ed6\u5bb6\u65cf\u53ef\u4ee5\u8f49\u79fb\u3002\u8acb\u5148\u78ba\u4fdd\u5b58\u5728\u5169\u500b\u4ee5\u4e0a\u5bb6\u65cf\u3002", "\u63d0\u793a", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             using var dlg = new TransferFamilyDialog(targets, members);
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            if (dlg.ShowDialog() != DialogResult.OK) return;
 
             _btnTransfer.Enabled = false;
             int success = 0, fail = 0;
+            var failMsgs = new System.Text.StringBuilder();
             foreach (var m in members)
             {
-                var (ok, _) = await DatabaseManager.Instance.TransferMemberAsync(m.Cdkey, dlg.TargetFamilyId, dlg.TargetFamilyName);
-                if (ok) success++; else fail++;
+                var (ok, msg) = await DatabaseManager.Instance.TransferMemberAsync(m.Cdkey, dlg.TargetFamilyId, dlg.TargetFamilyName);
+                if (ok) success++;
+                else { fail++; failMsgs.AppendLine($"• {m.CharName}（{m.Cdkey}）: {msg}"); }
             }
-            MessageBox.Show($"\u8f49\u79fb\u5b8c\u6210\uff1a{success} \u6210\u529f / {fail} \u5931\u6557",
-                "\u8f49\u79fb\u7d50\u679c", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            string resultMsg = $"轉移完成：{success} 成功 / {fail} 失敗";
+            if (fail > 0) resultMsg += $"\n\n失敗原因：\n{failMsgs}";
+            MessageBox.Show(resultMsg, "轉移結果", MessageBoxButtons.OK,
+                fail > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
 
-            if (success > 0) await LoadMembersAsync(_selected.FamilyId);
-            _btnTransfer.Enabled = _dgvMember.SelectedRows.Count > 0 && _families.Count > 1;
+            if (success > 0)
+            {
+                await LoadFamiliesAsync();
+                await LoadMembersAsync(_selected.FamilyId);
+            }
+            _btnTransfer.Enabled = _selected != null && _families.Count > 1;
         }
 
         // ══════════════════════════════════════════════════════════
@@ -481,6 +630,26 @@ namespace SQ_Email_Tools
             };
             dgv.EnableHeadersVisualStyles = false;
             return dgv;
+        }
+
+        private async void BtnAddMember_Click(object? sender, EventArgs e)
+        {
+            if (_selected == null) return;
+            using var dlg = new AddMemberDialog(_selected.FamilyId, _selected.FamilyName);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            var (cdkey, charName, role) = dlg.Result;
+            var db = DatabaseManager.Instance;
+            var (ok, msg) = await db.AddFamilyMemberAsync(_selected.FamilyId, _selected.FamilyName, cdkey, charName, role);
+            if (ok)
+            {
+                _lblMemberStatus.Text = msg;
+                await LoadMembersAsync(_selected.FamilyId);
+                await LoadFamiliesAsync();
+            }
+            else
+            {
+                MessageBox.Show(msg, "新增失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private static Button MakeBtn(string text, Color bg)
@@ -607,7 +776,88 @@ namespace SQ_Email_Tools
         {
             public FamilyInfo Info { get; }
             public FamilyItem(FamilyInfo info) => Info = info;
-            public override string ToString() => $"[{Info.FamilyId}] {Info.FamilyName}  ({Info.MemberCount}\u4EBA)";
+            public override string ToString() => $"[{Info.FamilyId}] {Info.FamilyName}  ({Info.MemberCount}人)";
+        }
+    }
+
+    /// <summary>手動新增成員對話框</summary>
+    internal class AddMemberDialog : Form
+    {
+        public (string cdkey, string charName, int role) Result { get; private set; }
+
+        public AddMemberDialog(int familyId, string familyName)
+        {
+            Text            = $"新增成員到「{familyName}」";
+            Size            = new Size(400, 280);
+            BackColor       = Theme.BgPage;
+            ForeColor       = Theme.TextPrimary;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox     = false;
+            MinimizeBox     = false;
+            StartPosition   = FormStartPosition.CenterParent;
+
+            var lblCdkey = new Label { Text = "玩家帳號 (cdkey)：", Location = new Point(16, 20), AutoSize = true, ForeColor = Theme.TextPrimary };
+            Controls.Add(lblCdkey);
+
+            var txtCdkey = new TextBox { Location = new Point(16, 42), Width = 340, BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, BorderStyle = BorderStyle.FixedSingle };
+            Controls.Add(txtCdkey);
+
+            var lblName = new Label { Text = "角色名稱（選填，留空會自動從 csalogin 取得）：", Location = new Point(16, 78), AutoSize = true, ForeColor = Theme.TextPrimary };
+            Controls.Add(lblName);
+
+            var txtName = new TextBox { Location = new Point(16, 100), Width = 340, BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, BorderStyle = BorderStyle.FixedSingle };
+            Controls.Add(txtName);
+
+            var lblRole = new Label { Text = "職位：", Location = new Point(16, 136), AutoSize = true, ForeColor = Theme.TextPrimary };
+            Controls.Add(lblRole);
+
+            var cmb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(16, 158), Width = 200, BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat };
+            cmb.Items.Add("成員");
+            cmb.Items.Add("♔ 族長");
+            cmb.Items.Add("★ 長老");
+            cmb.SelectedIndex = 0;
+            Controls.Add(cmb);
+
+            var btnOk = new Button
+            {
+                Text         = "確定新增",
+                Size         = new Size(100, 32),
+                Location     = new Point(16, 200),
+                BackColor    = Color.FromArgb(10, 140, 80),
+                ForeColor    = Color.White,
+                FlatStyle    = FlatStyle.Flat,
+                DialogResult = DialogResult.OK
+            };
+            btnOk.FlatAppearance.BorderSize = 0;
+            btnOk.Click += (s, e) =>
+            {
+                var cdkey = txtCdkey.Text.Trim();
+                if (string.IsNullOrEmpty(cdkey))
+                {
+                    MessageBox.Show("帳號不能為空！", "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    DialogResult = DialogResult.None;
+                    return;
+                }
+                int role = cmb.SelectedIndex; // 0=成員, 1=族長, 2=長老
+                Result = (cdkey, txtName.Text.Trim(), role);
+            };
+            Controls.Add(btnOk);
+
+            var btnCancel = new Button
+            {
+                Text         = "取消",
+                Size         = new Size(80, 32),
+                Location     = new Point(124, 200),
+                BackColor    = Color.FromArgb(70, 72, 80),
+                ForeColor    = Color.White,
+                FlatStyle    = FlatStyle.Flat,
+                DialogResult = DialogResult.Cancel
+            };
+            btnCancel.FlatAppearance.BorderSize = 0;
+            Controls.Add(btnCancel);
+
+            AcceptButton = btnOk;
+            CancelButton = btnCancel;
         }
     }
 }

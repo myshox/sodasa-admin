@@ -3370,6 +3370,112 @@ public class DbService
         catch (Exception ex) { return (false, ex.Message); }
     }
 
+    // ── 玩家詳情強化：同IP帳號、封禁記錄、家族資訊 ─────────────────
+
+    /// <summary>查詢與指定帳號共用相同 IP 的其他帳號（登入IP或註冊IP）</summary>
+    public async Task<List<object>> GetSharedIpAccountsAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        // 先取得該帳號的 IP 和 RegIP
+        string loginIp = "", regIp = "";
+        await using (var cmd0 = new MySqlCommand("SELECT IFNULL(IP,'') ip, IFNULL(RegIP,'') regip FROM csalogin WHERE `Name`=@a LIMIT 1", db))
+        {
+            cmd0.Parameters.AddWithValue("@a", account);
+            await using var r0 = await cmd0.ExecuteReaderAsync();
+            if (await r0.ReadAsync()) { loginIp = r0.GetString("ip"); regIp = r0.GetString("regip"); }
+        }
+        if (string.IsNullOrWhiteSpace(loginIp) && string.IsNullOrWhiteSpace(regIp))
+            return new List<object>();
+
+        var conditions = new List<string>();
+        if (!string.IsNullOrWhiteSpace(loginIp))  conditions.Add("(IP=@lip OR RegIP=@lip)");
+        if (!string.IsNullOrWhiteSpace(regIp) && regIp != loginIp) conditions.Add("(IP=@rip OR RegIP=@rip)");
+
+        var sql = $@"SELECT `Name` account, IFNULL(OnlineName,'') charName,
+                            IFNULL(IP,'') ip, IFNULL(RegIP,'') regIp,
+                            Online isOnline,
+                            IFNULL(PayTotal,0) payTotal,
+                            DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i') loginTime,
+                            DATE_FORMAT(created_at,'%Y-%m-%d') regTime
+                     FROM csalogin
+                     WHERE `Name`!=@self AND ({string.Join(" OR ", conditions)})
+                     ORDER BY Online DESC, LoginTime DESC LIMIT 50";
+        await using var cmd = new MySqlCommand(sql, db);
+        cmd.Parameters.AddWithValue("@self", account);
+        if (!string.IsNullOrWhiteSpace(loginIp))  cmd.Parameters.AddWithValue("@lip", loginIp);
+        if (!string.IsNullOrWhiteSpace(regIp) && regIp != loginIp) cmd.Parameters.AddWithValue("@rip", regIp);
+
+        var list = new List<object>();
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+        {
+            list.Add(new {
+                account   = r.GetString("account"),
+                charName  = r.GetString("charName"),
+                ip        = r.GetString("ip"),
+                regIp     = r.GetString("regIp"),
+                isOnline  = r.GetInt32("isOnline") == 1,
+                payTotal  = Convert.ToInt64(r["payTotal"]),
+                loginTime = r.GetString("loginTime"),
+                regTime   = r.GetString("regTime"),
+            });
+        }
+        return list;
+    }
+
+    /// <summary>查詢指定帳號的封禁歷史記錄（lock 表）</summary>
+    public async Task<List<object>> GetBanLogAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<object>();
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT `time` banEndTime, IFNULL(reason,'') reason
+                  FROM `lock` WHERE `Name`=@a ORDER BY `time` ASC LIMIT 50", db);
+            cmd.Parameters.AddWithValue("@a", account);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                long t = r.GetInt64("banEndTime");
+                list.Add(new {
+                    banEndTime  = t == 0 ? "永久" : DateTimeOffset.FromUnixTimeSeconds(t).LocalDateTime.ToString("yyyy/MM/dd HH:mm"),
+                    isPermanent = t == 0,
+                    reason      = r.GetString("reason"),
+                });
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    /// <summary>查詢指定帳號的家族資訊</summary>
+    public async Task<object?> GetPlayerFamilyAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT z.jiazuid guildId, z.jiazu guildName,
+                         (SELECT COUNT(*) FROM zuzhanlog zz WHERE zz.jiazuid=z.jiazuid AND zz.id IN (SELECT MAX(id) FROM zuzhanlog GROUP BY cdkey)) memberCount
+                  FROM zuzhanlog z
+                  WHERE z.cdkey=@a AND z.jiazuid>0
+                  ORDER BY z.id DESC LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@a", account);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                return new {
+                    guildId     = Convert.ToInt32(r["guildId"]),
+                    guildName   = r["guildName"]?.ToString() ?? "",
+                    memberCount = Convert.ToInt32(r["memberCount"]),
+                };
+            }
+        }
+        catch { }
+        return null;
+    }
+
     public async Task<(bool ok, string msg)> TransferGuildMemberAsync(string cdkey, int targetGuildId, string targetGuildName)
     {
         try
