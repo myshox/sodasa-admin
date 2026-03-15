@@ -5083,6 +5083,202 @@ namespace SQ_Email_Tools
             }
             catch (Exception ex) { return (false, ex.Message); }
         }
+
+        /// <summary>全服掃描共用 IP 的帳號群組</summary>
+        public async Task<List<IpGroupEntry>> GetIpGroupsAsync(int minGroup = 2)
+        {
+            var result = new List<IpGroupEntry>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                // 找出每個 IP 有 >= minGroup 個帳號的群組（登入IP + 註冊IP 合併）
+                var sql = $@"
+                    SELECT ip, GROUP_CONCAT(account ORDER BY isOnline DESC, account SEPARATOR '|||') accs,
+                           SUM(isOnline) onlineCnt, COUNT(DISTINCT account) total
+                    FROM (
+                        SELECT `Name` account, IFNULL(IP,'') ip, IF(Online=1,1,0) isOnline
+                        FROM csalogin WHERE IP IS NOT NULL AND IP != ''
+                        UNION ALL
+                        SELECT `Name` account, IFNULL(RegIP,'') ip, IF(Online=1,1,0) isOnline
+                        FROM csalogin WHERE RegIP IS NOT NULL AND RegIP != '' AND (IP IS NULL OR IP != RegIP)
+                    ) t
+                    GROUP BY ip
+                    HAVING COUNT(DISTINCT account) >= {minGroup}
+                    ORDER BY SUM(isOnline) DESC, COUNT(DISTINCT account) DESC
+                    LIMIT 500";
+
+                var ipGroups = new List<(string ip, string[] accs, int online, int total)>();
+                using (var cmd = new MySqlCommand(sql, conn))
+                using (var r = await cmd.ExecuteReaderAsync())
+                    while (await r.ReadAsync())
+                        ipGroups.Add((
+                            r.GetString("ip"),
+                            r.GetString("accs").Split("|||"),
+                            Convert.ToInt32(r["onlineCnt"]),
+                            Convert.ToInt32(r["total"])
+                        ));
+
+                if (ipGroups.Count == 0) return result;
+
+                // 批次查帳號詳細資訊
+                var allAccs = ipGroups.SelectMany(g => g.accs).Distinct().ToList();
+                var details = new Dictionary<string, IpGroupMember>();
+
+                for (int i = 0; i < allAccs.Count; i += 200)
+                {
+                    var batch  = allAccs.Skip(i).Take(200).ToList();
+                    var inList = string.Join(",", batch.Select(a => $"'{a.Replace("'", "\\'")}'"));
+                    var dSql   = $@"SELECT c.`Name` acc, IFNULL(c.OnlineName,'') charName,
+                                           IFNULL(m.Name,'') masterName,
+                                           IFNULL(c.IP,'') ip, IFNULL(c.RegIP,'') regIp,
+                                           IF(c.Online=1,1,0) isOnline
+                                    FROM csalogin c
+                                    LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                                    WHERE c.`Name` IN ({inList})";
+                    using var dc = new MySqlCommand(dSql, conn);
+                    using var dr = await dc.ExecuteReaderAsync();
+                    while (await dr.ReadAsync())
+                        details[dr.GetString("acc")] = new IpGroupMember
+                        {
+                            Account    = dr.GetString("acc"),
+                            CharName   = dr.GetString("charName"),
+                            MasterName = dr.GetString("masterName"),
+                            LoginIp    = dr.GetString("ip"),
+                            RegIp      = dr.GetString("regIp"),
+                            IsOnline   = Convert.ToInt32(dr["isOnline"]) == 1
+                        };
+                }
+
+                foreach (var (ip, accs, online, total) in ipGroups)
+                {
+                    var entry = new IpGroupEntry { Ip = ip, OnlineCount = online, TotalCount = total };
+                    foreach (var acc in accs)
+                        if (details.TryGetValue(acc, out var m))
+                            entry.Members.Add(m);
+                    result.Add(entry);
+                }
+            }
+            catch { }
+            return result;
+        }
+
+        /// <summary>查詢單一帳號的 IP 以及共用該 IP 的帳號</summary>
+        public async Task<SingleIpQueryResult?> GetSharedIpForAccountAsync(string account)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                string loginIp = "", regIp = "", charName = "", masterName = "";
+                bool isOnline = false;
+
+                using (var cmd = new MySqlCommand(
+                    @"SELECT IFNULL(c.IP,'') ip, IFNULL(c.RegIP,'') regIp,
+                             IFNULL(c.OnlineName,'') charName,
+                             IFNULL(m.Name,'') masterName,
+                             IF(c.Online=1,1,0) isOnline
+                      FROM csalogin c
+                      LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                      WHERE c.`Name`=@acc LIMIT 1", conn))
+                {
+                    cmd.Parameters.AddWithValue("@acc", account);
+                    using var r = await cmd.ExecuteReaderAsync();
+                    if (!await r.ReadAsync()) return null;
+                    loginIp    = r.GetString("ip");
+                    regIp      = r.GetString("regIp");
+                    charName   = r.GetString("charName");
+                    masterName = r.GetString("masterName");
+                    isOnline   = Convert.ToInt32(r["isOnline"]) == 1;
+                }
+
+                var ips = new HashSet<string>();
+                if (!string.IsNullOrWhiteSpace(loginIp)) ips.Add(loginIp);
+                if (!string.IsNullOrWhiteSpace(regIp))   ips.Add(regIp);
+
+                var shared = new List<IpGroupMember>();
+                if (ips.Count > 0)
+                {
+                    var ipList = string.Join(",", ips.Select(i => $"'{i.Replace("'", "\\'")}'"));
+                    var sql    = $@"SELECT c.`Name` acc, IFNULL(c.OnlineName,'') charName,
+                                          IFNULL(m.Name,'') masterName,
+                                          IFNULL(c.IP,'') ip, IFNULL(c.RegIP,'') regIp,
+                                          IF(c.Online=1,1,0) isOnline
+                                   FROM csalogin c
+                                   LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                                   WHERE c.`Name` != @acc
+                                     AND (c.IP IN ({ipList}) OR c.RegIP IN ({ipList}))
+                                   ORDER BY c.Online DESC, c.LoginTime DESC LIMIT 200";
+                    using var sc = new MySqlCommand(sql, conn);
+                    sc.Parameters.AddWithValue("@acc", account);
+                    using var sr = await sc.ExecuteReaderAsync();
+                    while (await sr.ReadAsync())
+                        shared.Add(new IpGroupMember
+                        {
+                            Account    = sr.GetString("acc"),
+                            CharName   = sr.GetString("charName"),
+                            MasterName = sr.GetString("masterName"),
+                            LoginIp    = sr.GetString("ip"),
+                            RegIp      = sr.GetString("regIp"),
+                            IsOnline   = Convert.ToInt32(sr["isOnline"]) == 1
+                        });
+                }
+
+                return new SingleIpQueryResult
+                {
+                    Account       = account,
+                    CharName      = charName,
+                    MasterName    = masterName,
+                    LoginIp       = loginIp,
+                    RegIp         = regIp,
+                    IsOnline      = isOnline,
+                    SharedMembers = shared
+                };
+            }
+            catch { return null; }
+        }
+
+        /// <summary>查詢 IP 最早使用的帳號（原始主人）</summary>
+        public async Task<IpOwnerResult?> GetIpOwnerAsync(string ip)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT c.`Name` account,
+                             IFNULL(c.OnlineName,'') charName,
+                             IFNULL(m.Name,'') masterName,
+                             IFNULL(c.IP,'') loginIp,
+                             IFNULL(c.RegIP,'') regIp,
+                             IF(c.Online=1,1,0) isOnline,
+                             IFNULL(DATE_FORMAT(IFNULL(c.created_at,c.LoginTime),'%Y-%m-%d %H:%i'),'') regTime,
+                             CASE WHEN c.RegIP=@ip THEN '註冊IP命中' ELSE '登入IP命中' END matchType
+                      FROM csalogin c
+                      LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                      WHERE c.RegIP=@ip OR c.IP=@ip
+                      ORDER BY IFNULL(c.created_at,c.LoginTime) ASC
+                      LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@ip", ip);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return null;
+                return new IpOwnerResult
+                {
+                    Ip         = ip,
+                    Account    = r.GetString("account"),
+                    CharName   = r.GetString("charName"),
+                    MasterName = r.GetString("masterName"),
+                    LoginIp    = r.GetString("loginIp"),
+                    RegIp      = r.GetString("regIp"),
+                    IsOnline   = Convert.ToInt32(r["isOnline"]) == 1,
+                    RegTime    = r.GetString("regTime"),
+                    MatchType  = r.GetString("matchType")
+                };
+            }
+            catch { return null; }
+        }
     }
 
     // ── 擴充：DataReader 是否含指定欄位 ──────────────────────────
@@ -5094,5 +5290,48 @@ namespace SQ_Email_Tools
                 if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
+    }
+
+    // ── IP 查詢資料模型 ──────────────────────────────────────────
+    public class IpGroupEntry
+    {
+        public string Ip          { get; set; } = "";
+        public int    OnlineCount { get; set; }
+        public int    TotalCount  { get; set; }
+        public List<IpGroupMember> Members { get; set; } = new();
+    }
+
+    public class IpGroupMember
+    {
+        public string Account    { get; set; } = "";
+        public string CharName   { get; set; } = "";
+        public string MasterName { get; set; } = "";
+        public string LoginIp    { get; set; } = "";
+        public string RegIp      { get; set; } = "";
+        public bool   IsOnline   { get; set; }
+    }
+
+    public class SingleIpQueryResult
+    {
+        public string Account       { get; set; } = "";
+        public string CharName      { get; set; } = "";
+        public string MasterName    { get; set; } = "";
+        public string LoginIp       { get; set; } = "";
+        public string RegIp         { get; set; } = "";
+        public bool   IsOnline      { get; set; }
+        public List<IpGroupMember> SharedMembers { get; set; } = new();
+    }
+
+    public class IpOwnerResult
+    {
+        public string Ip         { get; set; } = "";
+        public string Account    { get; set; } = "";
+        public string CharName   { get; set; } = "";
+        public string MasterName { get; set; } = "";
+        public string LoginIp    { get; set; } = "";
+        public string RegIp      { get; set; } = "";
+        public bool   IsOnline   { get; set; }
+        public string RegTime    { get; set; } = "";
+        public string MatchType  { get; set; } = "";
     }
 }

@@ -32,4 +32,11 @@ public class ServerStatusController : ControllerBase
     [HttpGet("ip-groups")]
     public async Task<IActionResult> IpGroups([FromQuery] int minGroup = 2, [FromQuery] int limit = 300)
         => Ok(await _db.GetIpGroupsAsync(Math.Max(2, minGroup), Math.Min(limit, 1000)));
+
+    [HttpGet("ip-owner")]
+    public async Task<IActionResult> IpOwner([FromQuery] string ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return BadRequest(new { message = "請輸入 IP" });
+        return Ok(await _db.GetIpOwnerAsync(ip.Trim()));
+    }
 }

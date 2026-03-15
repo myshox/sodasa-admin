@@ -2730,6 +2730,51 @@ public class DbService
         }
     }
 
+    /// <summary>查詢一個 IP 最早使用（原始主人）的帳號</summary>
+    public async Task<object> GetIpOwnerAsync(string ip)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            // 找 RegIP 或 IP 最早使用此 IP 的帳號（依 created_at 或 LoginTime 排序）
+            await using var cmd = new MySqlCommand(
+                @"SELECT c.`Name` account,
+                         IFNULL(c.OnlineName,'') charName,
+                         IFNULL(m.Name,'') masterName,
+                         IFNULL(c.IP,'') loginIp,
+                         IFNULL(c.RegIP,'') regIp,
+                         IF(c.Online=1,1,0) isOnline,
+                         IFNULL(DATE_FORMAT(IFNULL(c.created_at,c.LoginTime),'%Y-%m-%d %H:%i'),'') regTime,
+                         CASE WHEN c.RegIP=@ip THEN 'reg' ELSE 'login' END matchType
+                  FROM csalogin c
+                  LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                  WHERE c.RegIP=@ip OR c.IP=@ip
+                  ORDER BY IFNULL(c.created_at,c.LoginTime) ASC
+                  LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@ip", ip);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync())
+                return new { found = false, message = $"找不到使用過 {ip} 的帳號" };
+
+            return new {
+                found      = true,
+                ip,
+                account    = r.GetString("account"),
+                charName   = r.GetString("charName"),
+                masterName = r.GetString("masterName"),
+                loginIp    = r.GetString("loginIp"),
+                regIp      = r.GetString("regIp"),
+                isOnline   = r.GetInt32("isOnline") == 1,
+                regTime    = r.GetString("regTime"),
+                matchType  = r.GetString("matchType")   // "reg"=由RegIP命中 / "login"=由IP命中
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { found = false, message = ex.Message };
+        }
+    }
+
     /// <summary>全服掃描：找出所有共用同一 IP 的帳號群組</summary>
     public async Task<object> GetIpGroupsAsync(int minGroup = 2, int limit = 300)
     {

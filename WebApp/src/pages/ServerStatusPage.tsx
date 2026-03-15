@@ -60,6 +60,19 @@ interface IpGroupsResult {
   totalAccounts: number
   error?: string
 }
+interface IpOwnerResult {
+  found: boolean
+  message?: string
+  ip?: string
+  account?: string
+  charName?: string
+  masterName?: string
+  loginIp?: string
+  regIp?: string
+  isOnline?: boolean
+  regTime?: string
+  matchType?: string
+}
 
 // ── 小元件 ────────────────────────────────────────────────────
 const StatCard = ({
@@ -126,6 +139,11 @@ export default function ServerStatusPage() {
   const [expandedIps, setExpandedIps]   = useState<Set<string>>(new Set())
   const [filterOnline, setFilterOnline] = useState(false)
 
+  // ── IP 原始主人查詢 ───────────────────────────────────────────
+  const [ipOwnerResult, setIpOwnerResult]   = useState<IpOwnerResult | null>(null)
+  const [ipOwnerLoading, setIpOwnerLoading] = useState(false)
+  const [ipOwnerTarget, setIpOwnerTarget]   = useState('')
+
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
@@ -184,6 +202,20 @@ export default function ServerStatusPage() {
       n.has(ip) ? n.delete(ip) : n.add(ip)
       return n
     })
+  }
+
+  const queryIpOwner = async (ip: string) => {
+    setIpOwnerTarget(ip)
+    setIpOwnerLoading(true)
+    setIpOwnerResult(null)
+    try {
+      const r = await api.get('/server-status/ip-owner', { params: { ip } })
+      setIpOwnerResult(r.data as IpOwnerResult)
+    } catch {
+      setIpOwnerResult({ found: false, message: '查詢失敗' })
+    } finally {
+      setIpOwnerLoading(false)
+    }
   }
 
   return (
@@ -384,8 +416,11 @@ export default function ServerStatusPage() {
                                 background: hasOnline ? 'rgba(248,113,113,.07)' : 'var(--bg-sidebar)',
                                 userSelect: 'none' }}>
                               <span style={{ fontSize: 12, color: 'var(--text-muted)', transition: 'transform .2s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'rotate(0)' }}>▶</span>
-                              <code style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: hasOnline ? '#f87171' : 'var(--accent-blue)', minWidth: 130 }}>{g.ip}</code>
-                              <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>
+                              <code
+                                onClick={e => { e.stopPropagation(); queryIpOwner(g.ip) }}
+                                title="點擊查詢此IP的原始主人"
+                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: hasOnline ? '#f87171' : 'var(--accent-blue)', minWidth: 130, cursor: 'pointer', textDecoration: 'underline dotted' }}
+                              >{g.ip}</code>                              <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>
                                 {g.totalCount} 個帳號
                               </span>
                               {g.onlineCount > 0 && (
@@ -476,7 +511,7 @@ export default function ServerStatusPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>登入 IP</div>
-                    <code style={{ fontSize: 13, color: 'var(--accent-blue)', fontWeight: 600 }}>{ipResult.loginIp || '—'}</code>
+                    <code onClick={() => ipResult.loginIp && queryIpOwner(ipResult.loginIp)} title="點擊查詢此IP的原始主人" style={{ fontSize: 13, color: 'var(--accent-blue)', fontWeight: 600, cursor: ipResult.loginIp ? 'pointer' : 'default', textDecoration: ipResult.loginIp ? 'underline dotted' : 'none' }}>{ipResult.loginIp || '—'}</code>
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>註冊 IP</div>
@@ -510,10 +545,12 @@ export default function ServerStatusPage() {
                             <td style={{ padding: '7px 12px', fontWeight: 700 }}>{a.account}</td>
                             <td style={{ padding: '7px 12px', color: 'var(--text-secondary)' }}>{a.charName || '—'}</td>
                             <td style={{ padding: '7px 12px', color: 'var(--text-muted)' }}>{a.masterName || '—'}</td>
-                            <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 12, color: 'var(--accent-blue)' }}>{a.ip || '—'}</td>
+                            <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontSize: 12, color: 'var(--accent-blue)' }}>
+                            <span onClick={() => a.ip && queryIpOwner(a.ip)} title="點擊查詢原始主人" style={{ cursor: a.ip ? 'pointer' : 'default', textDecoration: a.ip ? 'underline dotted' : 'none' }}>{a.ip || '—'}</span>
+                          </td>
                             <td style={{ padding: '7px 12px' }}>
                               {a.matchIps.map(ip => (
-                                <span key={ip} style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,.15)', color: '#f87171', marginRight: 4, fontFamily: 'monospace' }}>{ip}</span>
+                                <span key={ip} onClick={() => queryIpOwner(ip)} title="點擊查詢原始主人" style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,.15)', color: '#f87171', marginRight: 4, fontFamily: 'monospace', cursor: 'pointer', textDecoration: 'underline dotted' }}>{ip}</span>
                               ))}
                             </td>
                           </tr>
@@ -530,6 +567,55 @@ export default function ServerStatusPage() {
             )}
           </div>
         </details>
+
+        {/* ── IP 原始主人查詢結果 ── */}
+        {(ipOwnerLoading || ipOwnerResult) && (
+          <div style={{ background: 'var(--bg-card)', border: `1px solid ${ipOwnerResult?.found ? 'var(--accent-blue)' : 'var(--accent-red)'}`, borderRadius: 12, padding: '16px 20px', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>
+                🔎 IP 原始主人查詢
+                {ipOwnerTarget && <code style={{ marginLeft: 10, fontFamily: 'monospace', fontSize: 13, color: 'var(--accent-blue)' }}>{ipOwnerTarget}</code>}
+              </div>
+              <button onClick={() => setIpOwnerResult(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
+            </div>
+            {ipOwnerLoading && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>查詢中…</div>}
+            {ipOwnerResult && !ipOwnerResult.found && (
+              <div style={{ color: 'var(--accent-red)', fontSize: 13 }}>❌ {ipOwnerResult.message}</div>
+            )}
+            {ipOwnerResult?.found && (
+              <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>最早使用者（原始主人）</div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>
+                    {ipOwnerResult.account}
+                    <span style={{ marginLeft: 8, padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: ipOwnerResult.isOnline ? 'rgba(22,185,122,.15)' : 'rgba(100,110,140,.15)',
+                      color: ipOwnerResult.isOnline ? '#16b97a' : 'var(--text-muted)' }}>
+                      {ipOwnerResult.isOnline ? '🟢 在線' : '⚫ 離線'}
+                    </span>
+                  </div>
+                  {ipOwnerResult.charName && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>角色：{ipOwnerResult.charName}</div>}
+                  {ipOwnerResult.masterName && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>主帳號：{ipOwnerResult.masterName}</div>}
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>最早時間</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{ipOwnerResult.regTime || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>命中方式</div>
+                  <div style={{ fontSize: 13, color: '#f59e0b', fontWeight: 600 }}>{ipOwnerResult.matchType || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>登入 IP / 註冊 IP</div>
+                  <code style={{ fontSize: 12, color: 'var(--accent-blue)' }}>{ipOwnerResult.loginIp || '—'}</code>
+                  <span style={{ margin: '0 6px', color: 'var(--text-muted)' }}>/</span>
+                  <code style={{ fontSize: 12, color: '#f59e0b' }}>{ipOwnerResult.regIp || '—'}</code>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )
