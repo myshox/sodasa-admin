@@ -2843,7 +2843,7 @@ public class DbService
                 onlineCount = g.online,
                 totalCount = g.total,
                 accounts = g.accs.Select(a => {
-                    var d = accDetails.TryGetValue(a, out var v) ? v : ("", "", false);
+                    var d = accDetails.TryGetValue(a, out var v) ? v : (charName: "", masterName: "", isOnline: false);
                     return new { account = a, charName = d.charName, masterName = d.masterName, isOnline = d.isOnline };
                 }).ToList()
             }).ToList();
