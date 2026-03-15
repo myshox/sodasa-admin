@@ -21,4 +21,11 @@ public class ServerStatusController : ControllerBase
     [HttpGet("master-stats")]
     public async Task<IActionResult> MasterStats()
         => Ok(await _db.GetMasterAccountStatsAsync());
+
+    [HttpGet("shared-ip")]
+    public async Task<IActionResult> SharedIp([FromQuery] string account)
+    {
+        if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { message = "請輸入帳號" });
+        return Ok(await _db.GetSharedIpAsync(account.Trim()));
+    }
 }

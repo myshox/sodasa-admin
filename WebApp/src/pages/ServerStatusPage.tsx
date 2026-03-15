@@ -22,6 +22,26 @@ interface RegAccount {
   serverName: string
   isOnline: boolean
 }
+interface SharedAccount {
+  account: string
+  charName: string
+  masterName: string
+  ip: string
+  regIp: string
+  isOnline: boolean
+  matchIps: string[]
+}
+interface SharedIpResult {
+  found: boolean
+  message?: string
+  account?: string
+  charName?: string
+  isOnline?: boolean
+  loginIp?: string
+  regIp?: string
+  ips?: string[]
+  sharedAccounts?: SharedAccount[]
+}
 
 // ── 小元件 ────────────────────────────────────────────────────
 const StatCard = ({
@@ -76,6 +96,11 @@ export default function ServerStatusPage() {
   const [loading, setLoading]           = useState(false)
   const [lastUpdate, setLastUpdate]     = useState('')
 
+  // ── 重複 IP 查詢狀態 ────────────────────────────────────────
+  const [ipQuery, setIpQuery]           = useState('')
+  const [ipLoading, setIpLoading]       = useState(false)
+  const [ipResult, setIpResult]         = useState<SharedIpResult | null>(null)
+
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
@@ -102,6 +127,19 @@ export default function ServerStatusPage() {
   }, [refresh])
 
   const maxOnline = Math.max(...channels.map(c => c.onlineCount), 1)
+
+  const querySharedIp = async () => {
+    if (!ipQuery.trim()) return
+    setIpLoading(true); setIpResult(null)
+    try {
+      const r = await api.get('/server-status/shared-ip', { params: { account: ipQuery.trim() } })
+      setIpResult(r.data as SharedIpResult)
+    } catch {
+      setIpResult({ found: false, message: '查詢失敗，請確認帳號是否正確' })
+    } finally {
+      setIpLoading(false)
+    }
+  }
 
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24, minHeight: 0 }}>
@@ -229,6 +267,117 @@ export default function ServerStatusPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* ── 重複 IP 查詢 ── */}
+      <section>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase' }}>
+          🔍 重複 IP 查詢
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <input
+            value={ipQuery}
+            onChange={e => setIpQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && querySharedIp()}
+            placeholder="輸入帳號名稱（完整）"
+            style={{
+              padding: '8px 14px', width: 260, background: 'var(--bg-input)',
+              border: '1px solid var(--border)', borderRadius: 8,
+              color: 'var(--text-primary)', fontSize: 14,
+            }}
+          />
+          <button
+            onClick={querySharedIp} disabled={ipLoading}
+            style={{
+              padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: ipLoading ? 'var(--bg-mid)' : '#1e4ba0',
+              color: '#fff', fontWeight: 700, fontSize: 14,
+              opacity: ipLoading ? 0.6 : 1,
+            }}
+          >
+            {ipLoading ? '查詢中…' : '查詢'}
+          </button>
+        </div>
+
+        {ipResult && !ipResult.found && (
+          <div style={{ padding: '12px 16px', background: 'rgba(245,101,101,.1)', border: '1px solid var(--accent-red)', borderRadius: 8, color: 'var(--accent-red)', fontSize: 13 }}>
+            ❌ {ipResult.message}
+          </div>
+        )}
+
+        {ipResult?.found && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 目標帳號資訊 */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>查詢帳號</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>
+                  {ipResult.account}
+                  <span style={{
+                    marginLeft: 8, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    background: ipResult.isOnline ? 'rgba(22,185,122,.15)' : 'rgba(100,110,140,.15)',
+                    color: ipResult.isOnline ? '#16b97a' : 'var(--text-muted)',
+                  }}>{ipResult.isOnline ? '🟢 在線' : '⚫ 離線'}</span>
+                </div>
+                {ipResult.charName && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>角色：{ipResult.charName}</div>}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>登入 IP</div>
+                <div style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--accent-blue)', fontWeight: 600 }}>{ipResult.loginIp || '—'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>註冊 IP</div>
+                <div style={{ fontFamily: 'monospace', fontSize: 14, color: '#f59e0b', fontWeight: 600 }}>{ipResult.regIp || '—'}</div>
+              </div>
+            </div>
+
+            {/* 共用 IP 帳號列表 */}
+            {ipResult.sharedAccounts && ipResult.sharedAccounts.length > 0 ? (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto' }}>
+                <div style={{ padding: '10px 16px', background: 'rgba(239,68,68,.08)', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: '#f87171' }}>
+                  ⚠ 發現 {ipResult.sharedAccounts.length} 個共用相同 IP 的帳號
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-dark)' }}>
+                      {['狀態', '帳號', '角色名', '主帳號', '登入 IP', '註冊 IP', '命中 IP'].map(h => (
+                        <th key={h} style={{ padding: '9px 14px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 700, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ipResult.sharedAccounts.map((a, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-mid)', borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '8px 14px', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            display: 'inline-block', padding: '2px 8px', borderRadius: 4,
+                            fontSize: 11, fontWeight: 700,
+                            background: a.isOnline ? 'rgba(22,185,122,.15)' : 'rgba(100,110,140,.15)',
+                            color: a.isOnline ? '#16b97a' : 'var(--text-muted)',
+                          }}>{a.isOnline ? '🟢 在線' : '⚫ 離線'}</span>
+                        </td>
+                        <td style={{ padding: '8px 14px', fontWeight: 700 }}>{a.account}</td>
+                        <td style={{ padding: '8px 14px', color: 'var(--text-secondary)' }}>{a.charName || '—'}</td>
+                        <td style={{ padding: '8px 14px', color: 'var(--text-muted)' }}>{a.masterName || '—'}</td>
+                        <td style={{ padding: '8px 14px', fontFamily: 'monospace', fontSize: 12, color: 'var(--accent-blue)' }}>{a.ip || '—'}</td>
+                        <td style={{ padding: '8px 14px', fontFamily: 'monospace', fontSize: 12, color: '#f59e0b' }}>{a.regIp || '—'}</td>
+                        <td style={{ padding: '8px 14px' }}>
+                          {a.matchIps.map(ip => (
+                            <span key={ip} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,.15)', color: '#f87171', marginRight: 4, fontFamily: 'monospace' }}>{ip}</span>
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '14px 18px', background: 'rgba(22,185,122,.08)', border: '1px solid rgba(22,185,122,.3)', borderRadius: 10, color: '#16b97a', fontSize: 13, fontWeight: 600 }}>
+                ✅ 未發現共用相同 IP 的其他帳號
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

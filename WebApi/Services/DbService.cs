@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using MySqlConnector;
 using WebApi.Models;
@@ -2642,6 +2644,90 @@ public class DbService
         }
         catch { }
         return list;
+    }
+
+    /// <summary>查詢帳號的 IP，並找出共用同一 IP 的所有帳號</summary>
+    public async Task<object> GetSharedIpAsync(string account)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+
+            // 1. 查帳號的所有 IP（歷史登入 IP 和註冊 IP）
+            await using var ipCmd = new MySqlCommand(
+                @"SELECT IFNULL(c.IP,'') ip, IFNULL(c.RegIP,'') regIp,
+                         IFNULL(c.OnlineName,'') charName,
+                         IF(c.Online=1,1,0) isOnlineBit
+                  FROM csalogin c WHERE c.`Name`=@acc LIMIT 1", db);
+            ipCmd.Parameters.AddWithValue("@acc", account);
+            await using var ipR = await ipCmd.ExecuteReaderAsync();
+            if (!await ipR.ReadAsync())
+                return new { found = false, message = "找不到帳號" };
+
+            string ip    = ipR.GetString("ip");
+            string regIp = ipR.GetString("regIp");
+            string charName = ipR.GetString("charName");
+            bool isOnline = ipR.GetInt32("isOnlineBit") == 1;
+            await ipR.CloseAsync();
+
+            // 收集不重複的 IP 清單
+            var ips = new HashSet<string>();
+            if (!string.IsNullOrWhiteSpace(ip))    ips.Add(ip);
+            if (!string.IsNullOrWhiteSpace(regIp)) ips.Add(regIp);
+
+            if (ips.Count == 0)
+                return new { found = true, account, charName, isOnline, loginIp = "", regIp, sharedAccounts = new List<object>() };
+
+            // 2. 找出用過相同 IP 的帳號（排除自己）
+            var ipList = string.Join(",", ips.Select(i => $"'{i.Replace("'", "\\'")}'"));
+            var sql = $@"SELECT c.`Name` account,
+                                IFNULL(c.OnlineName,'') charName,
+                                IFNULL(m.Name,'') masterName,
+                                IFNULL(c.IP,'') ip,
+                                IFNULL(c.RegIP,'') regIp,
+                                IF(c.Online=1,1,0) isOnlineBit
+                         FROM csalogin c
+                         LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                         WHERE c.`Name` != @acc
+                           AND (c.IP IN ({ipList}) OR c.RegIP IN ({ipList}))
+                         ORDER BY c.Online DESC, c.LoginTime DESC
+                         LIMIT 200";
+            await using var shaCmd = new MySqlCommand(sql, db);
+            shaCmd.Parameters.AddWithValue("@acc", account);
+            await using var shaR = await shaCmd.ExecuteReaderAsync();
+
+            var shared = new List<object>();
+            while (await shaR.ReadAsync())
+            {
+                string aIp    = shaR.GetString("ip");
+                string aRegIp = shaR.GetString("regIp");
+                var matchIps  = ips.Where(x => x == aIp || x == aRegIp).ToList();
+                shared.Add(new {
+                    account    = shaR.GetString("account"),
+                    charName   = shaR.GetString("charName"),
+                    masterName = shaR.GetString("masterName"),
+                    ip         = aIp,
+                    regIp      = aRegIp,
+                    isOnline   = shaR.GetInt32("isOnlineBit") == 1,
+                    matchIps   = matchIps  // 命中哪個 IP
+                });
+            }
+
+            return new {
+                found    = true,
+                account,
+                charName,
+                isOnline,
+                loginIp  = ip,
+                regIp,
+                ips      = ips.ToList(),
+                sharedAccounts = shared
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { found = false, message = ex.Message };
+        }
     }
 
     public async Task<List<object>> GetChannelOnlineCountAsync()
