@@ -28,4 +28,8 @@ public class ServerStatusController : ControllerBase
         if (string.IsNullOrWhiteSpace(account)) return BadRequest(new { message = "請輸入帳號" });
         return Ok(await _db.GetSharedIpAsync(account.Trim()));
     }
+
+    [HttpGet("ip-groups")]
+    public async Task<IActionResult> IpGroups([FromQuery] int minGroup = 2, [FromQuery] int limit = 300)
+        => Ok(await _db.GetIpGroupsAsync(Math.Max(2, minGroup), Math.Min(limit, 1000)));
 }

@@ -2730,6 +2730,91 @@ public class DbService
         }
     }
 
+    /// <summary>全服掃描：找出所有共用同一 IP 的帳號群組</summary>
+    public async Task<object> GetIpGroupsAsync(int minGroup = 2, int limit = 300)
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+
+            // 找出 IP 底下有 >= minGroup 個帳號的 IP 群組
+            // 同時比對登入IP(IP)和註冊IP(RegIP)
+            var sql = $@"
+                SELECT ip, GROUP_CONCAT(account ORDER BY isOnline DESC, account SEPARATOR '|||') accounts,
+                       SUM(isOnline) onlineCount, COUNT(*) total
+                FROM (
+                    SELECT `Name` account, IFNULL(IP,'') ip, IF(Online=1,1,0) isOnline FROM csalogin WHERE IP IS NOT NULL AND IP != ''
+                    UNION ALL
+                    SELECT `Name` account, IFNULL(RegIP,'') ip, IF(Online=1,1,0) isOnline FROM csalogin WHERE RegIP IS NOT NULL AND RegIP != '' AND (IP IS NULL OR RegIP != IP)
+                ) t
+                GROUP BY ip
+                HAVING COUNT(DISTINCT account) >= {minGroup}
+                ORDER BY onlineCount DESC, total DESC
+                LIMIT {limit}";
+
+            await using var cmd = new MySqlCommand(sql, db);
+            await using var r = await cmd.ExecuteReaderAsync();
+
+            var ipGroups = new List<(string ip, string[] accs, int online, int total)>();
+            while (await r.ReadAsync())
+            {
+                var accs = r.GetString("accounts").Split("|||");
+                ipGroups.Add((
+                    r.GetString("ip"),
+                    accs,
+                    Convert.ToInt32(r["onlineCount"]),
+                    Convert.ToInt32(r["total"])
+                ));
+            }
+            await r.CloseAsync();
+
+            if (ipGroups.Count == 0)
+                return new { groups = new List<object>(), totalGroups = 0, totalAccounts = 0 };
+
+            // 批次查帳號詳細資訊
+            var allAccs = ipGroups.SelectMany(g => g.accs).Distinct().ToList();
+            var accDetails = new Dictionary<string, (string charName, string masterName, bool isOnline)>();
+
+            // 分批查，避免 SQL 過長
+            for (int i = 0; i < allAccs.Count; i += 200)
+            {
+                var batch = allAccs.Skip(i).Take(200).ToList();
+                var inList = string.Join(",", batch.Select(a => $"'{a.Replace("'", "\\'")}'"));
+                var detailSql = $@"SELECT c.`Name` acc, IFNULL(c.OnlineName,'') charName,
+                                          IFNULL(m.Name,'') masterName, IF(c.Online=1,1,0) isOnline
+                                   FROM csalogin c
+                                   LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
+                                   WHERE c.`Name` IN ({inList})";
+                await using var dCmd = new MySqlCommand(detailSql, db);
+                await using var dR = await dCmd.ExecuteReaderAsync();
+                while (await dR.ReadAsync())
+                    accDetails[dR.GetString("acc")] = (dR.GetString("charName"), dR.GetString("masterName"), dR.GetInt32("isOnline") == 1);
+                await dR.CloseAsync();
+            }
+
+            // 組成結果
+            var groups = ipGroups.Select(g => new {
+                ip = g.ip,
+                onlineCount = g.online,
+                totalCount = g.total,
+                accounts = g.accs.Select(a => {
+                    var d = accDetails.TryGetValue(a, out var v) ? v : ("", "", false);
+                    return new { account = a, charName = d.charName, masterName = d.masterName, isOnline = d.isOnline };
+                }).ToList()
+            }).ToList();
+
+            return new {
+                groups,
+                totalGroups   = groups.Count,
+                totalAccounts = groups.Sum(g => g.accounts.Count)
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { groups = new List<object>(), totalGroups = 0, totalAccounts = 0, error = ex.Message };
+        }
+    }
+
     public async Task<List<object>> GetChannelOnlineCountAsync()
     {
         var list = new List<object>();
