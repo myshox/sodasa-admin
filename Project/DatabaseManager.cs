@@ -3890,7 +3890,7 @@ namespace SQ_Email_Tools
             return list;
         }
 
-        /// <summary>取得指定寵物排行榜（每人只取最高分那筆）</summary>
+        /// <summary>取得指定寵物排行榜（每人只取最高分那筆，相容 MySQL 5.7）</summary>
         public async Task<List<CaptureRankEntry>> GetCapturePetLeaderboardAsync(int petId, int limit = 100)
         {
             var list = new List<CaptureRankEntry>();
@@ -3898,21 +3898,24 @@ namespace SQ_Email_Tools
             {
                 using var conn = GetConnection(); await conn.OpenAsync();
                 using var cmd = new MySqlCommand(@"
-                    SELECT t.unicode, t.author, t.cdkey, t.name AS petName, t.id AS petId,
-                           t.lv, t.hp, t.attack, t.def, t.quick, t.sum,
-                           t.`check`, DATE_FORMAT(t.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
-                           t.entryCount,
+                    SELECT cp.unicode, cp.author, cp.cdkey, cp.name AS petName, cp.id AS petId,
+                           cp.lv, cp.hp, cp.attack, cp.def, cp.quick, cp.sum,
+                           cp.`check`, DATE_FORMAT(cp.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                           ec.entryCount,
                            IFNULL(c.Online,0) AS isOnline
-                    FROM (
-                        SELECT cp.*,
-                               (SELECT COUNT(*) FROM capturepet cp2 WHERE cp2.cdkey=cp.cdkey AND cp2.id=cp.id) AS entryCount,
-                               ROW_NUMBER() OVER (PARTITION BY cp.cdkey ORDER BY cp.sum DESC) AS rn
-                        FROM capturepet cp
-                        WHERE cp.id = @pid
-                    ) t
-                    LEFT JOIN csalogin c ON c.`Name`=t.cdkey
-                    WHERE t.rn = 1
-                    ORDER BY t.sum DESC
+                    FROM capturepet cp
+                    INNER JOIN (
+                        SELECT cdkey, MAX(sum) AS maxsum
+                        FROM capturepet WHERE id=@pid
+                        GROUP BY cdkey
+                    ) m ON cp.cdkey=m.cdkey AND cp.sum=m.maxsum AND cp.id=@pid
+                    INNER JOIN (
+                        SELECT cdkey, COUNT(*) AS entryCount
+                        FROM capturepet WHERE id=@pid
+                        GROUP BY cdkey
+                    ) ec ON cp.cdkey=ec.cdkey
+                    LEFT JOIN csalogin c ON c.`Name`=cp.cdkey
+                    ORDER BY cp.sum DESC
                     LIMIT @lim", conn);
                 cmd.Parameters.AddWithValue("@pid", petId);
                 cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 500));

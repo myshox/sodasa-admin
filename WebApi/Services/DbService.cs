@@ -3509,25 +3509,28 @@ public class DbService
         return list;
     }
 
-    /// <summary>取得指定寵物排行榜（每人只取最高分那筆）</summary>
+    /// <summary>取得指定寵物排行榜（每人只取最高分那筆，相容 MySQL 5.7）</summary>
     public async Task<List<object>> GetPetLeaderboardAsync(int petId, int limit = 50)
     {
         await using var db = Open(); await db.OpenAsync();
         var list = new List<object>();
         await using var cmd = new MySqlCommand(@"
-            SELECT t.unicode, t.author, t.cdkey, t.name AS petName,
-                   t.lv, t.hp, t.attack, t.def, t.quick, t.sum,
-                   t.`check`, DATE_FORMAT(t.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
-                   t.entryCount
-            FROM (
-                SELECT c.*,
-                       (SELECT COUNT(*) FROM capturepet c2 WHERE c2.cdkey=c.cdkey AND c2.id=c.id) AS entryCount,
-                       ROW_NUMBER() OVER (PARTITION BY c.cdkey ORDER BY c.sum DESC) AS rn
-                FROM capturepet c
-                WHERE c.id = @pid
-            ) t
-            WHERE t.rn = 1
-            ORDER BY t.sum DESC
+            SELECT c.unicode, c.author, c.cdkey, c.name AS petName,
+                   c.lv, c.hp, c.attack, c.def, c.quick, c.sum,
+                   c.`check`, DATE_FORMAT(c.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                   ec.entryCount
+            FROM capturepet c
+            INNER JOIN (
+                SELECT cdkey, MAX(sum) AS maxsum
+                FROM capturepet WHERE id = @pid
+                GROUP BY cdkey
+            ) m ON c.cdkey = m.cdkey AND c.sum = m.maxsum AND c.id = @pid
+            INNER JOIN (
+                SELECT cdkey, COUNT(*) AS entryCount
+                FROM capturepet WHERE id = @pid
+                GROUP BY cdkey
+            ) ec ON c.cdkey = ec.cdkey
+            ORDER BY c.sum DESC
             LIMIT @lim", db);
         cmd.Parameters.AddWithValue("@pid", petId);
         cmd.Parameters.AddWithValue("@lim", limit);
