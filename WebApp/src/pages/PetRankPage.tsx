@@ -67,6 +67,27 @@ export default function PetRankPage() {
 
   const flashMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
+  const exportCsv = () => {
+    if (leaderboard.length === 0) return
+    const petName = selectedPet?.name ?? 'pet'
+    const header = '名次,角色名,帳號,寵物名,戰鬥力,HP,攻擊,防禦,速度,提交次數,提交時間,審核'
+    const esc = (v: string | number) => {
+      const s = String(v)
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s
+    }
+    const rows = leaderboard.map(e =>
+      [e.rank, e.author, e.cdkey, e.petName, e.sum, e.hp, e.attack, e.def, e.quick,
+       e.entryCount, e.inserttime, e.check ? '已審核' : '待審'].map(esc).join(',')
+    )
+    const csv = '\uFEFF' + [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `練寵_${petName}_${new Date().toISOString().slice(0,10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+    flashMsg(`已匯出 ${leaderboard.length} 筆`)
+  }
+
   const toggleCheck = async (entry: PetRankEntry) => {
     await api.put(`/petrank/${encodeURIComponent(entry.unicode)}/check`, !entry.check)
     setLeaderboard(prev => prev.map(e =>
@@ -149,7 +170,14 @@ export default function PetRankPage() {
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
             戰鬥力排行榜 {selectedPet ? `— ${selectedPet.name}` : ''}
           </h3>
-          <span style={{ fontSize: 12, color: '#888' }}>每位玩家僅顯示最高分</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: '#888' }}>每位玩家僅顯示最高分</span>
+            {leaderboard.length > 0 && (
+              <button onClick={exportCsv} style={{ ...btn('success'), padding: '5px 14px' }}>
+                📥 匯出 CSV
+              </button>
+            )}
+          </div>
         </div>
 
         {loading && <div style={{ color: '#888', padding: 20, textAlign: 'center' }}>載入中…</div>}
