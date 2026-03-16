@@ -113,8 +113,13 @@ namespace SQ_Email_Tools
         private Label        _lblActivityStatus;
         private Panel        _activityRankPanel;
         private TextBox      _txtActivityKeyword;
+        private TextBox      _txtPlayerSearch;
+        private DataGridView _dgvPlayerEntries;
         private List<Dictionary<string,string>> _activityRows = new();
         private List<string> _activityCols = new();
+        // 練寵排行榜（capturepet）
+        private List<(int id, string name, int entryCount, double topScore, string lastEntry)> _capturePetTypes = new();
+        private List<CaptureRankEntry> _captureLeaderboard = new();
 
         // ---- db tab controls ----
         private List<(string table, long rows, string columns)> _allTablesCache = new();
@@ -521,7 +526,7 @@ namespace SQ_Email_Tools
         }
 
         // ===================================================================
-        //  Activity Tab
+        //  Activity Tab  (capturepet 練寵活動排行榜)
         // ===================================================================
         private void BuildActivityTab(Panel p)
         {
@@ -534,98 +539,142 @@ namespace SQ_Email_Tools
             };
             p.Controls.Add(_lblActivityStatus);
 
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.BgCard };
-
-            toolbar.Controls.Add(new Label { Text = "\u672C\u671F\u7DF4\u5BF5\uFF1A", Location = new Point(8, 12), AutoSize = true, ForeColor = Theme.TextSecondary, Font = Theme.FontSmall });
-            _cmbActivityPet = new ComboBox { Location = new Point(82, 8), Size = new Size(180, 26), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall, DropDownStyle = ComboBoxStyle.DropDownList };
+            // ── 上方工具列 ──
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.BgCard };
+            toolbar.Controls.Add(new Label { Text = "本期練寵：", Location = new Point(8, 14), AutoSize = true, ForeColor = Theme.TextSecondary, Font = Theme.FontSmall });
+            _cmbActivityPet = new ComboBox { Location = new Point(76, 10), Size = new Size(200, 26), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall, DropDownStyle = ComboBoxStyle.DropDownList };
             _cmbActivityPet.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
             toolbar.Controls.Add(_cmbActivityPet);
 
-            toolbar.Controls.Add(new Label { Text = "\u8A55\u5206\u6B04\u4F4D\uFF1A", Location = new Point(274, 12), AutoSize = true, ForeColor = Theme.TextSecondary, Font = Theme.FontSmall });
-            _cmbActivitySort = new ComboBox { Location = new Point(346, 8), Size = new Size(150, 26), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall, DropDownStyle = ComboBoxStyle.DropDownList };
-            _cmbActivitySort.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
-            toolbar.Controls.Add(_cmbActivitySort);
-
-            var btnRef = Theme.MakePrimaryButton("\u5237\u65B0", 64, 26);
-            btnRef.Location = new Point(508, 8); btnRef.Font = Theme.FontSmall;
-            btnRef.Click += async (s, e) => await LoadActivityRankAsync();
+            var btnRef = Theme.MakePrimaryButton("重新載入", 72, 28);
+            btnRef.Location = new Point(286, 10); btnRef.Font = Theme.FontSmall;
+            btnRef.Click += async (s, e) => { _capturePetTypes.Clear(); await LoadCapturePetTypesAsync(); await LoadActivityRankAsync(); };
             toolbar.Controls.Add(btnRef);
 
-            var btnCsv2 = Theme.MakeButton("CSV\u532F\u51FA", Theme.BgMid, Theme.AccentGreen, 64, 26);
-            btnCsv2.Location = new Point(580, 8); btnCsv2.Font = Theme.FontSmall;
+            var btnCsv2 = Theme.MakeButton("CSV匯出", Theme.BgMid, Theme.AccentGreen, 68, 28);
+            btnCsv2.Location = new Point(366, 10); btnCsv2.Font = Theme.FontSmall;
             btnCsv2.Click += (s, e) => ExportActivityCsv();
             toolbar.Controls.Add(btnCsv2);
 
-            var btnResetAct = Theme.MakeButton("\u6E05\u7A7A\u6B64\u6392\u884C", Color.FromArgb(110,15,15), Color.FromArgb(255,90,90), 84, 26);
-            btnResetAct.Location = new Point(652, 8); btnResetAct.Font = Theme.FontSmall;
+            var btnResetAct = Theme.MakeButton("清空此排行", Color.FromArgb(110,15,15), Color.FromArgb(255,90,90), 80, 28);
+            btnResetAct.Location = new Point(442, 10); btnResetAct.Font = Theme.FontSmall;
             btnResetAct.Click += async (s, e) => await ResetActivityAsync();
             toolbar.Controls.Add(btnResetAct);
 
-            // Row 2: keyword search for activity tab
-            var actRow2 = new Panel
-            {
-                Location  = new Point(0, 44),
-                Height    = 30,
-                Anchor    = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
-                BackColor = Color.Transparent,
-            };
-            toolbar.Height = 78;
-            toolbar.Layout += (s, e) => actRow2.Width = toolbar.ClientSize.Width;
-
-            actRow2.Controls.Add(new Label
-            {
-                Text      = "\u641C\u5C0B\uFF1A",
-                Location  = new Point(8, 8),
-                AutoSize  = true,
-                ForeColor = Theme.TextSecondary,
-                Font      = Theme.FontSmall,
-            });
-            _txtActivityKeyword = new TextBox
-            {
-                Location        = new Point(60, 4),
-                Size            = new Size(300, 22),
-                BackColor       = Theme.BgInput,
-                ForeColor       = Theme.TextPrimary,
-                Font            = Theme.FontSmall,
-                PlaceholderText = "\u641C\u5C0B\u73A9\u5BB6\u540D\u7A31\u3001\u5BF5\u7269\u540D\u2026",
-                BorderStyle     = BorderStyle.FixedSingle,
-            };
-            _txtActivityKeyword.TextChanged += async (s, e) => await LoadActivityRankAsync();
-            var btnClrAct = Theme.MakeButton("\u6E05\u9664", Theme.BgMid, Theme.TextSecondary, 46, 22);
-            btnClrAct.Font = Theme.FontSmall;
-            btnClrAct.Click += (s, e) => _txtActivityKeyword.Text = "";
-            actRow2.Controls.AddRange(new Control[] { _txtActivityKeyword, btnClrAct });
-            actRow2.Resize += (s, e) =>
-            {
-                _txtActivityKeyword.Width = Math.Max(80, actRow2.Width - 180);
-                btnClrAct.Left = _txtActivityKeyword.Right + 6;
-                btnClrAct.Top  = _txtActivityKeyword.Top;
-            };
-            toolbar.Controls.Add(actRow2);
-
             p.Controls.Add(toolbar);
 
+            // ── 主體 SplitContainer：左=排行卡片, 右=DataGridView ──
             var split2 = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, Panel1MinSize = 260, BackColor = Theme.BgPage, SplitterWidth = 5 };
             bool s2Ready = false;
             split2.Layout += (s, e) => { if (s2Ready || split2.Width < 400) return; s2Ready = true; split2.SplitterDistance = Math.Min(300, split2.Width - 300); };
 
+            // 左：排行卡片 + 玩家查詢
             split2.Panel1.BackColor = Color.FromArgb(22, 30, 46);
             _activityRankPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, AutoScroll = true };
+
+            // 左下：玩家查詢 Panel
+            var searchPanel = new Panel { Dock = DockStyle.Bottom, Height = 112, BackColor = Color.FromArgb(18, 26, 40), Padding = new Padding(8) };
+            searchPanel.Controls.Add(new Label { Text = "查玩家所有記錄", Location = new Point(8, 8), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            _txtPlayerSearch = new TextBox
+            {
+                Location = new Point(8, 28), Size = new Size(168, 22),
+                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
+                Font = Theme.FontSmall, BorderStyle = BorderStyle.FixedSingle,
+                PlaceholderText = "帳號或角色名…"
+            };
+            var btnSearch = Theme.MakePrimaryButton("查", 36, 22);
+            btnSearch.Location = new Point(180, 28); btnSearch.Font = Theme.FontSmall;
+            btnSearch.Click += async (s, e) => await QueryPlayerEntriesAsync(_txtPlayerSearch.Text.Trim());
+            _txtPlayerSearch.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await QueryPlayerEntriesAsync(_txtPlayerSearch.Text.Trim()); };
+            _dgvPlayerEntries = new DataGridView
+            {
+                Location = new Point(8, 56), Size = new Size(220, 52),
+                BackgroundColor = Color.FromArgb(18, 26, 40),
+                RowHeadersVisible = false, ColumnHeadersVisible = false,
+                BorderStyle = BorderStyle.None, Font = Theme.FontSmall,
+                DefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(18,26,40), ForeColor = Theme.TextPrimary, SelectionBackColor = Theme.AccentOrange, SelectionForeColor = Color.White },
+                ReadOnly = true, AllowUserToAddRows = false,
+            };
+            _dgvPlayerEntries.Columns.Add(new DataGridViewTextBoxColumn { AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
+            searchPanel.Resize += (s, e) => {
+                _txtPlayerSearch.Width = searchPanel.ClientSize.Width - 52;
+                btnSearch.Left = _txtPlayerSearch.Right + 4;
+                _dgvPlayerEntries.Size = new Size(searchPanel.ClientSize.Width - 16, searchPanel.ClientSize.Height - 58);
+            };
+            searchPanel.Controls.AddRange(new Control[] { _txtPlayerSearch, btnSearch, _dgvPlayerEntries });
+
+            split2.Panel1.Controls.Add(searchPanel);
             split2.Panel1.Controls.Add(_activityRankPanel);
 
+            // 右：DataGridView（每人最高分排行）
             split2.Panel2.BackColor = Theme.BgPage;
             _dgvActivity = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgvActivity);
             _dgvActivity.RowHeadersVisible = false; _dgvActivity.ColumnHeadersHeight = 32;
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_rank",    HeaderText = "\u540D\u6B21",        Width = 50,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_online",  HeaderText = "\u5728\u7DDA",        Width = 52,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_player",  HeaderText = "\u73A9\u5BB6\u540D\u7A31", Width = 130, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_petname", HeaderText = "\u5BF5\u7269\u540D\u7A31", Width = 120, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_lv",      HeaderText = "\u7B49\u7D1A",        Width = 56,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_score",   HeaderText = "\u8A55\u5206",        AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
-            split2.Panel2.Controls.Add(_dgvActivity);
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_rank",    HeaderText = "名次",     Width = 50,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_online",  HeaderText = "在線",     Width = 46,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_player",  HeaderText = "角色名",   Width = 110, ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_cdkey",   HeaderText = "帳號",     Width = 110, ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_petname", HeaderText = "寵物名",   Width = 110, ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_score",   HeaderText = "戰鬥力",   Width = 70,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_hp",      HeaderText = "HP",       Width = 60,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_atk",     HeaderText = "攻擊",     Width = 56,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_def",     HeaderText = "防禦",     Width = 56,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_spd",     HeaderText = "速度",     Width = 56,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_count",   HeaderText = "提交次數", Width = 68,  ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_time",    HeaderText = "提交時間", Width = 120, ReadOnly = true });
+            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_check",   HeaderText = "審核",     AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
 
+            // 右鍵選單：審核 & 刪除
+            _dgvActivity.MouseClick += async (s, e) =>
+            {
+                if (e.Button != MouseButtons.Right) return;
+                var hit = _dgvActivity.HitTest(e.X, e.Y);
+                if (hit.RowIndex < 0) return;
+                _dgvActivity.ClearSelection(); _dgvActivity.Rows[hit.RowIndex].Selected = true;
+                var entry = _captureLeaderboard.ElementAtOrDefault(hit.RowIndex);
+                if (entry == null) return;
+                var ctx = new ContextMenuStrip();
+                ctx.Items.Add(entry.Check ? "取消審核" : "✅ 通過審核", null, async (_, __) =>
+                {
+                    bool ok = await DatabaseManager.Instance.SetCapturePetCheckAsync(entry.Unicode, !entry.Check);
+                    if (ok) { entry.Check = !entry.Check; RefreshActivityDgv(); _lblActivityStatus.Text = $"[OK] 已{(entry.Check ? "通過" : "取消")}審核：{entry.Author}"; }
+                });
+                ctx.Items.Add(new ToolStripSeparator());
+                ctx.Items.Add("🗑 刪除此記錄", null, async (_, __) =>
+                {
+                    if (MessageBox.Show($"確定刪除 {entry.Author} 的記錄（分數 {entry.Sum}）？\n此操作不可還原！",
+                        "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                    bool ok = await DatabaseManager.Instance.DeletePetAsync(entry.Unicode, entry.PetName);
+                    if (ok) { _captureLeaderboard.Remove(entry); RefreshActivityDgv(); _lblActivityStatus.Text = $"[OK] 已刪除 {entry.Author} 的記錄"; }
+                });
+                ctx.Show(_dgvActivity, e.Location);
+            };
+
+            split2.Panel2.Controls.Add(_dgvActivity);
             p.Controls.Add(split2);
+        }
+
+        private async Task LoadCapturePetTypesAsync()
+        {
+            if (_capturePetTypes.Count > 0) return;
+            _capturePetTypes = await DatabaseManager.Instance.GetCapturePetRankTypesAsync();
+            _cmbActivityPet.SelectedIndexChanged -= async (s, e) => await LoadActivityRankAsync();
+            _cmbActivityPet.Items.Clear();
+            foreach (var (id, name, cnt, top, last) in _capturePetTypes)
+                _cmbActivityPet.Items.Add($"{name}  (最高:{top}  共{cnt}筆)");
+            if (_cmbActivityPet.Items.Count > 0) _cmbActivityPet.SelectedIndex = 0;
+            _cmbActivityPet.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
+        }
+
+        private async Task QueryPlayerEntriesAsync(string account)
+        {
+            if (string.IsNullOrWhiteSpace(account)) return;
+            _dgvPlayerEntries.Rows.Clear();
+            var entries = await DatabaseManager.Instance.GetCapturePetPlayerEntriesAsync(account);
+            if (entries.Count == 0) { _dgvPlayerEntries.Rows.Add("無記錄"); return; }
+            foreach (var e in entries)
+                _dgvPlayerEntries.Rows.Add($"{e.PetName} 分數:{e.Sum}  {e.InsertTime}");
         }
 
         // ===================================================================
@@ -766,106 +815,88 @@ namespace SQ_Email_Tools
             _dgvMain.ResumeLayout();
 
             OnClassifyColChanged(null, EventArgs.Empty);
-            PopulateActivityCombos(cols, rows);
+            _ = LoadCapturePetTypesAsync();
 
             _lblStatus.ForeColor = Theme.TextMuted;
             _lblStatus.Text = rows.Count > 0 ? $"\u5171 {rows.Count} \u7B46" : $"[OK] {tbl} \u8868\u5B58\u5728\u4F46\u7121\u8CC7\u6599";
         }
 
-        private void PopulateActivityCombos(List<string> cols, List<Dictionary<string,string>> rows)
-        {
-            if (_cmbActivityPet == null) return;
-            string nameCol = cols.FirstOrDefault(c => c.Equals("name", StringComparison.OrdinalIgnoreCase) || c.Equals("petname", StringComparison.OrdinalIgnoreCase)) ?? "";
-
-            _cmbActivityPet.SelectedIndexChanged -= async (s, e) => await LoadActivityRankAsync();
-            _cmbActivityPet.Items.Clear();
-            if (!string.IsNullOrEmpty(nameCol))
-                foreach (var n in rows.Select(r => r.ContainsKey(nameCol) ? r[nameCol] : "").Where(v => !string.IsNullOrWhiteSpace(v)).GroupBy(v => v).OrderByDescending(g => g.Count()).Select(g => g.Key))
-                    _cmbActivityPet.Items.Add(n);
-            if (_cmbActivityPet.Items.Count > 0) _cmbActivityPet.SelectedIndex = 0;
-            _cmbActivityPet.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
-
-            _cmbActivitySort.SelectedIndexChanged -= async (s, e) => await LoadActivityRankAsync();
-            _cmbActivitySort.Items.Clear();
-            var sample = rows.Take(20).ToList();
-            foreach (var c in cols.Where(c => !c.StartsWith("_")))
-                if (sample.Any(r => r.ContainsKey(c) && !string.IsNullOrEmpty(r[c])) && sample.Where(r => r.ContainsKey(c) && !string.IsNullOrEmpty(r[c])).All(r => double.TryParse(r[c], out _)))
-                    _cmbActivitySort.Items.Add(new ColItem(c));
-            var prefer = new[] { "sum", "power", "combat", "hp" };
-            object presel = null;
-            foreach (var pref in prefer) { presel = _cmbActivitySort.Items.Cast<ColItem>().FirstOrDefault(i => i.Col.Equals(pref, StringComparison.OrdinalIgnoreCase)); if (presel != null) break; }
-            if (presel == null && _cmbActivitySort.Items.Count > 0) presel = _cmbActivitySort.Items[0];
-            _cmbActivitySort.SelectedItem = presel;
-            _cmbActivitySort.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
-        }
 
         private async Task LoadActivityRankAsync()
         {
-            if (IsDisposed || _allRows.Count == 0) return;
-            string petName  = _cmbActivityPet.SelectedItem?.ToString() ?? "";
-            string sortCol  = SelCol(_cmbActivitySort);
-            if (string.IsNullOrEmpty(petName) || string.IsNullOrEmpty(sortCol)) return;
+            if (IsDisposed) return;
+            if (_capturePetTypes.Count == 0) { await LoadCapturePetTypesAsync(); return; }
+            int idx = _cmbActivityPet.SelectedIndex;
+            if (idx < 0 || idx >= _capturePetTypes.Count) return;
 
-            string nameCol   = _allCols.FirstOrDefault(c => c.Equals("name",        StringComparison.OrdinalIgnoreCase) || c.Equals("petname",    StringComparison.OrdinalIgnoreCase)) ?? "";
-            string playerCol = _allCols.FirstOrDefault(c => c.Equals("_playerName", StringComparison.OrdinalIgnoreCase)) ?? "";
-            string lvCol     = _allCols.FirstOrDefault(c => c.Equals("lv",          StringComparison.OrdinalIgnoreCase) || c.Equals("level",      StringComparison.OrdinalIgnoreCase)) ?? "";
-            string onlineCol = _allCols.FirstOrDefault(c => c.Equals("_online",     StringComparison.OrdinalIgnoreCase)) ?? "";
+            var (petId, petName, _, _, _) = _capturePetTypes[idx];
+            _lblActivityStatus.ForeColor = Theme.AccentOrange;
+            _lblActivityStatus.Text = $"載入中…【{petName}】";
 
-            string kwAct = _txtActivityKeyword?.Text.Trim() ?? "";
-            _activityCols = _allCols;
-            _activityRows = _allRows
-                .Where(r => !string.IsNullOrEmpty(nameCol) && r.ContainsKey(nameCol) && r[nameCol] == petName)
-                .Where(r => string.IsNullOrEmpty(kwAct) || r.Values.Any(v => v != null && v.Contains(kwAct, StringComparison.OrdinalIgnoreCase)))
-                .OrderByDescending(r => r.ContainsKey(sortCol) && double.TryParse(r[sortCol], out double d) ? d : double.MinValue)
-                .ToList();
+            _captureLeaderboard = await DatabaseManager.Instance.GetCapturePetLeaderboardAsync(petId, 100);
+            if (IsDisposed) return;
 
-            _dgvActivity.SuspendLayout(); _dgvActivity.Rows.Clear();
-            int rank = 1;
-            foreach (var row in _activityRows)
-            {
-                int idx = _dgvActivity.Rows.Add();
-                _dgvActivity.Rows[idx].Cells["a_rank"].Value    = rank;
-                _dgvActivity.Rows[idx].Cells["a_online"].Value  = onlineCol != "" && row.ContainsKey(onlineCol) ? row[onlineCol] : "";
-                _dgvActivity.Rows[idx].Cells["a_player"].Value  = playerCol != "" && row.ContainsKey(playerCol) ? row[playerCol] : (row.ContainsKey("cdkey") ? row["cdkey"] : "");
-                _dgvActivity.Rows[idx].Cells["a_petname"].Value = nameCol   != "" && row.ContainsKey(nameCol)   ? row[nameCol]   : "";
-                _dgvActivity.Rows[idx].Cells["a_lv"].Value      = lvCol     != "" && row.ContainsKey(lvCol)     ? row[lvCol]     : "";
-                _dgvActivity.Rows[idx].Cells["a_score"].Value   = row.ContainsKey(sortCol) ? row[sortCol] : "";
-                if      (rank == 1) { _dgvActivity.Rows[idx].DefaultCellStyle.ForeColor = Theme.AccentOrange; _dgvActivity.Rows[idx].DefaultCellStyle.Font = Theme.FontCell9Bold; }
-                else if (rank == 2) { _dgvActivity.Rows[idx].DefaultCellStyle.ForeColor = Theme.TextSecondary; _dgvActivity.Rows[idx].DefaultCellStyle.Font = Theme.FontCell9Bold; }
-                else if (rank == 3) { _dgvActivity.Rows[idx].DefaultCellStyle.ForeColor = Color.FromArgb(180,130,80); _dgvActivity.Rows[idx].DefaultCellStyle.Font = Theme.FontCell9Bold; }
-                rank++;
-            }
-            _dgvActivity.ResumeLayout();
-
-            BuildActivityRankCards(_activityRankPanel, _activityRows, playerCol, sortCol, petName);
+            RefreshActivityDgv();
+            BuildActivityRankCards(_activityRankPanel, _captureLeaderboard, petName);
             _lblActivityStatus.ForeColor = Theme.TextMuted;
-            string actKwSuffix = !string.IsNullOrEmpty(kwAct) ? $"  \u30FB\u95DC\u9375\u5B57\u300C{kwAct}\u300D" : "";
-            _lblActivityStatus.Text = $"\u3010{petName}\u3011\u5171 {_activityRows.Count} \u7B46  |  {ColZh(sortCol)}{actKwSuffix}";
-            await Task.CompletedTask;
+            _lblActivityStatus.Text = $"【{petName}】共 {_captureLeaderboard.Count} 人  |  每人僅顯示最高分";
         }
 
-        private void BuildActivityRankCards(Panel panel, List<Dictionary<string,string>> rows, string playerCol, string scoreCol, string petName)
+        private void RefreshActivityDgv()
+        {
+            _dgvActivity.SuspendLayout(); _dgvActivity.Rows.Clear();
+            foreach (var e in _captureLeaderboard)
+            {
+                int i = _dgvActivity.Rows.Add();
+                _dgvActivity.Rows[i].Cells["a_rank"].Value    = e.Rank;
+                _dgvActivity.Rows[i].Cells["a_online"].Value  = e.IsOnline ? "🟢" : "";
+                _dgvActivity.Rows[i].Cells["a_player"].Value  = e.Author;
+                _dgvActivity.Rows[i].Cells["a_cdkey"].Value   = e.Cdkey;
+                _dgvActivity.Rows[i].Cells["a_petname"].Value = e.PetName;
+                _dgvActivity.Rows[i].Cells["a_score"].Value   = e.Sum;
+                _dgvActivity.Rows[i].Cells["a_hp"].Value      = e.Hp;
+                _dgvActivity.Rows[i].Cells["a_atk"].Value     = e.Attack;
+                _dgvActivity.Rows[i].Cells["a_def"].Value     = e.Def;
+                _dgvActivity.Rows[i].Cells["a_spd"].Value     = e.Quick;
+                _dgvActivity.Rows[i].Cells["a_time"].Value    = e.InsertTime;
+                _dgvActivity.Rows[i].Cells["a_check"].Value   = e.Check ? "✅ 已審核" : "⏳ 待審";
+
+                // 提交次數（多次警告）
+                _dgvActivity.Rows[i].Cells["a_count"].Value   = e.EntryCount > 1 ? $"⚠️ {e.EntryCount}次" : e.EntryCount.ToString();
+                if (e.EntryCount > 1) _dgvActivity.Rows[i].Cells["a_count"].Style.ForeColor = Color.FromArgb(255,193,7);
+
+                // 名次顏色
+                var st = _dgvActivity.Rows[i].DefaultCellStyle;
+                if      (e.Rank == 1) { st.BackColor = Color.FromArgb(62,52,8);  st.ForeColor = Color.FromArgb(255,210,50); st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank == 2) { st.BackColor = Color.FromArgb(36,44,56); st.ForeColor = Color.FromArgb(200,215,230); st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank == 3) { st.BackColor = Color.FromArgb(52,34,8);  st.ForeColor = Color.FromArgb(215,148,80); st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank <= 10){ st.BackColor = Color.FromArgb(28,36,50); st.ForeColor = Theme.TextPrimary; }
+            }
+            _dgvActivity.ResumeLayout();
+        }
+
+        private void BuildActivityRankCards(Panel panel, List<CaptureRankEntry> rows, string petName)
         {
             panel.SuspendLayout(); panel.Controls.Clear();
             var controls = new List<Control>();
-            controls.Add(new Label { Text = "\u7DF4\u5BF5\u6392\u884C\u699C", Font = new Font(Theme.FontFamily, 13, FontStyle.Bold), ForeColor = Theme.AccentOrange, AutoSize = true, Location = new Point(8, 10) });
-            controls.Add(new Label { Text = "\u672C\u671F\u7DF4\u5BF5\uFF1A" + petName, Font = Theme.FontSmall, ForeColor = Theme.TextMuted, AutoSize = true, Location = new Point(8, 40) });
+            controls.Add(new Label { Text = "練寵排行榜", Font = new Font(Theme.FontFamily, 13, FontStyle.Bold), ForeColor = Theme.AccentOrange, AutoSize = true, Location = new Point(8, 10) });
+            controls.Add(new Label { Text = "本期練寵：" + petName, Font = Theme.FontSmall, ForeColor = Theme.TextMuted, AutoSize = true, Location = new Point(8, 40) });
             var hdr = new Panel { Location = new Point(0, 66), Size = new Size(300, 26), BackColor = Theme.BgMid };
-            hdr.Controls.Add(new Label { Text = "#",            Location = new Point(6,4),   AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
-            hdr.Controls.Add(new Label { Text = "\u73A9\u5BB6", Location = new Point(40,4),  AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
-            hdr.Controls.Add(new Label { Text = "\u8A55\u5206", Location = new Point(180,4), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            hdr.Controls.Add(new Label { Text = "#",    Location = new Point(6,4),   AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            hdr.Controls.Add(new Label { Text = "玩家", Location = new Point(40,4),  AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            hdr.Controls.Add(new Label { Text = "戰鬥力", Location = new Point(180,4), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
             controls.Add(hdr);
             int top = 96;
             for (int i = 0; i < Math.Min(rows.Count, 20); i++)
             {
-                var row = rows[i]; int r = i + 1;
-                string player = playerCol != "" && row.ContainsKey(playerCol) ? row[playerCol] : row.ContainsKey("cdkey") ? row["cdkey"] : "-";
-                string score  = row.ContainsKey(scoreCol) ? row[scoreCol] : "-";
+                var e = rows[i]; int r = e.Rank;
                 Color c = r == 1 ? Color.FromArgb(255,200,50) : r == 2 ? Color.FromArgb(200,200,200) : r == 3 ? Color.FromArgb(200,140,80) : Theme.TextMuted;
                 var rp = new Panel { Location = new Point(0, top), Size = new Size(300, 26), BackColor = r <= 3 ? Color.FromArgb(40,50,70) : Color.Transparent };
-                rp.Controls.Add(new Label { Text = r.ToString(), Location = new Point(6,4),   AutoSize = true, ForeColor = c,                                       Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
-                rp.Controls.Add(new Label { Text = player,       Location = new Point(40,4),  AutoSize = true, ForeColor = r<=3 ? Color.White : Theme.TextPrimary, Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
-                rp.Controls.Add(new Label { Text = score,        Location = new Point(180,4), AutoSize = true, ForeColor = r<=3 ? Theme.AccentOrange : Theme.TextSecondary, Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
+                string rankText = r == 1 ? "🥇" : r == 2 ? "🥈" : r == 3 ? "🥉" : r.ToString();
+                string countBadge = e.EntryCount > 1 ? $" ⚠️{e.EntryCount}" : "";
+                rp.Controls.Add(new Label { Text = rankText,           Location = new Point(6,4),   AutoSize = true, ForeColor = c,                                             Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
+                rp.Controls.Add(new Label { Text = e.Author+countBadge,Location = new Point(40,4),  AutoSize = true, ForeColor = r<=3 ? Color.White : Theme.TextPrimary,       Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
+                rp.Controls.Add(new Label { Text = e.Sum.ToString(),   Location = new Point(180,4), AutoSize = true, ForeColor = r<=3 ? Theme.AccentOrange : Theme.TextSecondary, Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
                 controls.Add(rp);
                 top += 26;
             }
@@ -875,27 +906,39 @@ namespace SQ_Email_Tools
 
         private void ExportActivityCsv()
         {
-            if (_activityRows.Count == 0) { MessageBox.Show("\u7121\u8CC7\u6599"); return; }
-            string pet = _cmbActivityPet.SelectedItem?.ToString() ?? "act";
-            using var dlg = new SaveFileDialog { Filter = "CSV|*.csv", FileName = $"act_{pet}_{DateTime.Now:yyyyMMdd_HHmm}.csv" };
-            if (dlg.ShowDialog() == DialogResult.OK) ExportRawCsv(_activityCols, _activityRows, dlg.FileName.Replace(".csv",""));
+            if (_captureLeaderboard.Count == 0) { MessageBox.Show("無資料"); return; }
+            int idx = _cmbActivityPet.SelectedIndex;
+            string petName = idx >= 0 && idx < _capturePetTypes.Count ? _capturePetTypes[idx].name : "act";
+            using var dlg = new SaveFileDialog { Filter = "CSV|*.csv", FileName = $"練寵_{petName}_{DateTime.Now:yyyyMMdd_HHmm}.csv" };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            var sb = new StringBuilder();
+            sb.AppendLine("名次,角色名,帳號,寵物名,戰鬥力,HP,攻擊,防禦,速度,提交次數,提交時間,審核");
+            foreach (var e in _captureLeaderboard)
+                sb.AppendLine($"{e.Rank},{Esc(e.Author)},{Esc(e.Cdkey)},{Esc(e.PetName)},{e.Sum},{e.Hp},{e.Attack},{e.Def},{e.Quick},{e.EntryCount},{Esc(e.InsertTime)},{(e.Check?"已審核":"待審")}");
+            File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(true));
+            MessageBox.Show($"[OK] 已匯出 {_captureLeaderboard.Count} 筆\n{dlg.FileName}");
         }
 
         private async Task ResetActivityAsync()
         {
-            string petName = _cmbActivityPet.SelectedItem?.ToString() ?? "";
-            if (string.IsNullOrEmpty(petName)) { MessageBox.Show("\u8ACB\u5148\u9078\u64C7\u672C\u671F\u7DF4\u5BF5"); return; }
-            string nameCol = _allCols.FirstOrDefault(c => c.Equals("name", StringComparison.OrdinalIgnoreCase) || c.Equals("petname", StringComparison.OrdinalIgnoreCase)) ?? "";
-            if (string.IsNullOrEmpty(nameCol)) { MessageBox.Show("\u627E\u4E0D\u5230\u5BF5\u7269\u540D\u7A31\u6B04\u4F4D"); return; }
-            if (MessageBox.Show($"\u78BA\u5B9A\u6E05\u7A7A\u3010{petName}\u3011\u7684\u6392\u884C\uFF1F\n\u6B64\u64CD\u4F5C\u4E0D\u53EF\u9006\uFF01",
-                "\u78BA\u8A8D", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-            _lblActivityStatus.ForeColor = Theme.AccentOrange; _lblActivityStatus.Text = "\u91CD\u7F6E\u4E2D...";
+            int idx = _cmbActivityPet.SelectedIndex;
+            if (idx < 0 || idx >= _capturePetTypes.Count) { MessageBox.Show("請先選擇本期練寵"); return; }
+            var (petId, petName, _, _, _) = _capturePetTypes[idx];
+            if (MessageBox.Show($"確定清空【{petName}】的全部練寵排行？\n此操作不可還原！",
+                "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            _lblActivityStatus.ForeColor = Theme.AccentOrange; _lblActivityStatus.Text = "清空中...";
             try
             {
-                int n = await DatabaseManager.Instance.ResetPetBillingAsync(_allCols, nameCol, petName);
+                using var conn = DatabaseManager.Instance.GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlConnector.MySqlCommand("DELETE FROM capturepet WHERE id=@pid", conn);
+                cmd.Parameters.AddWithValue("@pid", petId);
+                int n = await cmd.ExecuteNonQueryAsync();
+                _capturePetTypes.Clear();
                 _lblActivityStatus.ForeColor = Theme.AccentGreen;
-                _lblActivityStatus.Text = $"[OK] \u5DF2\u6E05\u9664 {n} \u7B46\u3010{petName}\u3011";
-                await LoadRankAsync(); await LoadActivityRankAsync();
+                _lblActivityStatus.Text = $"[OK] 已清空 {n} 筆【{petName}】";
+                await LoadCapturePetTypesAsync();
+                await LoadActivityRankAsync();
             }
             catch (Exception ex) { _lblActivityStatus.ForeColor = Theme.AccentRed; _lblActivityStatus.Text = "[ERR] " + ex.Message; }
         }

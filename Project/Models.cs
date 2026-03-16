@@ -553,6 +553,27 @@ namespace SQ_Email_Tools
         public bool   Online     { get; set; }
     }
 
+    /// <summary>練寵活動排行單筆（capturepet，每人最高分）</summary>
+    public class CaptureRankEntry
+    {
+        public int    Rank       { get; set; }
+        public string Unicode    { get; set; } = "";
+        public string Author     { get; set; } = "";
+        public string Cdkey      { get; set; } = "";
+        public string PetName    { get; set; } = "";
+        public int    PetId      { get; set; }
+        public int    Lv         { get; set; }
+        public int    Hp         { get; set; }
+        public int    Attack     { get; set; }
+        public int    Def        { get; set; }
+        public int    Quick      { get; set; }
+        public double Sum        { get; set; }
+        public bool   Check      { get; set; }
+        public string InsertTime { get; set; } = "";
+        public int    EntryCount { get; set; }
+        public bool   IsOnline   { get; set; }
+    }
+
     // ══════════════════════════════════════════════════════════
     // 家族相關模型
     // ══════════════════════════════════════════════════════════

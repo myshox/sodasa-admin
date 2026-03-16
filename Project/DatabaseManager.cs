@@ -3859,6 +3859,144 @@ namespace SQ_Email_Tools
             }
         }
 
+        // ══════════════════════════════════════════════════════════
+        // 練寵活動排行榜（capturepet，含審核管理）
+        // ══════════════════════════════════════════════════════════
+
+        /// <summary>取得所有練寵活動種類（id, name, 參賽數, 最高分, 最後提交）</summary>
+        public async Task<List<(int id, string name, int entryCount, double topScore, string lastEntry)>> GetCapturePetRankTypesAsync()
+        {
+            var list = new List<(int, string, int, double, string)>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT id, name, COUNT(*) AS entryCount,
+                           MAX(sum) AS topScore,
+                           DATE_FORMAT(MAX(inserttime),'%Y-%m-%d %H:%i') AS lastEntry
+                    FROM capturepet
+                    GROUP BY id, name
+                    ORDER BY MAX(inserttime) DESC", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add((
+                        Convert.ToInt32(r["id"]),
+                        r["name"]?.ToString() ?? "",
+                        Convert.ToInt32(r["entryCount"]),
+                        r["topScore"] == DBNull.Value ? 0.0 : Convert.ToDouble(r["topScore"]),
+                        r["lastEntry"]?.ToString() ?? ""));
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>取得指定寵物排行榜（每人只取最高分那筆）</summary>
+        public async Task<List<CaptureRankEntry>> GetCapturePetLeaderboardAsync(int petId, int limit = 100)
+        {
+            var list = new List<CaptureRankEntry>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT t.unicode, t.author, t.cdkey, t.name AS petName, t.id AS petId,
+                           t.lv, t.hp, t.attack, t.def, t.quick, t.sum,
+                           t.`check`, DATE_FORMAT(t.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                           t.entryCount,
+                           IFNULL(c.Online,0) AS isOnline
+                    FROM (
+                        SELECT cp.*,
+                               (SELECT COUNT(*) FROM capturepet cp2 WHERE cp2.cdkey=cp.cdkey AND cp2.id=cp.id) AS entryCount,
+                               ROW_NUMBER() OVER (PARTITION BY cp.cdkey ORDER BY cp.sum DESC) AS rn
+                        FROM capturepet cp
+                        WHERE cp.id = @pid
+                    ) t
+                    LEFT JOIN csalogin c ON c.`Name`=t.cdkey
+                    WHERE t.rn = 1
+                    ORDER BY t.sum DESC
+                    LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@pid", petId);
+                cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 500));
+                using var r = await cmd.ExecuteReaderAsync();
+                int rank = 1;
+                while (await r.ReadAsync())
+                    list.Add(new CaptureRankEntry
+                    {
+                        Rank       = rank++,
+                        Unicode    = r["unicode"]?.ToString()    ?? "",
+                        Author     = r["author"]?.ToString()     ?? "",
+                        Cdkey      = r["cdkey"]?.ToString()      ?? "",
+                        PetName    = r["petName"]?.ToString()    ?? "",
+                        PetId      = Convert.ToInt32(r["petId"]),
+                        Lv         = r["lv"]     == DBNull.Value ? 0 : Convert.ToInt32(r["lv"]),
+                        Hp         = r["hp"]     == DBNull.Value ? 0 : Convert.ToInt32(r["hp"]),
+                        Attack     = r["attack"] == DBNull.Value ? 0 : Convert.ToInt32(r["attack"]),
+                        Def        = r["def"]    == DBNull.Value ? 0 : Convert.ToInt32(r["def"]),
+                        Quick      = r["quick"]  == DBNull.Value ? 0 : Convert.ToInt32(r["quick"]),
+                        Sum        = r["sum"]    == DBNull.Value ? 0.0 : Convert.ToDouble(r["sum"]),
+                        Check      = r["check"]  != DBNull.Value && Convert.ToBoolean(r["check"]),
+                        InsertTime = r["inserttime"]?.ToString() ?? "",
+                        EntryCount = Convert.ToInt32(r["entryCount"]),
+                        IsOnline   = r["isOnline"] != DBNull.Value && Convert.ToInt32(r["isOnline"]) == 1,
+                    });
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>查詢某玩家的所有練寵記錄（多號偵測用）</summary>
+        public async Task<List<CaptureRankEntry>> GetCapturePetPlayerEntriesAsync(string account)
+        {
+            var list = new List<CaptureRankEntry>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT unicode, id AS petId, name AS petName, lv, hp, attack, def, quick, sum,
+                           author, cdkey, `check`, DATE_FORMAT(inserttime,'%Y-%m-%d %H:%i') AS inserttime
+                    FROM capturepet
+                    WHERE cdkey=@a OR author=@a
+                    ORDER BY sum DESC", conn);
+                cmd.Parameters.AddWithValue("@a", account);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add(new CaptureRankEntry
+                    {
+                        Unicode    = r["unicode"]?.ToString()    ?? "",
+                        PetId      = Convert.ToInt32(r["petId"]),
+                        PetName    = r["petName"]?.ToString()    ?? "",
+                        Lv         = r["lv"]     == DBNull.Value ? 0 : Convert.ToInt32(r["lv"]),
+                        Hp         = r["hp"]     == DBNull.Value ? 0 : Convert.ToInt32(r["hp"]),
+                        Attack     = r["attack"] == DBNull.Value ? 0 : Convert.ToInt32(r["attack"]),
+                        Def        = r["def"]    == DBNull.Value ? 0 : Convert.ToInt32(r["def"]),
+                        Quick      = r["quick"]  == DBNull.Value ? 0 : Convert.ToInt32(r["quick"]),
+                        Sum        = r["sum"]    == DBNull.Value ? 0.0 : Convert.ToDouble(r["sum"]),
+                        Author     = r["author"]?.ToString()     ?? "",
+                        Cdkey      = r["cdkey"]?.ToString()      ?? "",
+                        Check      = r["check"]  != DBNull.Value && Convert.ToBoolean(r["check"]),
+                        InsertTime = r["inserttime"]?.ToString() ?? "",
+                    });
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>切換練寵記錄的審核狀態</summary>
+        public async Task<bool> SetCapturePetCheckAsync(string unicode, bool check)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "UPDATE capturepet SET `check`=@c WHERE unicode=@u", conn);
+                cmd.Parameters.AddWithValue("@c", check ? 1 : 0);
+                cmd.Parameters.AddWithValue("@u", unicode);
+                bool ok = await cmd.ExecuteNonQueryAsync() > 0;
+                if (ok) await GmLogger.Instance.LogAsync("練寵審核", unicode, check ? "通過" : "取消", true);
+                return ok;
+            }
+            catch { return false; }
+        }
+
         public async Task<(bool exists, string ownerAccount)> CheckAccountExistsAsync(string account)
         {
             try
