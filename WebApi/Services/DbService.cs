@@ -2782,6 +2782,10 @@ public class DbService
         {
             await using var db = Open(); await db.OpenAsync();
 
+            // 先設 GROUP_CONCAT 長度上限，避免帳號清單被截斷（MySQL 預設 1024）
+            await using (var setCmd = new MySqlCommand("SET SESSION group_concat_max_len = 1000000", db))
+                await setCmd.ExecuteNonQueryAsync();
+
             // 找出 IP 底下有 >= minGroup 個帳號的 IP 群組
             // 同時比對登入IP(IP)和註冊IP(RegIP)
             var sql = $@"
@@ -3474,6 +3478,132 @@ public class DbService
         }
         catch { }
         return null;
+    }
+
+    // ── 練寵排行榜 ─────────────────────────────────────────────────
+
+    /// <summary>取得所有曾出現的練寵寵物種類（id + name + 參賽數 + 最高分）</summary>
+    public async Task<List<object>> GetPetRankTypesAsync()
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<object>();
+        await using var cmd = new MySqlCommand(@"
+            SELECT id, name,
+                   COUNT(*) AS entryCount,
+                   MAX(sum) AS topScore,
+                   MIN(inserttime) AS firstEntry,
+                   MAX(inserttime) AS lastEntry
+            FROM capturepet
+            GROUP BY id, name
+            ORDER BY lastEntry DESC", db);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new {
+                id         = Convert.ToInt32(r["id"]),
+                name       = r["name"]?.ToString() ?? "",
+                entryCount = Convert.ToInt32(r["entryCount"]),
+                topScore   = Convert.ToDouble(r["topScore"]),
+                firstEntry = r["firstEntry"]?.ToString() ?? "",
+                lastEntry  = r["lastEntry"]?.ToString() ?? "",
+            });
+        return list;
+    }
+
+    /// <summary>取得指定寵物排行榜（每人只取最高分那筆）</summary>
+    public async Task<List<object>> GetPetLeaderboardAsync(int petId, int limit = 50)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<object>();
+        await using var cmd = new MySqlCommand(@"
+            SELECT t.unicode, t.author, t.cdkey, t.name AS petName,
+                   t.lv, t.hp, t.attack, t.def, t.quick, t.sum,
+                   t.`check`, DATE_FORMAT(t.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                   t.entryCount
+            FROM (
+                SELECT c.*,
+                       (SELECT COUNT(*) FROM capturepet c2 WHERE c2.cdkey=c.cdkey AND c2.id=c.id) AS entryCount,
+                       ROW_NUMBER() OVER (PARTITION BY c.cdkey ORDER BY c.sum DESC) AS rn
+                FROM capturepet c
+                WHERE c.id = @pid
+            ) t
+            WHERE t.rn = 1
+            ORDER BY t.sum DESC
+            LIMIT @lim", db);
+        cmd.Parameters.AddWithValue("@pid", petId);
+        cmd.Parameters.AddWithValue("@lim", limit);
+        await using var r = await cmd.ExecuteReaderAsync();
+        int rank = 1;
+        while (await r.ReadAsync())
+            list.Add(new {
+                rank       = rank++,
+                unicode    = r["unicode"]?.ToString() ?? "",
+                author     = r["author"]?.ToString() ?? "",
+                cdkey      = r["cdkey"]?.ToString() ?? "",
+                petName    = r["petName"]?.ToString() ?? "",
+                lv         = Convert.ToInt32(r["lv"]),
+                hp         = Convert.ToInt32(r["hp"]),
+                attack     = Convert.ToInt32(r["attack"]),
+                def        = Convert.ToInt32(r["def"]),
+                quick      = Convert.ToInt32(r["quick"]),
+                sum        = Convert.ToDouble(r["sum"]),
+                check      = Convert.ToBoolean(r["check"]),
+                inserttime = r["inserttime"]?.ToString() ?? "",
+                entryCount = Convert.ToInt32(r["entryCount"]),
+            });
+        return list;
+    }
+
+    /// <summary>查詢某玩家的所有練寵記錄（含各期）</summary>
+    public async Task<List<object>> GetPlayerPetEntriesAsync(string account)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        var list = new List<object>();
+        await using var cmd = new MySqlCommand(@"
+            SELECT unicode, id, name AS petName, lv, hp, attack, def, quick, sum,
+                   author, cdkey, `check`, DATE_FORMAT(inserttime,'%Y-%m-%d %H:%i') AS inserttime
+            FROM capturepet
+            WHERE cdkey = @a OR author = @a
+            ORDER BY sum DESC", db);
+        cmd.Parameters.AddWithValue("@a", account);
+        await using var r = await cmd.ExecuteReaderAsync();
+        while (await r.ReadAsync())
+            list.Add(new {
+                unicode    = r["unicode"]?.ToString() ?? "",
+                id         = Convert.ToInt32(r["id"]),
+                petName    = r["petName"]?.ToString() ?? "",
+                lv         = Convert.ToInt32(r["lv"]),
+                hp         = Convert.ToInt32(r["hp"]),
+                attack     = Convert.ToInt32(r["attack"]),
+                def        = Convert.ToInt32(r["def"]),
+                quick      = Convert.ToInt32(r["quick"]),
+                sum        = Convert.ToDouble(r["sum"]),
+                author     = r["author"]?.ToString() ?? "",
+                cdkey      = r["cdkey"]?.ToString() ?? "",
+                check      = Convert.ToBoolean(r["check"]),
+                inserttime = r["inserttime"]?.ToString() ?? "",
+            });
+        return list;
+    }
+
+    /// <summary>切換 capturepet check 審核狀態</summary>
+    public async Task<bool> SetPetCheckAsync(string unicode, bool check)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "UPDATE capturepet SET `check`=@c WHERE unicode=@u", db);
+        cmd.Parameters.AddWithValue("@c", check ? 1 : 0);
+        cmd.Parameters.AddWithValue("@u", unicode);
+        return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    /// <summary>刪除特定練寵記錄</summary>
+    public async Task<bool> DeletePetEntryAsync(string unicode)
+    {
+        await using var db = Open(); await db.OpenAsync();
+        await using var cmd = new MySqlCommand(
+            "DELETE FROM capturepet WHERE unicode=@u", db);
+        cmd.Parameters.AddWithValue("@u", unicode);
+        return await cmd.ExecuteNonQueryAsync() > 0;
     }
 
     public async Task<(bool ok, string msg)> TransferGuildMemberAsync(string cdkey, int targetGuildId, string targetGuildName)

@@ -29,8 +29,9 @@ namespace SQ_Email_Tools
         private Label    _lblAccResult;
 
         // ── 狀態 ─────────────────────────────────────────────
-        private List<IpGroupEntry>  _groups   = new();
-        private IpGroupEntry?       _selected = null;
+        private List<IpGroupEntry>              _groups    = new();
+        private IpGroupEntry?                   _selected  = null;
+        private Dictionary<string, IpLabel>     _ipLabels  = new();  // IP 黑白名單快取
 
         public IpScanForm() => BuildUI();
         public void TriggerLoad() { }
@@ -190,14 +191,127 @@ namespace SQ_Email_Tools
             rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             split.Panel2.Controls.Add(rightLayout);
 
+            // 右側標題列：標題 + 「批量封禁」按鈕
+            var rightHeader = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgCard };
             _lblGroupTitle = new Label
             {
-                Text = "← 選擇左側群組查看成員", Dock = DockStyle.Fill,
+                Text = "← 選擇左側群組查看成員",
                 ForeColor = Theme.TextSecondary, Font = Theme.FontCell9Bold,
-                BackColor = Theme.BgCard, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(10, 0, 0, 0)
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(10, 0, 0, 0),
+                Location = new Point(0, 0), Height = 30, Width = 300
             };
-            rightLayout.Controls.Add(_lblGroupTitle, 0, 0);
+
+            var _btnBanGroup = MakeBtn("🚫 封禁整群", Color.FromArgb(120, 20, 20), 110);
+            _btnBanGroup.Enabled = false;
+            _btnBanGroup.Height  = 24;
+            _btnBanGroup.Anchor  = AnchorStyles.Right | AnchorStyles.Top;
+            _btnBanGroup.Click  += async (s, e) =>
+            {
+                if (_selected == null) return;
+                var allAccs = _selected.Members.Select(m => m.Account).ToList();
+                if (allAccs.Count == 0) return;
+
+                int banDays = 0; string banReason = "";
+                using (var dlg = new Form())
+                {
+                    dlg.Text = $"🚫 批量封禁 — IP：{_selected.Ip}";
+                    dlg.Size = new Size(420, 260);
+                    dlg.BackColor = Theme.BgPage; dlg.ForeColor = Theme.TextPrimary;
+                    dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                    dlg.StartPosition = FormStartPosition.CenterParent;
+                    dlg.MaximizeBox = false;
+
+                    var lbl1 = new Label { Text = $"將封禁以下 {allAccs.Count} 個帳號：", ForeColor = Theme.AccentRed, Font = Theme.FontCell9Bold, AutoSize = true, Location = new Point(16, 12) };
+                    var lblList = new Label { Text = string.Join("  ", allAccs.Take(10)) + (allAccs.Count > 10 ? $"…等{allAccs.Count}人" : ""), ForeColor = Theme.TextMuted, Font = Theme.FontCell9, AutoSize = false, Width = 380, Height = 36, Location = new Point(16, 34) };
+                    var lbl2 = new Label { Text = "封禁天數（0 = 永久）：", ForeColor = Theme.TextSecondary, Font = Theme.FontCell9, AutoSize = true, Location = new Point(16, 78) };
+                    var tbDays = new TextBox { Text = "7", Width = 80, Location = new Point(160, 75), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, BorderStyle = BorderStyle.FixedSingle };
+                    var lbl3 = new Label { Text = "封禁原因（選填）：", ForeColor = Theme.TextSecondary, Font = Theme.FontCell9, AutoSize = true, Location = new Point(16, 108) };
+                    var tbReason = new TextBox { Text = "工作室", Width = 360, Location = new Point(16, 126), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, BorderStyle = BorderStyle.FixedSingle };
+                    var btnOk  = Theme.MakePrimaryButton("🚫 確認封禁", 100, 30); btnOk.Location  = new Point(196, 170);
+                    var btnCan = Theme.MakeButton("取消", Theme.BgLight, Theme.TextSecondary, 80, 30); btnCan.Location = new Point(308, 170);
+                    btnOk.Click  += (_, __) => dlg.DialogResult = DialogResult.OK;
+                    btnCan.Click += (_, __) => dlg.DialogResult = DialogResult.Cancel;
+                    dlg.Controls.AddRange(new Control[] { lbl1, lblList, lbl2, tbDays, lbl3, tbReason, btnOk, btnCan });
+                    dlg.AcceptButton = btnOk; dlg.CancelButton = btnCan;
+                    if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                    banDays   = int.TryParse(tbDays.Text, out var d) ? d : 7;
+                    banReason = tbReason.Text;
+                }
+
+                _btnBanGroup.Enabled = false;
+                int ok = 0, fail = 0;
+                foreach (var acc in allAccs)
+                {
+                    try
+                    {
+                        int endUnix = banDays == 0 ? 0 : (int)DateTimeOffset.Now.AddDays(banDays).ToUnixTimeSeconds();
+                        if (await DatabaseManager.Instance.BanPlayerAsync(acc, endUnix, banReason)) ok++; else fail++;
+                    }
+                    catch { fail++; }
+                }
+                string dur = banDays == 0 ? "永久" : $"{banDays} 天";
+                MessageBox.Show($"批量封禁完成（{dur}）\n成功：{ok} 人\n失敗：{fail} 人", "封禁結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!IsDisposed) _btnBanGroup.Enabled = true;
+                _ = RunScanAsync();
+            };
+
+            var _btnUnbanGroup = MakeBtn("✅ 解封整群", Color.FromArgb(20, 80, 30), 110);
+            _btnUnbanGroup.Enabled = false;
+            _btnUnbanGroup.Height  = 24;
+            _btnUnbanGroup.Anchor  = AnchorStyles.Right | AnchorStyles.Top;
+            _btnUnbanGroup.Click  += async (s, e) =>
+            {
+                if (_selected == null) return;
+                var allAccs = _selected.Members.Select(m => m.Account).ToList();
+                if (allAccs.Count == 0) return;
+                if (MessageBox.Show($"確定解封此群組所有 {allAccs.Count} 個帳號？\nIP：{_selected.Ip}",
+                    "確認解封", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+                _btnUnbanGroup.Enabled = false;
+                int ok = 0, fail = 0;
+                foreach (var acc in allAccs)
+                {
+                    try { if (await DatabaseManager.Instance.UnbanPlayerAsync(acc)) ok++; else fail++; }
+                    catch { fail++; }
+                }
+                MessageBox.Show($"批量解封完成\n成功：{ok} 人\n失敗（本來未封禁）：{fail} 人", "解封結果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!IsDisposed) _btnUnbanGroup.Enabled = true;
+                _ = RunScanAsync();
+            };
+
+            var _btnExportGroup = MakeBtn("📥 匯出此群組", Color.FromArgb(30, 60, 90), 110);
+            _btnExportGroup.Enabled = false;
+            _btnExportGroup.Height  = 24;
+            _btnExportGroup.Anchor  = AnchorStyles.Right | AnchorStyles.Top;
+            _btnExportGroup.Click  += (s, e) => ExportSelectedGroup();
+
+            _lstGroups.SelectedIndexChanged += (s, e) =>
+            {
+                _btnBanGroup.Enabled    = _selected?.Members.Count > 0;
+                _btnUnbanGroup.Enabled  = _selected?.Members.Count > 0;
+                _btnExportGroup.Enabled = _selected?.Members.Count > 0;
+                _btnBanGroup.Text = _selected != null
+                    ? $"🚫 封禁整群 ({_selected.Members.Count} 人)"
+                    : "🚫 封禁整群";
+                _btnUnbanGroup.Text = _selected != null
+                    ? $"✅ 解封整群 ({_selected.Members.Count} 人)"
+                    : "✅ 解封整群";
+                _btnExportGroup.Text = _selected != null
+                    ? $"📥 匯出此群組 ({_selected.Members.Count})"
+                    : "📥 匯出此群組";
+            };
+            rightHeader.Controls.Add(_lblGroupTitle);
+            rightHeader.Controls.Add(_btnBanGroup);
+            rightHeader.Controls.Add(_btnUnbanGroup);
+            rightHeader.Controls.Add(_btnExportGroup);
+            rightHeader.Resize += (s, e) =>
+            {
+                _btnBanGroup.Location    = new Point(rightHeader.Width - _btnBanGroup.Width - 6, 3);
+                _btnUnbanGroup.Location  = new Point(rightHeader.Width - _btnBanGroup.Width - _btnUnbanGroup.Width - 12, 3);
+                _btnExportGroup.Location = new Point(rightHeader.Width - _btnBanGroup.Width - _btnUnbanGroup.Width - _btnExportGroup.Width - 18, 3);
+                _lblGroupTitle.Width     = rightHeader.Width - _btnBanGroup.Width - _btnUnbanGroup.Width - _btnExportGroup.Width - 24;
+            };
+            rightLayout.Controls.Add(rightHeader, 0, 0);
 
             _dgvMembers = BuildDgv();
 
@@ -218,20 +332,109 @@ namespace SQ_Email_Tools
 
             ctxMenu.Items.Add(new ToolStripSeparator());
 
+            var kickItem = new ToolStripMenuItem("⚡ 強制下線此帳號（不封號）") { ForeColor = Color.FromArgb(255, 160, 50) };            kickItem.Click += async (s, e) =>
+            {
+                var cell = _dgvMembers.CurrentCell;
+                if (cell == null || cell.RowIndex < 0) return;
+                string account = _dgvMembers.Rows[cell.RowIndex].Cells[0].Value?.ToString() ?? "";
+                string charName = _dgvMembers.Rows[cell.RowIndex].Cells[1].Value?.ToString() ?? "";
+                if (string.IsNullOrWhiteSpace(account)) return;
+                if (MessageBox.Show($"確定強制下線「{charName}」（{account}）？\n（不封號，只踢出線上）",
+                    "確認", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK) return;
+                try
+                {
+                    bool ok = await DatabaseManager.Instance.ForceOfflineAsync(account);
+                    MessageBox.Show(ok ? $"✅ 已強制下線「{charName}」" : "操作失敗，請確認資料庫連線。");
+                }
+                catch (Exception ex2) { MessageBox.Show("錯誤：" + ex2.Message); }
+            };
+            ctxMenu.Items.Add(kickItem);
+
+            ctxMenu.Items.Add(new ToolStripSeparator());
+
             var queryOwnerItem = new ToolStripMenuItem("🔎 查詢此 IP 的原始主人") { ForeColor = Color.FromArgb(248, 185, 90) };
             queryOwnerItem.Click += (s, e) => QueryIpOwnerFromContext();
             ctxMenu.Items.Add(queryOwnerItem);
 
-            // 開啟右鍵選單前，動態決定「查原始主人」是否啟用
+            ctxMenu.Items.Add(new ToolStripSeparator());
+
+            // ── IP 黑白名單標記 ──────────────────────────────────────
+            var labelStudio = new ToolStripMenuItem("🔴 標記為工作室 IP") { ForeColor = Color.FromArgb(255, 100, 100) };
+            var labelWhite  = new ToolStripMenuItem("🟢 標記為白名單 IP（正常共用）") { ForeColor = Color.FromArgb(100, 220, 120) };
+            var labelClear  = new ToolStripMenuItem("🔘 移除標記") { ForeColor = Theme.TextMuted };
+
+            string GetCurrentRowIp()
+            {
+                var cell = _dgvMembers.CurrentCell;
+                if (cell == null || cell.RowIndex < 0) return "";
+                // 優先取 loginIp 欄（col 4），若為空取 regIp（col 5）
+                return _dgvMembers.Rows[cell.RowIndex].Cells[4].Value?.ToString()?.Trim() ?? "";
+            }
+
+            labelStudio.Click += async (s, e) =>
+            {
+                string ip = GetCurrentRowIp();
+                if (string.IsNullOrEmpty(ip)) return;
+                string note = ShowInputBox($"標記為工作室 IP：{ip}\n備註（選填）：", "標記工作室", "工作室");
+                await DatabaseManager.Instance.SetIpLabelAsync(ip, IpLabelType.Studio, note);
+                _ipLabels = await DatabaseManager.Instance.GetIpLabelsAsync();
+                _lstGroups.Invalidate();
+            };
+            labelWhite.Click += async (s, e) =>
+            {
+                string ip = GetCurrentRowIp();
+                if (string.IsNullOrEmpty(ip)) return;
+                string note = ShowInputBox($"標記為白名單 IP：{ip}\n備註（選填，例如：網咖）：", "標記白名單", "網咖");
+                await DatabaseManager.Instance.SetIpLabelAsync(ip, IpLabelType.Whitelist, note);
+                _ipLabels = await DatabaseManager.Instance.GetIpLabelsAsync();
+                _lstGroups.Invalidate();
+            };
+            labelClear.Click += async (s, e) =>
+            {
+                string ip = GetCurrentRowIp();
+                if (string.IsNullOrEmpty(ip)) return;
+                await DatabaseManager.Instance.RemoveIpLabelAsync(ip);
+                _ipLabels = await DatabaseManager.Instance.GetIpLabelsAsync();
+                _lstGroups.Invalidate();
+            };
+            ctxMenu.Items.Add(labelStudio);
+            ctxMenu.Items.Add(labelWhite);
+            ctxMenu.Items.Add(labelClear);
+
+            // 開啟右鍵選單前，動態決定各項目是否啟用
             ctxMenu.Opening += (s, e) =>
             {
                 var cell = _dgvMembers.CurrentCell;
+                bool hasRow = cell != null && cell.RowIndex >= 0;
+
                 queryOwnerItem.Enabled = cell != null && cell.RowIndex >= 0
                     && (cell.ColumnIndex == 4 || cell.ColumnIndex == 5)
                     && !string.IsNullOrWhiteSpace(cell.Value?.ToString());
                 queryOwnerItem.Text = queryOwnerItem.Enabled
                     ? $"🔎 查 IP 原始主人：{cell!.Value}"
                     : "🔎 查 IP 原始主人（請先點選IP欄位）";
+
+                // 標記選項：取目前列的 loginIp
+                string rowIp = "";
+                if (hasRow) rowIp = _dgvMembers.Rows[cell!.RowIndex].Cells[4].Value?.ToString()?.Trim() ?? "";
+                bool hasIp = !string.IsNullOrEmpty(rowIp);
+                labelStudio.Enabled = hasIp;
+                labelWhite.Enabled  = hasIp;
+                labelClear.Enabled  = hasIp && _ipLabels.ContainsKey(rowIp);
+                if (hasIp)
+                {
+                    _ipLabels.TryGetValue(rowIp, out var lbl);
+                    string current = lbl == null ? "" : lbl.Label == IpLabelType.Studio ? "（目前：工作室）" : "（目前：白名單）";
+                    labelStudio.Text = $"🔴 標記工作室 IP：{rowIp} {current}";
+                    labelWhite.Text  = $"🟢 標記白名單 IP：{rowIp} {current}";
+                    labelClear.Text  = $"🔘 移除標記：{rowIp}";
+                }
+                else
+                {
+                    labelStudio.Text = "🔴 標記為工作室 IP";
+                    labelWhite.Text  = "🟢 標記為白名單 IP";
+                    labelClear.Text  = "🔘 移除標記";
+                }
             };
 
             _dgvMembers.ContextMenuStrip = ctxMenu;
@@ -265,6 +468,10 @@ namespace SQ_Email_Tools
 
             try
             {
+                // 確保 ip_labels 表存在，並載入標記快取
+                await DatabaseManager.Instance.EnsureIpLabelsTableAsync();
+                _ipLabels = await DatabaseManager.Instance.GetIpLabelsAsync();
+
                 int minGroup = (int)_cmbMinGroup.SelectedItem!;
                 _groups = await DatabaseManager.Instance.GetIpGroupsAsync(minGroup);
                 if (IsDisposed) return;
@@ -279,7 +486,9 @@ namespace SQ_Email_Tools
                 }
                 else
                 {
-                    _lblStatus.Text      = $"發現 {_groups.Count} 個群組，涉及 {total} 個帳號";
+                    int studioCount = _groups.Count(g => _ipLabels.ContainsKey(g.Ip) && _ipLabels[g.Ip].Label == IpLabelType.Studio);
+                    _lblStatus.Text      = $"發現 {_groups.Count} 個群組，涉及 {total} 個帳號" +
+                                           (studioCount > 0 ? $"  🔴 已標記工作室 {studioCount} 個" : "");
                     _lblStatus.ForeColor = Color.FromArgb(248, 113, 113);
                     _btnExport.Enabled   = true;
                 }
@@ -380,24 +589,40 @@ namespace SQ_Email_Tools
         {
             if (e.Index < 0 || e.Index >= _lstGroups.Items.Count) return;
             var g = (IpGroupEntry)_lstGroups.Items[e.Index];
-            bool selected = (e.State & DrawItemState.Selected) != 0;
+            bool selected  = (e.State & DrawItemState.Selected) != 0;
             bool hasOnline = g.OnlineCount > 0;
 
-            var bgColor = selected
-                ? Color.FromArgb(60, 80, 140)
-                : hasOnline ? Color.FromArgb(55, 28, 28) : Theme.BgCard;
+            // 依黑白名單決定背景色
+            _ipLabels.TryGetValue(g.Ip, out var label);
+            Color bgColor;
+            if (selected)
+                bgColor = Color.FromArgb(60, 80, 140);
+            else if (label?.Label == IpLabelType.Studio)
+                bgColor = Color.FromArgb(70, 20, 20);      // 工作室：深紅
+            else if (label?.Label == IpLabelType.Whitelist)
+                bgColor = Color.FromArgb(20, 55, 30);      // 白名單：深綠
+            else if (hasOnline)
+                bgColor = Color.FromArgb(55, 28, 28);
+            else
+                bgColor = Theme.BgCard;
             e.Graphics.FillRectangle(new SolidBrush(bgColor), e.Bounds);
 
+            // 標記圖示
+            string badge = label?.Label == IpLabelType.Studio ? "🔴 " :
+                           label?.Label == IpLabelType.Whitelist ? "🟢 " : "";
+
             // IP 文字
-            var ipColor = hasOnline ? Color.FromArgb(248, 113, 113) : Theme.AccentBlue;
-            e.Graphics.DrawString(g.Ip, new Font("Consolas", 9, FontStyle.Bold), new SolidBrush(ipColor),
-                e.Bounds.X + 6, e.Bounds.Y + 5);
+            var ipColor = label?.Label == IpLabelType.Studio    ? Color.FromArgb(255, 100, 100) :
+                          label?.Label == IpLabelType.Whitelist  ? Color.FromArgb(100, 220, 120) :
+                          hasOnline ? Color.FromArgb(248, 113, 113) : Theme.AccentBlue;
+            e.Graphics.DrawString(badge + g.Ip, new Font("Consolas", 9, FontStyle.Bold),
+                new SolidBrush(ipColor), e.Bounds.X + 6, e.Bounds.Y + 5);
 
             // 帳號數
             string info = $"  {g.TotalCount}帳";
             if (g.OnlineCount > 0) info += $" 🟢{g.OnlineCount}";
             e.Graphics.DrawString(info, Theme.FontCell9, new SolidBrush(Theme.TextSecondary),
-                e.Bounds.X + 130, e.Bounds.Y + 5);
+                e.Bounds.X + 148, e.Bounds.Y + 5);
         }
 
         // ══════════════════════════════════════════════════════
@@ -563,26 +788,49 @@ namespace SQ_Email_Tools
             using var dlg = new SaveFileDialog
             {
                 Filter = "CSV 檔案|*.csv",
-                FileName = $"重複IP_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+                FileName = $"重複IP全部_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
                 DefaultExt = "csv"
             };
             if (dlg.ShowDialog() != DialogResult.OK) return;
-
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("IP,在線數,總帳號數,帳號,角色名,主帳號,登入IP,註冊IP,狀態");
+                sb.AppendLine("群組IP,在線數,總帳號數,帳號,角色名,主帳號,登入IP,註冊IP,狀態,工作室標記");
                 foreach (var g in _groups)
+                {
+                    _ipLabels.TryGetValue(g.Ip, out var lbl);
+                    string tag = lbl == null ? "" : lbl.Label == IpLabelType.Studio ? "工作室" : "白名單";
                     foreach (var m in g.Members)
-                        sb.AppendLine($"{CsvEsc(g.Ip)},{g.OnlineCount},{g.TotalCount},{CsvEsc(m.Account)},{CsvEsc(m.CharName)},{CsvEsc(m.MasterName)},{CsvEsc(m.LoginIp)},{CsvEsc(m.RegIp)},{(m.IsOnline ? "在線" : "離線")}");
-
+                        sb.AppendLine($"{CsvEsc(g.Ip)},{g.OnlineCount},{g.TotalCount},{CsvEsc(m.Account)},{CsvEsc(m.CharName)},{CsvEsc(m.MasterName)},{CsvEsc(m.LoginIp)},{CsvEsc(m.RegIp)},{(m.IsOnline ? "在線" : "離線")},{tag}");
+                    sb.AppendLine(); // 群組間空行
+                }
                 File.WriteAllText(dlg.FileName, "\uFEFF" + sb, Encoding.UTF8);
-                MessageBox.Show($"已匯出到：\n{dlg.FileName}", "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show($"已匯出 {_groups.Count} 個群組到：\n{dlg.FileName}", "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            catch (Exception ex)
+            catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        }
+
+        private void ExportSelectedGroup()
+        {
+            if (_selected == null) { MessageBox.Show("請先選擇左側群組"); return; }
+            using var dlg = new SaveFileDialog
             {
-                MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Filter = "CSV 檔案|*.csv",
+                FileName = $"IP_{_selected.Ip.Replace(".", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+                DefaultExt = "csv"
+            };
+            if (dlg.ShowDialog() != DialogResult.OK) return;
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"# IP：{_selected.Ip}  共 {_selected.TotalCount} 帳號  在線 {_selected.OnlineCount} 人");
+                sb.AppendLine("帳號,角色名,主帳號,登入IP,註冊IP,狀態");
+                foreach (var m in _selected.Members)
+                    sb.AppendLine($"{CsvEsc(m.Account)},{CsvEsc(m.CharName)},{CsvEsc(m.MasterName)},{CsvEsc(m.LoginIp)},{CsvEsc(m.RegIp)},{(m.IsOnline ? "在線" : "離線")}");
+                File.WriteAllText(dlg.FileName, "\uFEFF" + sb, Encoding.UTF8);
+                MessageBox.Show($"已匯出 {_selected.Members.Count} 筆到：\n{dlg.FileName}", "匯出成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+            catch (Exception ex) { MessageBox.Show("匯出失敗：" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private static string CsvEsc(string v)
@@ -638,5 +886,24 @@ namespace SQ_Email_Tools
             Text = text, AutoSize = true, ForeColor = Theme.TextSecondary,
             Font = Theme.FontCell9, Margin = new Padding(0, 6, 4, 0)
         };
+
+        private static string ShowInputBox(string prompt, string title, string defaultValue = "")
+        {
+            using var dlg = new Form();
+            dlg.Text = title; dlg.Size = new Size(380, 150);
+            dlg.BackColor = Theme.BgPage; dlg.ForeColor = Theme.TextPrimary;
+            dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.MaximizeBox = false;
+            var lbl = new Label { Text = prompt, ForeColor = Theme.TextSecondary, Font = Theme.FontCell9, AutoSize = true, Location = new Point(12, 12) };
+            var tb  = new TextBox { Text = defaultValue, Width = 340, Location = new Point(12, 42), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, BorderStyle = BorderStyle.FixedSingle };
+            var ok  = Theme.MakePrimaryButton("確認", 80, 28); ok.Location = new Point(196, 74);
+            var can = Theme.MakeButton("取消", Theme.BgLight, Theme.TextSecondary, 70, 28); can.Location = new Point(284, 74);
+            ok.Click  += (_, __) => dlg.DialogResult = DialogResult.OK;
+            can.Click += (_, __) => dlg.DialogResult = DialogResult.Cancel;
+            dlg.Controls.AddRange(new Control[] { lbl, tb, ok, can });
+            dlg.AcceptButton = ok; dlg.CancelButton = can;
+            return dlg.ShowDialog() == DialogResult.OK ? tb.Text : defaultValue;
+        }
     }
 }

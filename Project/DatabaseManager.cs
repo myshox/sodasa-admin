@@ -5094,6 +5094,10 @@ namespace SQ_Email_Tools
                 await conn.OpenAsync();
 
                 // 找出每個 IP 有 >= minGroup 個帳號的群組（登入IP + 註冊IP 合併）
+                // 先設 GROUP_CONCAT 長度上限，避免帳號清單被截斷（MySQL 預設 1024）
+                using (var setCmd = new MySqlCommand("SET SESSION group_concat_max_len = 1000000", conn))
+                    await setCmd.ExecuteNonQueryAsync();
+
                 var sql = $@"
                     SELECT ip, GROUP_CONCAT(account ORDER BY isOnline DESC, account SEPARATOR '|||') accs,
                            SUM(isOnline) onlineCnt, COUNT(DISTINCT account) total
@@ -5241,6 +5245,136 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>查詢 IP 最早使用的帳號（原始主人）</summary>
+        // ══════════════════════════════════════════════════════════
+        // IP 黑白名單（ip_labels 表，GMTool 自管）
+        // ══════════════════════════════════════════════════════════
+
+        /// <summary>確保 ip_labels 表存在（首次使用時自動建立）</summary>
+        public async Task EnsureIpLabelsTableAsync()
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    CREATE TABLE IF NOT EXISTS `ip_labels` (
+                        `ip`         VARCHAR(64)  NOT NULL PRIMARY KEY,
+                        `label`      TINYINT      NOT NULL DEFAULT 1 COMMENT '1=工作室 2=白名單',
+                        `note`       VARCHAR(255) NOT NULL DEFAULT '',
+                        `created_at` DATETIME     NOT NULL DEFAULT NOW()
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", conn);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/IpLabels] EnsureTable: " + ex.Message); }
+        }
+
+        /// <summary>取得所有 IP 標記，回傳 ip → IpLabel 字典</summary>
+        public async Task<Dictionary<string, IpLabel>> GetIpLabelsAsync()
+        {
+            var dict = new Dictionary<string, IpLabel>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand("SELECT ip, label, note, DATE_FORMAT(created_at,'%Y-%m-%d %H:%i') created_at FROM ip_labels", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var ip = r.GetString("ip");
+                    dict[ip] = new IpLabel
+                    {
+                        Ip        = ip,
+                        Label     = (IpLabelType)r.GetInt32("label"),
+                        Note      = r.GetString("note"),
+                        CreatedAt = r.GetString("created_at"),
+                    };
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/IpLabels] Get: " + ex.Message); }
+            return dict;
+        }
+
+        /// <summary>設定或更新 IP 標記（工作室 or 白名單）</summary>
+        public async Task SetIpLabelAsync(string ip, IpLabelType label, string note = "")
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "INSERT INTO ip_labels (ip, label, note) VALUES (@ip, @lb, @note) ON DUPLICATE KEY UPDATE label=@lb, note=@note", conn);
+                cmd.Parameters.AddWithValue("@ip",   ip);
+                cmd.Parameters.AddWithValue("@lb",   (int)label);
+                cmd.Parameters.AddWithValue("@note", note);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/IpLabels] Set: " + ex.Message); throw; }
+        }
+
+        /// <summary>移除 IP 標記</summary>
+        public async Task RemoveIpLabelAsync(string ip)
+        {
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand("DELETE FROM ip_labels WHERE ip=@ip", conn);
+                cmd.Parameters.AddWithValue("@ip", ip);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/IpLabels] Remove: " + ex.Message); throw; }
+        }
+
+        /// <summary>查詢指定帳號的封禁歷史記錄（lock 表）</summary>
+        public async Task<List<PlayerBanRecord>> GetPlayerBanLogAsync(string account)
+        {
+            var list = new List<PlayerBanRecord>();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "SELECT `time` banEndTime, IFNULL(reason,'') reason FROM `lock` WHERE `Name`=@a ORDER BY `time` ASC LIMIT 50", conn);
+                cmd.Parameters.AddWithValue("@a", account);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    long t = r.GetInt64("banEndTime");
+                    list.Add(new PlayerBanRecord
+                    {
+                        IsPermanent = t == 0,
+                        BanEndTime  = t == 0 ? "永久" : DateTimeOffset.FromUnixTimeSeconds(t).LocalDateTime.ToString("yyyy/MM/dd HH:mm"),
+                        Reason      = r.GetString("reason"),
+                    });
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/BanLog] " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>查詢指定帳號所屬家族資訊</summary>
+        public async Task<PlayerFamilyInfo?> GetPlayerFamilyAsync(string account)
+        {
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT z.jiazuid guildId, z.jiazu guildName,
+                             (SELECT COUNT(*) FROM zuzhanlog zz WHERE zz.jiazuid=z.jiazuid AND zz.id IN (SELECT MAX(id) FROM zuzhanlog GROUP BY cdkey)) memberCount
+                      FROM zuzhanlog z
+                      WHERE z.cdkey=@a AND z.jiazuid>0
+                      ORDER BY z.id DESC LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@a", account);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                    return new PlayerFamilyInfo
+                    {
+                        FamilyId    = Convert.ToInt32(r["guildId"]),
+                        FamilyName  = r["guildName"]?.ToString() ?? "",
+                        MemberCount = Convert.ToInt32(r["memberCount"]),
+                    };
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/PlayerFamily] " + ex.Message); }
+            return null;
+        }
+
         public async Task<IpOwnerResult?> GetIpOwnerAsync(string ip)
         {
             try
@@ -5333,5 +5467,29 @@ namespace SQ_Email_Tools
         public bool   IsOnline   { get; set; }
         public string RegTime    { get; set; } = "";
         public string MatchType  { get; set; } = "";
+    }
+
+    public class PlayerBanRecord
+    {
+        public string BanEndTime  { get; set; } = "";
+        public bool   IsPermanent { get; set; }
+        public string Reason      { get; set; } = "";
+    }
+
+    public class PlayerFamilyInfo
+    {
+        public int    FamilyId    { get; set; }
+        public string FamilyName  { get; set; } = "";
+        public int    MemberCount { get; set; }
+    }
+
+    public enum IpLabelType { None = 0, Studio = 1, Whitelist = 2 }
+
+    public class IpLabel
+    {
+        public string       Ip        { get; set; } = "";
+        public IpLabelType  Label     { get; set; }
+        public string       Note      { get; set; } = "";
+        public string       CreatedAt { get; set; } = "";
     }
 }

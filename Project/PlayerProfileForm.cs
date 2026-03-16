@@ -1588,6 +1588,98 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(8, 10)
             });
             _bodyPanel.Controls.Add(noteBox);
+
+            // ── 封禁記錄 ──────────────────────────────────────────────
+            y += 40;
+            Section("📋  封禁歷史記錄", Theme.AccentRed);
+            {
+                var banPanel = new Panel { Location = new Point(x, y), Width = panelW, Height = 28, BackColor = Theme.BgCard };
+                var btnBanLog = Theme.MakeButton("📋 查詢封禁記錄", Color.FromArgb(80, 20, 20), Color.FromArgb(255, 100, 100), 120, 22);
+                btnBanLog.Location = new Point(4, 3);
+                btnBanLog.Font     = Theme.FontSmall;
+                var lblBanResult = new Label { Text = "", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(132, 7) };
+                btnBanLog.Click += async (s, e) =>
+                {
+                    btnBanLog.Enabled = false;
+                    try
+                    {
+                        var logs = await DatabaseManager.Instance.GetPlayerBanLogAsync(_detail.Account);
+                        if (logs.Count == 0)
+                        {
+                            lblBanResult.Text = "✓ 無封禁記錄";
+                            lblBanResult.ForeColor = Theme.AccentGreen;
+                        }
+                        else
+                        {
+                            lblBanResult.Text = $"共 {logs.Count} 筆，點按鈕再次查看";
+                            lblBanResult.ForeColor = Theme.AccentOrange;
+                            using var dlg = new Form();
+                            dlg.Text = $"📋 {_detail.OnlineName} 封禁記錄";
+                            dlg.Size = new Size(500, 300);
+                            dlg.BackColor = Theme.BgPage; dlg.ForeColor = Theme.TextPrimary;
+                            dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
+                            dlg.StartPosition = FormStartPosition.CenterParent;
+                            dlg.MaximizeBox = false;
+                            var dgv = new DataGridView
+                            {
+                                Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
+                                BackgroundColor = Theme.BgMid, ForeColor = Theme.TextPrimary,
+                                ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle { BackColor = Theme.BgCard, ForeColor = Theme.TextMuted, Font = Theme.FontSmall },
+                                DefaultCellStyle = new DataGridViewCellStyle { BackColor = Theme.BgMid, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, SelectionBackColor = Theme.AccentBlue, SelectionForeColor = Color.White },
+                                GridColor = Theme.BgLight, BorderStyle = BorderStyle.None, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                                RowHeadersVisible = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                            };
+                            dgv.Columns.Add("banEndTime", "封禁到期");
+                            dgv.Columns.Add("type", "類型");
+                            dgv.Columns.Add("reason", "原因");
+                            dgv.Columns["type"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+                            foreach (var rec in logs)
+                                dgv.Rows.Add(rec.BanEndTime, rec.IsPermanent ? "🔒 永久" : "⏱ 有限期", rec.Reason);
+                            dlg.Controls.Add(dgv);
+                            dlg.ShowDialog(this);
+                        }
+                    }
+                    catch (Exception ex2) { lblBanResult.Text = "查詢失敗：" + ex2.Message; }
+                    finally { if (!IsDisposed) btnBanLog.Enabled = true; }
+                };
+                banPanel.Controls.AddRange(new Control[] { btnBanLog, lblBanResult });
+                _bodyPanel.Controls.Add(banPanel);
+                y += 32;
+            }
+
+            // ── 家族資訊 ──────────────────────────────────────────────
+            y += 4;
+            Section("🏰  家族資訊", Color.FromArgb(180, 130, 255));
+            {
+                var famPanel = new Panel { Location = new Point(x, y), Width = panelW, Height = 28, BackColor = Theme.BgCard };
+                var btnFamily = Theme.MakeButton("🏰 查詢家族", Color.FromArgb(50, 20, 80), Color.FromArgb(190, 150, 255), 100, 22);
+                btnFamily.Location = new Point(4, 3);
+                btnFamily.Font     = Theme.FontSmall;
+                var lblFamResult = new Label { Text = "", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(112, 7) };
+                btnFamily.Click += async (s, e) =>
+                {
+                    btnFamily.Enabled = false;
+                    try
+                    {
+                        var fam = await DatabaseManager.Instance.GetPlayerFamilyAsync(_detail.Account);
+                        if (fam == null)
+                        {
+                            lblFamResult.Text = "— 無家族（散人）";
+                            lblFamResult.ForeColor = Theme.TextMuted;
+                        }
+                        else
+                        {
+                            lblFamResult.Text = $"🏰 {fam.FamilyName}（ID:{fam.FamilyId}）  成員 {fam.MemberCount} 人";
+                            lblFamResult.ForeColor = Color.FromArgb(190, 150, 255);
+                        }
+                    }
+                    catch (Exception ex2) { lblFamResult.Text = "查詢失敗：" + ex2.Message; }
+                    finally { if (!IsDisposed) btnFamily.Enabled = true; }
+                };
+                famPanel.Controls.AddRange(new Control[] { btnFamily, lblFamResult });
+                _bodyPanel.Controls.Add(famPanel);
+                y += 32;
+            }
         }
 
         // ── MD5 反查（嘗試多個公開彩虹表服務）─────────────────────────

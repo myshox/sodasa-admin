@@ -63,3 +63,23 @@ export interface PetInfo {
   lv: number; hp: number; attack: number; def: number; quick: number; sum: number
   author: string; cdkey: string; check: number  // 0=揹包 1=出戰
 }
+
+/** 練寵活動 - 寵物種類列表 */
+export interface PetRankType {
+  id: number; name: string; entryCount: number
+  topScore: number; firstEntry: string; lastEntry: string
+}
+
+/** 練寵活動 - 排行榜單筆 */
+export interface PetRankEntry {
+  rank: number; unicode: string; author: string; cdkey: string; petName: string
+  lv: number; hp: number; attack: number; def: number; quick: number; sum: number
+  check: boolean; inserttime: string; entryCount: number
+}
+
+/** 練寵活動 - 玩家所有參賽記錄 */
+export interface PetPlayerEntry {
+  unicode: string; id: number; petName: string
+  lv: number; hp: number; attack: number; def: number; quick: number; sum: number
+  author: string; cdkey: string; check: boolean; inserttime: string
+}
