@@ -526,104 +526,166 @@ namespace SQ_Email_Tools
         }
 
         // ===================================================================
-        //  Activity Tab  (capturepet 練寵活動排行榜)
+        //  Activity Tab  (capturepet 練寵活動排行榜) — 大改版
         // ===================================================================
         private void BuildActivityTab(Panel p)
         {
+            // ── 底部狀態列 ──
             _lblActivityStatus = new Label
             {
-                Dock = DockStyle.Bottom, Height = 26,
+                Dock = DockStyle.Bottom, Height = 28,
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 0, 0), BackColor = Theme.BgCard,
+                Padding = new Padding(14, 0, 0, 0), BackColor = Theme.BgCard,
             };
             p.Controls.Add(_lblActivityStatus);
 
             // ── 上方工具列 ──
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.BgCard };
-            toolbar.Controls.Add(new Label { Text = "本期練寵：", Location = new Point(8, 14), AutoSize = true, ForeColor = Theme.TextSecondary, Font = Theme.FontSmall });
-            _cmbActivityPet = new ComboBox { Location = new Point(76, 10), Size = new Size(200, 26), BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary, FlatStyle = FlatStyle.Flat, Font = Theme.FontSmall, DropDownStyle = ComboBoxStyle.DropDownList };
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgCard };
+
+            toolbar.Controls.Add(new Label
+            {
+                Text = "本期練寵：", Location = new Point(10, 16),
+                AutoSize = true, ForeColor = Theme.TextSecondary,
+                Font = new Font(Theme.FontFamily, 9.5f),
+            });
+            _cmbActivityPet = new ComboBox
+            {
+                Location = new Point(82, 12), Size = new Size(240, 28),
+                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
+                FlatStyle = FlatStyle.Flat, Font = new Font(Theme.FontFamily, 9.5f),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
             _cmbActivityPet.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
             toolbar.Controls.Add(_cmbActivityPet);
 
-            var btnRef = Theme.MakePrimaryButton("重新載入", 72, 28);
-            btnRef.Location = new Point(286, 10); btnRef.Font = Theme.FontSmall;
-            btnRef.Click += async (s, e) => { _capturePetTypes.Clear(); await LoadCapturePetTypesAsync(); await LoadActivityRankAsync(); };
-            toolbar.Controls.Add(btnRef);
-
-            var btnCsv2 = Theme.MakeButton("CSV匯出", Theme.BgMid, Theme.AccentGreen, 68, 28);
-            btnCsv2.Location = new Point(366, 10); btnCsv2.Font = Theme.FontSmall;
-            btnCsv2.Click += (s, e) => ExportActivityCsv();
-            toolbar.Controls.Add(btnCsv2);
-
-            var btnResetAct = Theme.MakeButton("清空此排行", Color.FromArgb(110,15,15), Color.FromArgb(255,90,90), 80, 28);
-            btnResetAct.Location = new Point(442, 10); btnResetAct.Font = Theme.FontSmall;
+            // 右側按鈕群組
+            var btnResetAct = Theme.MakeButton("清空此排行", Color.FromArgb(110,15,15), Color.FromArgb(255,90,90), 84, 30);
+            var btnCsv2     = Theme.MakeButton("📥 CSV匯出", Theme.BgMid, Theme.AccentGreen, 84, 30);
+            var btnRef      = Theme.MakePrimaryButton("🔄 重新載入", 90, 30);
+            foreach (var b in new[] { btnRef, btnCsv2, btnResetAct }) b.Font = new Font(Theme.FontFamily, 8.5f);
+            btnRef.Click      += async (s, e) => { _capturePetTypes.Clear(); await LoadCapturePetTypesAsync(); await LoadActivityRankAsync(); };
+            btnCsv2.Click     += (s, e) => ExportActivityCsv();
             btnResetAct.Click += async (s, e) => await ResetActivityAsync();
-            toolbar.Controls.Add(btnResetAct);
 
+            var actBtns = new[] { btnResetAct, btnCsv2, btnRef };
+            toolbar.Resize += (s, e) =>
+            {
+                int x = toolbar.ClientSize.Width - 8;
+                foreach (var b in actBtns) { x -= b.Width + 6; b.Left = x; b.Top = 11; }
+            };
+            toolbar.Controls.AddRange(actBtns);
             p.Controls.Add(toolbar);
 
-            // ── 主體 SplitContainer：左=排行卡片, 右=DataGridView ──
-            var split2 = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1, Panel1MinSize = 260, BackColor = Theme.BgPage, SplitterWidth = 5 };
+            // ── 主體 SplitContainer：左=排行卡片+查詢, 右=DataGridView ──
+            var split2 = new SplitContainer
+            {
+                Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1,
+                Panel1MinSize = 220, BackColor = Theme.BgPage, SplitterWidth = 6,
+            };
             bool s2Ready = false;
-            split2.Layout += (s, e) => { if (s2Ready || split2.Width < 400) return; s2Ready = true; split2.SplitterDistance = Math.Min(300, split2.Width - 300); };
+            split2.Layout += (s, e) =>
+            {
+                if (s2Ready || split2.Width < 500) return;
+                s2Ready = true;
+                split2.SplitterDistance = 240;
+            };
 
-            // 左：排行卡片 + 玩家查詢
-            split2.Panel1.BackColor = Color.FromArgb(22, 30, 46);
+            // ── 左面板 ──
+            split2.Panel1.BackColor = Color.FromArgb(20, 28, 44);
             _activityRankPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, AutoScroll = true };
 
-            // 左下：玩家查詢 Panel
-            var searchPanel = new Panel { Dock = DockStyle.Bottom, Height = 112, BackColor = Color.FromArgb(18, 26, 40), Padding = new Padding(8) };
-            searchPanel.Controls.Add(new Label { Text = "查玩家所有記錄", Location = new Point(8, 8), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            // 左下：玩家查詢
+            var searchPanel = new Panel
+            {
+                Dock = DockStyle.Bottom, Height = 120,
+                BackColor = Color.FromArgb(14, 22, 36), Padding = new Padding(10, 8, 10, 8)
+            };
+            var lblSearchTitle = new Label
+            {
+                Text = "🔍 查玩家所有記錄", Location = new Point(10, 8),
+                AutoSize = true, ForeColor = Theme.AccentOrange,
+                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+            };
             _txtPlayerSearch = new TextBox
             {
-                Location = new Point(8, 28), Size = new Size(168, 22),
+                Location = new Point(10, 30), Size = new Size(160, 24),
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontSmall, BorderStyle = BorderStyle.FixedSingle,
-                PlaceholderText = "帳號或角色名…"
+                PlaceholderText = "帳號或角色名…",
             };
-            var btnSearch = Theme.MakePrimaryButton("查", 36, 22);
-            btnSearch.Location = new Point(180, 28); btnSearch.Font = Theme.FontSmall;
+            var btnSearch = Theme.MakePrimaryButton("查詢", 48, 24);
+            btnSearch.Location = new Point(174, 30); btnSearch.Font = Theme.FontSmall;
             btnSearch.Click += async (s, e) => await QueryPlayerEntriesAsync(_txtPlayerSearch.Text.Trim());
             _txtPlayerSearch.KeyDown += async (s, e) => { if (e.KeyCode == Keys.Enter) await QueryPlayerEntriesAsync(_txtPlayerSearch.Text.Trim()); };
+
             _dgvPlayerEntries = new DataGridView
             {
-                Location = new Point(8, 56), Size = new Size(220, 52),
-                BackgroundColor = Color.FromArgb(18, 26, 40),
+                Location = new Point(10, 60), Size = new Size(200, 52),
+                BackgroundColor = Color.FromArgb(14, 22, 36),
                 RowHeadersVisible = false, ColumnHeadersVisible = false,
                 BorderStyle = BorderStyle.None, Font = Theme.FontSmall,
-                DefaultCellStyle = new DataGridViewCellStyle { BackColor = Color.FromArgb(18,26,40), ForeColor = Theme.TextPrimary, SelectionBackColor = Theme.AccentOrange, SelectionForeColor = Color.White },
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    BackColor = Color.FromArgb(14, 22, 36), ForeColor = Theme.TextPrimary,
+                    SelectionBackColor = Theme.AccentOrange, SelectionForeColor = Color.White,
+                    Padding = new Padding(4, 2, 4, 2),
+                },
                 ReadOnly = true, AllowUserToAddRows = false,
+                ScrollBars = ScrollBars.Vertical,
             };
             _dgvPlayerEntries.Columns.Add(new DataGridViewTextBoxColumn { AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
-            searchPanel.Resize += (s, e) => {
-                _txtPlayerSearch.Width = searchPanel.ClientSize.Width - 52;
+            searchPanel.Resize += (s, e) =>
+            {
+                int w = searchPanel.ClientSize.Width - 20;
+                _txtPlayerSearch.Width = Math.Max(80, w - 56);
                 btnSearch.Left = _txtPlayerSearch.Right + 4;
-                _dgvPlayerEntries.Size = new Size(searchPanel.ClientSize.Width - 16, searchPanel.ClientSize.Height - 58);
+                _dgvPlayerEntries.Width  = w;
+                _dgvPlayerEntries.Height = searchPanel.ClientSize.Height - 64;
             };
-            searchPanel.Controls.AddRange(new Control[] { _txtPlayerSearch, btnSearch, _dgvPlayerEntries });
+            searchPanel.Controls.AddRange(new Control[] { lblSearchTitle, _txtPlayerSearch, btnSearch, _dgvPlayerEntries });
 
             split2.Panel1.Controls.Add(searchPanel);
             split2.Panel1.Controls.Add(_activityRankPanel);
 
-            // 右：DataGridView（每人最高分排行）
+            // ── 右面板：DataGridView ──
             split2.Panel2.BackColor = Theme.BgPage;
             _dgvActivity = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgvActivity);
-            _dgvActivity.RowHeadersVisible = false; _dgvActivity.ColumnHeadersHeight = 32;
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_rank",    HeaderText = "名次",     Width = 50,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_online",  HeaderText = "在線",     Width = 46,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_player",  HeaderText = "角色名",   Width = 110, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_cdkey",   HeaderText = "帳號",     Width = 110, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_petname", HeaderText = "寵物名",   Width = 110, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_score",   HeaderText = "戰鬥力",   Width = 70,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_hp",      HeaderText = "HP",       Width = 60,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_atk",     HeaderText = "攻擊",     Width = 56,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_def",     HeaderText = "防禦",     Width = 56,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_spd",     HeaderText = "速度",     Width = 56,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_count",   HeaderText = "提交次數", Width = 68,  ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_time",    HeaderText = "提交時間", Width = 120, ReadOnly = true });
-            _dgvActivity.Columns.Add(new DataGridViewTextBoxColumn { Name = "a_check",   HeaderText = "審核",     AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = true });
+            _dgvActivity.RowHeadersVisible     = false;
+            _dgvActivity.ColumnHeadersHeight   = 34;
+            _dgvActivity.RowTemplate.Height    = 30;
+            _dgvActivity.ScrollBars            = ScrollBars.Both;
+            _dgvActivity.AutoSizeColumnsMode   = DataGridViewAutoSizeColumnsMode.None;
+            _dgvActivity.ColumnHeadersDefaultCellStyle.Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold);
+
+            // 欄位定義（移除冗餘的寵物名，每欄給足夠寬度）
+            void AddCol(string name, string header, int width, bool fill = false, bool center = false)
+            {
+                var col = new DataGridViewTextBoxColumn
+                {
+                    Name = name, HeaderText = header, ReadOnly = true,
+                    MinimumWidth = width,
+                };
+                if (fill) col.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                else { col.Width = width; col.AutoSizeMode = DataGridViewAutoSizeColumnMode.None; }
+                if (center)
+                    col.DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter };
+                _dgvActivity.Columns.Add(col);
+            }
+
+            AddCol("a_rank",   "#",      46,  false, true);
+            AddCol("a_online", "在線",   46,  false, true);
+            AddCol("a_player", "角色名", 130);
+            AddCol("a_cdkey",  "帳號",   150);
+            AddCol("a_score",  "戰鬥力", 80,  false, true);
+            AddCol("a_hp",     "HP",     72,  false, true);
+            AddCol("a_atk",    "攻擊",   68,  false, true);
+            AddCol("a_def",    "防禦",   68,  false, true);
+            AddCol("a_spd",    "速度",   68,  false, true);
+            AddCol("a_count",  "提交",   68,  false, true);
+            AddCol("a_time",   "提交時間", 136);
+            AddCol("a_check",  "審核",   90,  true);
 
             // 右鍵選單：審核 & 刪除
             _dgvActivity.MouseClick += async (s, e) =>
@@ -631,24 +693,50 @@ namespace SQ_Email_Tools
                 if (e.Button != MouseButtons.Right) return;
                 var hit = _dgvActivity.HitTest(e.X, e.Y);
                 if (hit.RowIndex < 0) return;
-                _dgvActivity.ClearSelection(); _dgvActivity.Rows[hit.RowIndex].Selected = true;
+                _dgvActivity.ClearSelection();
+                _dgvActivity.Rows[hit.RowIndex].Selected = true;
                 var entry = _captureLeaderboard.ElementAtOrDefault(hit.RowIndex);
                 if (entry == null) return;
                 var ctx = new ContextMenuStrip();
-                ctx.Items.Add(entry.Check ? "取消審核" : "✅ 通過審核", null, async (_, __) =>
+                ctx.Font = Theme.FontSmall;
+                ctx.Items.Add(entry.Check ? "↩ 取消審核" : "✅ 通過審核", null, async (_, __) =>
                 {
                     bool ok = await DatabaseManager.Instance.SetCapturePetCheckAsync(entry.Unicode, !entry.Check);
-                    if (ok) { entry.Check = !entry.Check; RefreshActivityDgv(); _lblActivityStatus.Text = $"[OK] 已{(entry.Check ? "通過" : "取消")}審核：{entry.Author}"; }
+                    if (ok)
+                    {
+                        entry.Check = !entry.Check;
+                        RefreshActivityDgv();
+                        _lblActivityStatus.ForeColor = Theme.AccentGreen;
+                        _lblActivityStatus.Text = $"[OK] 已{(entry.Check ? "通過" : "取消")}審核：{entry.Author}";
+                    }
                 });
                 ctx.Items.Add(new ToolStripSeparator());
                 ctx.Items.Add("🗑 刪除此記錄", null, async (_, __) =>
                 {
-                    if (MessageBox.Show($"確定刪除 {entry.Author} 的記錄（分數 {entry.Sum}）？\n此操作不可還原！",
+                    if (MessageBox.Show(
+                        $"確定刪除 {entry.Author} 的記錄（分數 {entry.Sum}）？\n此操作不可還原！",
                         "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
                     bool ok = await DatabaseManager.Instance.DeletePetAsync(entry.Unicode, entry.PetName);
-                    if (ok) { _captureLeaderboard.Remove(entry); RefreshActivityDgv(); _lblActivityStatus.Text = $"[OK] 已刪除 {entry.Author} 的記錄"; }
+                    if (ok)
+                    {
+                        _captureLeaderboard.Remove(entry);
+                        RefreshActivityDgv();
+                        _lblActivityStatus.ForeColor = Theme.AccentOrange;
+                        _lblActivityStatus.Text = $"[OK] 已刪除 {entry.Author} 的記錄";
+                    }
                 });
                 ctx.Show(_dgvActivity, e.Location);
+            };
+
+            // 雙擊複製角色名
+            _dgvActivity.CellDoubleClick += (s, e) =>
+            {
+                if (e.RowIndex < 0) return;
+                var entry = _captureLeaderboard.ElementAtOrDefault(e.RowIndex);
+                if (entry == null) return;
+                string colName = e.ColumnIndex >= 0 ? _dgvActivity.Columns[e.ColumnIndex].Name : "";
+                string val = colName == "a_cdkey" ? entry.Cdkey : entry.Author;
+                if (!string.IsNullOrEmpty(val)) { Clipboard.SetText(val); _lblActivityStatus.Text = $"已複製：{val}"; }
             };
 
             split2.Panel2.Controls.Add(_dgvActivity);
@@ -848,29 +936,39 @@ namespace SQ_Email_Tools
             foreach (var e in _captureLeaderboard)
             {
                 int i = _dgvActivity.Rows.Add();
-                _dgvActivity.Rows[i].Cells["a_rank"].Value    = e.Rank;
-                _dgvActivity.Rows[i].Cells["a_online"].Value  = e.IsOnline ? "🟢" : "";
-                _dgvActivity.Rows[i].Cells["a_player"].Value  = e.Author;
-                _dgvActivity.Rows[i].Cells["a_cdkey"].Value   = e.Cdkey;
-                _dgvActivity.Rows[i].Cells["a_petname"].Value = e.PetName;
-                _dgvActivity.Rows[i].Cells["a_score"].Value   = e.Sum;
-                _dgvActivity.Rows[i].Cells["a_hp"].Value      = e.Hp;
-                _dgvActivity.Rows[i].Cells["a_atk"].Value     = e.Attack;
-                _dgvActivity.Rows[i].Cells["a_def"].Value     = e.Def;
-                _dgvActivity.Rows[i].Cells["a_spd"].Value     = e.Quick;
-                _dgvActivity.Rows[i].Cells["a_time"].Value    = e.InsertTime;
-                _dgvActivity.Rows[i].Cells["a_check"].Value   = e.Check ? "✅ 已審核" : "⏳ 待審";
+                _dgvActivity.Rows[i].Cells["a_rank"].Value   = e.Rank == 1 ? "🥇" : e.Rank == 2 ? "🥈" : e.Rank == 3 ? "🥉" : $"#{e.Rank}";
+                _dgvActivity.Rows[i].Cells["a_online"].Value = e.IsOnline ? "🟢" : "—";
+                _dgvActivity.Rows[i].Cells["a_player"].Value = e.Author;
+                _dgvActivity.Rows[i].Cells["a_cdkey"].Value  = e.Cdkey;
+                _dgvActivity.Rows[i].Cells["a_score"].Value  = e.Sum;
+                _dgvActivity.Rows[i].Cells["a_hp"].Value     = e.Hp;
+                _dgvActivity.Rows[i].Cells["a_atk"].Value    = e.Attack;
+                _dgvActivity.Rows[i].Cells["a_def"].Value    = e.Def;
+                _dgvActivity.Rows[i].Cells["a_spd"].Value    = e.Quick;
+                _dgvActivity.Rows[i].Cells["a_time"].Value   = e.InsertTime;
+                _dgvActivity.Rows[i].Cells["a_check"].Value  = e.Check ? "✅ 已審核" : "⏳ 待審";
 
-                // 提交次數（多次警告）
-                _dgvActivity.Rows[i].Cells["a_count"].Value   = e.EntryCount > 1 ? $"⚠️ {e.EntryCount}次" : e.EntryCount.ToString();
-                if (e.EntryCount > 1) _dgvActivity.Rows[i].Cells["a_count"].Style.ForeColor = Color.FromArgb(255,193,7);
+                if (e.EntryCount > 1)
+                {
+                    _dgvActivity.Rows[i].Cells["a_count"].Value = $"⚠ {e.EntryCount}";
+                    _dgvActivity.Rows[i].Cells["a_count"].Style.ForeColor = Color.FromArgb(255, 193, 7);
+                    _dgvActivity.Rows[i].Cells["a_count"].Style.Font = Theme.FontCell9Bold;
+                }
+                else
+                {
+                    _dgvActivity.Rows[i].Cells["a_count"].Value = "1";
+                }
 
-                // 名次顏色
+                // 名次背景高亮
                 var st = _dgvActivity.Rows[i].DefaultCellStyle;
-                if      (e.Rank == 1) { st.BackColor = Color.FromArgb(62,52,8);  st.ForeColor = Color.FromArgb(255,210,50); st.Font = Theme.FontCell9Bold; }
-                else if (e.Rank == 2) { st.BackColor = Color.FromArgb(36,44,56); st.ForeColor = Color.FromArgb(200,215,230); st.Font = Theme.FontCell9Bold; }
-                else if (e.Rank == 3) { st.BackColor = Color.FromArgb(52,34,8);  st.ForeColor = Color.FromArgb(215,148,80); st.Font = Theme.FontCell9Bold; }
-                else if (e.Rank <= 10){ st.BackColor = Color.FromArgb(28,36,50); st.ForeColor = Theme.TextPrimary; }
+                if      (e.Rank == 1) { st.BackColor = Color.FromArgb(62,52,8);   st.ForeColor = Color.FromArgb(255,210,50);  st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank == 2) { st.BackColor = Color.FromArgb(36,44,56);  st.ForeColor = Color.FromArgb(200,215,230); st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank == 3) { st.BackColor = Color.FromArgb(52,34,8);   st.ForeColor = Color.FromArgb(215,148,80);  st.Font = Theme.FontCell9Bold; }
+                else if (e.Rank <= 10){ st.BackColor = Color.FromArgb(26,34,50);  st.ForeColor = Theme.TextPrimary; }
+
+                // 戰鬥力欄位加粗
+                _dgvActivity.Rows[i].Cells["a_score"].Style.Font      = Theme.FontCell9Bold;
+                _dgvActivity.Rows[i].Cells["a_score"].Style.ForeColor = e.Rank <= 3 ? Color.FromArgb(255,210,50) : Theme.AccentOrange;
             }
             _dgvActivity.ResumeLayout();
         }
@@ -878,29 +976,91 @@ namespace SQ_Email_Tools
         private void BuildActivityRankCards(Panel panel, List<CaptureRankEntry> rows, string petName)
         {
             panel.SuspendLayout(); panel.Controls.Clear();
-            var controls = new List<Control>();
-            controls.Add(new Label { Text = "練寵排行榜", Font = new Font(Theme.FontFamily, 13, FontStyle.Bold), ForeColor = Theme.AccentOrange, AutoSize = true, Location = new Point(8, 10) });
-            controls.Add(new Label { Text = "本期練寵：" + petName, Font = Theme.FontSmall, ForeColor = Theme.TextMuted, AutoSize = true, Location = new Point(8, 40) });
-            var hdr = new Panel { Location = new Point(0, 66), Size = new Size(300, 26), BackColor = Theme.BgMid };
-            hdr.Controls.Add(new Label { Text = "#",    Location = new Point(6,4),   AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
-            hdr.Controls.Add(new Label { Text = "玩家", Location = new Point(40,4),  AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
-            hdr.Controls.Add(new Label { Text = "戰鬥力", Location = new Point(180,4), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
-            controls.Add(hdr);
-            int top = 96;
+
+            // 標題
+            panel.Controls.Add(new Label
+            {
+                Text = "練寵排行榜", Dock = DockStyle.None,
+                Font = new Font(Theme.FontFamily, 12, FontStyle.Bold),
+                ForeColor = Theme.AccentOrange, AutoSize = true, Location = new Point(10, 10),
+            });
+            panel.Controls.Add(new Label
+            {
+                Text = "本期：" + petName, Dock = DockStyle.None,
+                Font = Theme.FontSmall, ForeColor = Theme.TextMuted,
+                AutoSize = true, Location = new Point(10, 38),
+            });
+
+            // 表頭
+            var hdr = new Panel { Location = new Point(0, 62), Height = 26, BackColor = Theme.BgMid };
+            panel.Controls.Add(hdr);
+            hdr.Controls.Add(new Label { Text = "#",    Location = new Point(8,5),  AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            hdr.Controls.Add(new Label { Text = "玩家", Location = new Point(38,5), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+            hdr.Controls.Add(new Label { Text = "戰鬥力", Location = new Point(165,5), AutoSize = true, ForeColor = Theme.AccentOrange, Font = Theme.FontSmall });
+
+            // 讓 hdr 和資料行在 Resize 時自動填滿寬度
+            panel.Resize += (s, e2) =>
+            {
+                int w = panel.ClientSize.Width;
+                hdr.Width = w;
+                foreach (Control c in panel.Controls)
+                    if (c is Panel rp && rp != hdr) rp.Width = w;
+            };
+
+            int top = 90;
             for (int i = 0; i < Math.Min(rows.Count, 20); i++)
             {
-                var e = rows[i]; int r = e.Rank;
-                Color c = r == 1 ? Color.FromArgb(255,200,50) : r == 2 ? Color.FromArgb(200,200,200) : r == 3 ? Color.FromArgb(200,140,80) : Theme.TextMuted;
-                var rp = new Panel { Location = new Point(0, top), Size = new Size(300, 26), BackColor = r <= 3 ? Color.FromArgb(40,50,70) : Color.Transparent };
-                string rankText = r == 1 ? "🥇" : r == 2 ? "🥈" : r == 3 ? "🥉" : r.ToString();
-                string countBadge = e.EntryCount > 1 ? $" ⚠️{e.EntryCount}" : "";
-                rp.Controls.Add(new Label { Text = rankText,           Location = new Point(6,4),   AutoSize = true, ForeColor = c,                                             Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
-                rp.Controls.Add(new Label { Text = e.Author+countBadge,Location = new Point(40,4),  AutoSize = true, ForeColor = r<=3 ? Color.White : Theme.TextPrimary,       Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
-                rp.Controls.Add(new Label { Text = e.Sum.ToString(),   Location = new Point(180,4), AutoSize = true, ForeColor = r<=3 ? Theme.AccentOrange : Theme.TextSecondary, Font = r<=3 ? Theme.FontCell9Bold : Theme.FontSmall });
-                controls.Add(rp);
-                top += 26;
+                var e = rows[i];
+                int r = e.Rank;
+                bool isPodium = r <= 3;
+                Color rankColor = r == 1 ? Color.FromArgb(255,210,50)
+                               : r == 2 ? Color.FromArgb(210,210,220)
+                               : r == 3 ? Color.FromArgb(210,150,80)
+                               : Theme.TextMuted;
+                Color bgColor = isPodium ? Color.FromArgb(38,48,68) : Color.Transparent;
+                string badge = e.EntryCount > 1 ? $" △{e.EntryCount}" : "";
+                string rankText = r == 1 ? "🥇" : r == 2 ? "🥈" : r == 3 ? "🥉" : $"{r,2}";
+
+                var rp = new Panel
+                {
+                    Location = new Point(0, top), Height = 28,
+                    BackColor = bgColor,
+                };
+
+                var lblRank = new Label
+                {
+                    Text = rankText, Location = new Point(6, 5), AutoSize = true,
+                    ForeColor = rankColor,
+                    Font = isPodium ? Theme.FontCell9Bold : Theme.FontSmall,
+                };
+                var lblName = new Label
+                {
+                    Text = e.Author + badge, Location = new Point(36, 5),
+                    Size = new Size(126, 20),
+                    ForeColor = isPodium ? Color.White : Theme.TextPrimary,
+                    Font = isPodium ? Theme.FontCell9Bold : Theme.FontSmall,
+                    AutoEllipsis = true,
+                };
+                var lblScore = new Label
+                {
+                    Text = e.Sum.ToString(), Location = new Point(164, 5), AutoSize = true,
+                    ForeColor = isPodium ? Theme.AccentOrange : Theme.TextSecondary,
+                    Font = isPodium ? Theme.FontCell9Bold : Theme.FontSmall,
+                };
+                if (e.EntryCount > 1)
+                    lblName.ForeColor = Color.FromArgb(255, 193, 7);
+
+                rp.Controls.AddRange(new Control[] { lblRank, lblName, lblScore });
+                panel.Controls.Add(rp);
+                top += 28;
             }
-            foreach (var ctrl in controls) panel.Controls.Add(ctrl);
+
+            // 觸發一次 Resize 設定初始寬度
+            int pw = panel.ClientSize.Width > 0 ? panel.ClientSize.Width : 240;
+            hdr.Width = pw;
+            foreach (Control c in panel.Controls)
+                if (c is Panel rp2 && rp2 != hdr) rp2.Width = pw;
+
             panel.ResumeLayout();
         }
 
