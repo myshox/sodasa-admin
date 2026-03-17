@@ -1,9 +1,28 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { S } from '../strings'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import ItemAutocomplete from '../components/ItemAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 import type { PlayerRow } from '../api'
+
+// ── OCR 解析：從素質截圖提取成長率與血量 ────────────────────
+type OcrStats = { hp: number|null; atk: number|null; def: number|null; agi: number|null }
+
+function parsePetStatsText(text: string): OcrStats {
+  const result: OcrStats = { hp: null, atk: null, def: null, agi: null }
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  for (const line of lines) {
+    const nums = (line.match(/\d+\.?\d*/g) ?? []).map(Number).filter(n => !isNaN(n) && n > 0)
+    if (nums.length < 2) continue
+    // 耐久力：第 2 個數為 140 等當前值（血量目標）
+    if (/耐久/.test(line) && nums.length >= 2) result.hp = nums[1]
+    // 攻/防/敏：最後一個數為成長率
+    if (/攻[击擊]/.test(line)) result.atk = nums[nums.length - 1]
+    if (/防[御禦]/.test(line)) result.def = nums[nums.length - 1]
+    if (/敏捷/.test(line))    result.agi = nums[nums.length - 1]
+  }
+  return result
+}
 
 export default function PetCmdPage() {
   const [cdkey,         setCdkey]        = useState('')
@@ -35,6 +54,50 @@ export default function PetCmdPage() {
   const [grAtk, setGrAtk] = useState(3.1)
   const [grDef, setGrDef] = useState(2.1)
   const [grAgi, setGrAgi] = useState(2.0)
+
+  // ── OCR 截圖自動填入
+  const [ocrImg,      setOcrImg]      = useState<string|null>(null)
+  const [ocrLoading,  setOcrLoading]  = useState(false)
+  const [ocrProgress, setOcrProgress] = useState(0)
+  const [ocrDetected, setOcrDetected] = useState<OcrStats|null>(null)
+  const [ocrError,    setOcrError]    = useState<string|null>(null)
+  const [ocrOpen,     setOcrOpen]     = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setOcrImg(URL.createObjectURL(file))
+    setOcrLoading(true); setOcrError(null); setOcrDetected(null); setOcrProgress(5)
+    try {
+      const { createWorker } = await import('tesseract.js')
+      const worker = await createWorker('chi_sim+eng', 1, {
+        logger: (m: {status:string; progress:number}) => {
+          if (m.status === 'recognizing text') setOcrProgress(Math.round(m.progress * 100))
+        }
+      })
+      const { data: { text } } = await worker.recognize(file)
+      await worker.terminate()
+      const parsed = parsePetStatsText(text)
+      setOcrDetected(parsed)
+      if (!parsed.atk && !parsed.def && !parsed.agi)
+        setOcrError('辨識成功但未找到成長率，請確認截圖包含完整素質表格')
+    } catch (err) {
+      setOcrError('OCR 辨識失敗：' + String(err))
+    } finally {
+      setOcrLoading(false); setOcrProgress(0)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const applyOcr = () => {
+    if (!ocrDetected) return
+    if (ocrDetected.hp  !== null && ocrDetected.hp  > 0) setGrHp(ocrDetected.hp)
+    if (ocrDetected.atk !== null && ocrDetected.atk > 0) setGrAtk(ocrDetected.atk)
+    if (ocrDetected.def !== null && ocrDetected.def > 0) setGrDef(ocrDetected.def)
+    if (ocrDetected.agi !== null && ocrDetected.agi > 0) setGrAgi(ocrDetected.agi)
+    setOcrOpen(false)
+  }
 
   const [copied, setCopied] = useState('')
 
@@ -300,8 +363,121 @@ export default function PetCmdPage() {
       {/* ── 精準三圍反推（兩段式）────────────────────────── */}
       <Card title="✅ 精準三圍反推指令（直接輸入各成長率，兩段式計算）" accent="#80ff80">
         <p style={{ fontSize: 12, color: 'rgba(128,255,128,.7)', marginBottom: 12 }}>
-          直接輸入三圍成長率與目標血量 → 步驟一：還原 140 等面板 → 步驟二：套用補償公式 → 生成 GM 指令
+          直接輸入三圍成長率與目標血量 → 步驟一：還原 140 等面板 → 步驟二：HP÷0.0764 破防 → 生成 GM 指令
         </p>
+
+        {/* ── 截圖 OCR 自動填入 ─────────────────────────────── */}
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={() => setOcrOpen(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: 'rgba(120,200,255,.1)', border: '1px solid rgba(120,200,255,.35)',
+              borderRadius: 8, padding: '8px 14px', cursor: 'pointer', width: '100%',
+              color: '#78c8ff', fontSize: 13, fontWeight: 600
+            }}>
+            <span>📷</span>
+            <span>上傳素質截圖，自動偵測成長率（AI OCR）</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11 }}>{ocrOpen ? '▲ 收起' : '▼ 展開'}</span>
+          </button>
+
+          {ocrOpen && (
+            <div style={{
+              marginTop: 8, padding: 16,
+              background: 'rgba(120,200,255,.05)', border: '1px solid rgba(120,200,255,.25)',
+              borderRadius: 8
+            }}>
+              <p style={{ fontSize: 12, color: 'rgba(120,200,255,.8)', marginBottom: 12 }}>
+                📌 上傳遊戲內「素質畫面截圖」，系統自動辨識 攻擊/防禦/敏捷 成長率與血量，填入下方欄位
+              </p>
+
+              {/* 上傳按鈕 */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+                <input
+                  ref={fileRef}
+                  type="file" accept="image/*"
+                  onChange={handleOcrUpload}
+                  style={{ display: 'none' }}
+                  id="ocr-upload"
+                />
+                <label htmlFor="ocr-upload" style={{
+                  background: ocrLoading ? 'rgba(120,200,255,.15)' : 'rgba(120,200,255,.25)',
+                  border: '1px solid rgba(120,200,255,.5)', borderRadius: 6,
+                  padding: '8px 18px', cursor: ocrLoading ? 'not-allowed' : 'pointer',
+                  fontSize: 13, color: '#78c8ff', fontWeight: 600,
+                  pointerEvents: ocrLoading ? 'none' : 'auto'
+                }}>
+                  {ocrLoading ? `⏳ 辨識中 ${ocrProgress}%…` : '📂 選擇截圖上傳'}
+                </label>
+                {ocrLoading && (
+                  <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,.1)', borderRadius: 3 }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${ocrProgress}%`, background: '#78c8ff',
+                      transition: 'width .3s'
+                    }} />
+                  </div>
+                )}
+              </div>
+
+              {/* 預覽圖 */}
+              {ocrImg && (
+                <div style={{ marginBottom: 12 }}>
+                  <img src={ocrImg} alt="截圖預覽"
+                    style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 6,
+                      border: '1px solid rgba(120,200,255,.3)', objectFit: 'contain' }} />
+                </div>
+              )}
+
+              {/* 錯誤提示 */}
+              {ocrError && (
+                <p style={{ fontSize: 12, color: '#ff8080', marginBottom: 10 }}>⚠ {ocrError}</p>
+              )}
+
+              {/* 辨識結果 */}
+              {ocrDetected && (
+                <div style={{
+                  background: 'rgba(100,255,100,.08)', border: '1px solid rgba(100,255,100,.3)',
+                  borderRadius: 8, padding: '12px 14px', marginBottom: 12
+                }}>
+                  <div style={{ fontSize: 12, color: '#80ff80', fontWeight: 700, marginBottom: 10 }}>
+                    🔍 OCR 辨識結果（請確認數值是否正確）
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px', fontSize: 13 }}>
+                    {[
+                      { label: '最終血量 HP', val: ocrDetected.hp,  unit: '',    color: '#6eff8a' },
+                      { label: '攻擊成長率',  val: ocrDetected.atk, unit: '',    color: '#ffb93c' },
+                      { label: '防禦成長率',  val: ocrDetected.def, unit: '',    color: '#64b9ff' },
+                      { label: '敏捷成長率',  val: ocrDetected.agi, unit: '',    color: '#b982ff' },
+                    ].map(({ label, val, color }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                        <span style={{ color: val !== null ? color : '#666', fontWeight: 700 }}>
+                          {val !== null ? val : '⚠ 未偵測到'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={applyOcr}
+                    style={{
+                      marginTop: 12, width: '100%',
+                      background: 'rgba(100,255,100,.2)', border: '1px solid rgba(100,255,100,.5)',
+                      borderRadius: 6, padding: '8px', cursor: 'pointer',
+                      color: '#80ff80', fontSize: 13, fontWeight: 700
+                    }}>
+                    ✅ 套用偵測結果，自動填入下方欄位
+                  </button>
+                </div>
+              )}
+
+              <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                ※ 首次使用需下載中文辨識模型（約 15MB），請耐心等待
+              </p>
+            </div>
+          )}
+        </div>
+
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10,
           background: 'rgba(128,255,128,.05)', border: '1px solid rgba(128,255,128,.2)',
           borderRadius: 6, padding: '8px 12px' }}>
