@@ -31,10 +31,11 @@ export default function PetCmdPage() {
   const [tgtAgi, setTgtAgi] = useState(310)
 
   // ── 精準三圍反推（直接輸入成長率）
-  const [grHp,  setGrHp]  = useState(2050)
-  const [grAtk, setGrAtk] = useState(3.1)
-  const [grDef, setGrDef] = useState(2.1)
-  const [grAgi, setGrAgi] = useState(2.0)
+  const [grHp,       setGrHp]       = useState(2050)
+  const [grAtk,      setGrAtk]      = useState(3.1)
+  const [grDef,      setGrDef]      = useState(2.1)
+  const [grAgi,      setGrAgi]      = useState(2.0)
+  const [multiplier, setMultiplier] = useState(1.0435)
 
   const [copied, setCopied] = useState('')
 
@@ -51,10 +52,10 @@ export default function PetCmdPage() {
   const predAgiV  = ((tgtAgi - 12) / 139)
   const predTotal = predAtk + predDef + predAgiV
 
-  // 精準三圍反推計算（步驟1：成長率 → 面板；步驟2：1:1 直接寫入）
-  const grTgtAtk = Math.round(grAtk * 139 + 19)
-  const grTgtDef = Math.round(grDef * 139 + 12)
-  const grTgtAgi = Math.round(grAgi * 139 + 12)
+  // 精準三圍反推計算（成長率 × 補償係數 → 面板；HP 1:1 直接寫入）
+  const grTgtAtk = Math.round((grAtk * 139 + 19) * multiplier)
+  const grTgtDef = Math.round((grDef * 139 + 12) * multiplier)
+  const grTgtAgi = Math.round((grAgi * 139 + 12) * multiplier)
   const grTotal  = grAtk + grDef + grAgi
   const abiCmd3  = `[gm petmakeabi ${petId} ${grHp} ${grTgtAtk} ${grTgtDef} ${grTgtAgi} 140 1]`
 
@@ -304,7 +305,28 @@ export default function PetCmdPage() {
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10,
           background: 'rgba(128,255,128,.05)', border: '1px solid rgba(128,255,128,.2)',
           borderRadius: 6, padding: '8px 12px' }}>
-          步驟1：Target = round(成長 × 139 + 初值)　步驟2：1:1 直接帶入指令（無補償係數）
+          Input = round((成長 × 139 + 初值) × 補償係數)　HP 維持 1:1 不乘係數
+        </div>
+
+        {/* 補償係數 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+          background: 'rgba(255,200,60,.08)', border: '1px solid rgba(255,200,60,.3)',
+          borderRadius: 8, padding: '10px 12px' }}>
+          <span style={{ width: 110, color: '#ffd84d', fontSize: 13, fontWeight: 700, textAlign: 'right', flexShrink: 0 }}>
+            系統補償係數
+          </span>
+          <button onClick={() => setMultiplier(parseFloat(Math.max(0.8, multiplier - 0.001).toFixed(4)))}
+            style={{ background: 'var(--bg-input)', color: '#ffd84d', padding: '4px 12px', border: '1px solid rgba(255,216,77,.4)' }}>−</button>
+          <input type="number" value={multiplier} step={0.001} min={0.8} max={2}
+            onChange={e => {
+              const v = parseFloat(e.target.value)
+              if (!isNaN(v)) setMultiplier(parseFloat(v.toFixed(4)))
+            }}
+            style={{ width: 100, textAlign: 'center', color: '#ffd84d', fontWeight: 700,
+              background: 'var(--bg-input)', border: '1px solid rgba(255,216,77,.4)' }} />
+          <button onClick={() => setMultiplier(parseFloat(Math.min(2, multiplier + 0.001).toFixed(4)))}
+            style={{ background: 'var(--bg-input)', color: '#ffd84d', padding: '4px 12px', border: '1px solid rgba(255,216,77,.4)' }}>+</button>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>預設 1.0435（補償伺服器約 4.17% 暗扣）</span>
         </div>
 
         <Nud label="最終血量 HP" value={grHp} onChange={setGrHp} min={1} />
@@ -333,7 +355,7 @@ export default function PetCmdPage() {
           borderRadius: 8, padding: '10px 14px', marginBottom: 12
         }}>
           <div style={{ fontSize: 12, color: '#80ff80', fontWeight: 700, marginBottom: 8 }}>
-            🔢 步驟一推導出的 140 等目標面板
+            🔢 套用補償係數後的 GM 寫入參數（×{multiplier}）
           </div>
           <InfoRow label="Target ATK =" value={grTgtAtk.toString()} color="#ffb93c" />
           <InfoRow label="Target DEF =" value={grTgtDef.toString()} color="#64b9ff" />
@@ -343,7 +365,7 @@ export default function PetCmdPage() {
         <CmdBar cmd={abiCmd3} ckey="abi3" />
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-          ※ 成長率 → 面板（×139+初值）→ 1:1 寫入指令，無任何補償係數，所見即所得
+          ※ Input = round((成長×139+初值) × 補償係數)；HP 不乘係數；預設係數 1.0435 補償伺服器 ~4.17% 暗扣
         </p>
       </Card>
     </div>

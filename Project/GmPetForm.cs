@@ -56,13 +56,14 @@ namespace SQ_Email_Tools
         private Label         _lblGrowCalc = null!;
 
         // ── 精準三圍反推 ─────────────────────────────────────────
-        private NumericUpDown _tgHp       = null!;   // 目標最終血量
-        private NumericUpDown _tgGrowAtk  = null!;   // 預期攻擊成長（3位小數）
-        private NumericUpDown _tgGrowDef  = null!;   // 預期防禦成長
-        private NumericUpDown _tgGrowAgi  = null!;   // 預期敏捷成長
-        private TextBox       _tgOut      = null!;
-        private Label         _lblTgSum   = null!;   // 預期總成長唯讀顯示
-        private Label         _lblTgCalc  = null!;   // 推導目標面板顯示
+        private NumericUpDown _tgHp         = null!;   // 目標最終血量
+        private NumericUpDown _tgGrowAtk    = null!;   // 預期攻擊成長（3位小數）
+        private NumericUpDown _tgGrowDef    = null!;   // 預期防禦成長
+        private NumericUpDown _tgGrowAgi    = null!;   // 預期敏捷成長
+        private NumericUpDown _tgMultiplier = null!;   // 系統補償係數
+        private TextBox       _tgOut        = null!;
+        private Label         _lblTgSum     = null!;   // 預期總成長唯讀顯示
+        private Label         _lblTgCalc    = null!;   // 推導目標面板顯示
 
         public GmPetForm()
         {
@@ -667,12 +668,13 @@ namespace SQ_Email_Tools
             double gAtk = (double)_growAtk.Value;
             double gDef = (double)_growDef.Value;
             double gAgi = (double)_growAgi.Value;
-            long tAtk = (long)Math.Round(gAtk * 139 + 19);
-            long tDef = (long)Math.Round(gDef * 139 + 12);
-            long tAgi = (long)Math.Round(gAgi * 139 + 12);
-            _growOut.Text     = $"[gm petmakeabi {CurrentPetId} {hp} {tAtk} {tDef} {tAgi} 140 1]";
+            double mult = _tgMultiplier != null ? (double)_tgMultiplier.Value : 1.0435;
+            long iAtk = (long)Math.Round((gAtk * 139 + 19) * mult);
+            long iDef = (long)Math.Round((gDef * 139 + 12) * mult);
+            long iAgi = (long)Math.Round((gAgi * 139 + 12) * mult);
+            _growOut.Text     = $"[gm petmakeabi {CurrentPetId} {hp} {iAtk} {iDef} {iAgi} 140 1]";
             if (_lblGrowCalc != null)
-                _lblGrowCalc.Text = $"推導目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";
+                _lblGrowCalc.Text = $"GM 寫入值（×{mult:F4}）：ATK = {iAtk}　DEF = {iDef}　AGI = {iAgi}";
         }
 
         // ── 精準三圍反推卡片（兩段式）────────────────────────────
@@ -723,7 +725,7 @@ namespace SQ_Email_Tools
             // 唯讀預期總成長
             _lblTgSum = new Label
             {
-                Text      = "預期總成長：7.200",
+                Text      = "7.200",
                 ForeColor = Color.FromArgb(255, 230, 80),
                 Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                 AutoSize  = true,
@@ -733,10 +735,29 @@ namespace SQ_Email_Tools
             card.Controls.Add(_lblTgSum);
             cy += 26;
 
-            // 推導目標面板顯示
+            // 系統補償係數
+            _tgMultiplier = new NumericUpDown
+            {
+                Minimum       = 0.8000m,
+                Maximum       = 2.0000m,
+                Value         = 1.0435m,
+                DecimalPlaces = 4,
+                Increment     = 0.001m,
+                BackColor     = Color.FromArgb(50, 45, 15),
+                ForeColor     = Color.FromArgb(255, 216, 77),
+                Font          = Theme.FontBody,
+                Location      = new Point(110, cy),
+                Width         = 120
+            };
+            card.Controls.Add(MakeLabel("系統補償係數：", new Point(10, cy + 2)));
+            card.Controls.Add(_tgMultiplier);
+            card.Controls.Add(new Label { Text = "預設 1.0435（補償伺服器 ~4.17% 暗扣）　血量不乘係數", ForeColor = Color.FromArgb(200, 170, 60), Font = Theme.FontSmall, AutoSize = true, Location = new Point(238, cy + 4) });
+            cy += 30;
+
+            // 推導面板顯示
             _lblTgCalc = new Label
             {
-                Text      = "目標面板：（請輸入成長率後自動計算）",
+                Text      = "GM 寫入值：（請輸入成長率後自動計算）",
                 ForeColor = Color.FromArgb(160, 220, 180),
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -767,7 +788,7 @@ namespace SQ_Email_Tools
 
             card.Controls.Add(new Label
             {
-                Text      = "※ 步驟1：Target = round(成長×139+初值)  步驟2：1:1 直接寫入指令（無補償係數）",
+                Text      = "※ Input = round((成長×139+初值) × 補償係數)；HP 維持 1:1 不乘係數",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -775,7 +796,7 @@ namespace SQ_Email_Tools
             });
             cy += 22;
 
-            foreach (var n in new NumericUpDown[] { _tgHp, _tgGrowAtk, _tgGrowDef, _tgGrowAgi })
+            foreach (var n in new NumericUpDown[] { _tgHp, _tgGrowAtk, _tgGrowDef, _tgGrowAgi, _tgMultiplier })
                 n.ValueChanged += (_, __) => RefreshTotalGrow();
 
             card.Height = cy + 8;
@@ -790,21 +811,21 @@ namespace SQ_Email_Tools
             double gAtk = (double)_tgGrowAtk.Value;
             double gDef = (double)_tgGrowDef.Value;
             double gAgi = (double)_tgGrowAgi.Value;
+            double mult = (double)_tgMultiplier.Value;
 
             // 唯讀預期總成長
             if (_lblTgSum != null)
                 _lblTgSum.Text = $"{gAtk + gDef + gAgi:F3}";
 
-            // 步驟1：成長率 → 140 等目標面板
-            long tAtk = (long)Math.Round(gAtk * 139 + 19);
-            long tDef = (long)Math.Round(gDef * 139 + 12);
-            long tAgi = (long)Math.Round(gAgi * 139 + 12);
+            // 套用補償係數（HP 不乘）
+            long iAtk = (long)Math.Round((gAtk * 139 + 19) * mult);
+            long iDef = (long)Math.Round((gDef * 139 + 12) * mult);
+            long iAgi = (long)Math.Round((gAgi * 139 + 12) * mult);
 
-            // 步驟2：1:1 直接寫入（無補償係數）
-            _tgOut.Text = $"[gm petmakeabi {CurrentPetId} {hp} {tAtk} {tDef} {tAgi} 140 1]";
+            _tgOut.Text = $"[gm petmakeabi {CurrentPetId} {hp} {iAtk} {iDef} {iAgi} 140 1]";
 
             if (_lblTgCalc != null)
-                _lblTgCalc.Text = $"目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";
+                _lblTgCalc.Text = $"GM 寫入值（×{mult:F4}）：ATK = {iAtk}　DEF = {iDef}　AGI = {iAgi}";
         }
 
         // ══════════════════════════════════════════════════════════
