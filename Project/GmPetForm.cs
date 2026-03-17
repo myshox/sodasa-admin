@@ -414,7 +414,7 @@ namespace SQ_Email_Tools
 
             card.Controls.Add(new Label
             {
-                Text      = "※ 換算：HP÷0.0764　ATK×1.08　DEF×0.95　AGI不變，皆四捨五入",
+                Text      = "※ 1:1 直接對應：輸入面板數值即為 GM 指令參數，無任何補償係數",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -651,11 +651,7 @@ namespace SQ_Email_Tools
             long tAtk = (long)_abiAtk.Value;
             long tDef = (long)_abiDef.Value;
             long tAgi = (long)_abiSpd.Value;
-            long iHp  = (long)Math.Round(tHp  / 0.0764);
-            long iAtk = (long)Math.Round(tAtk * 1.08);
-            long iDef = (long)Math.Round(tDef * 0.95);
-            long iAgi = tAgi;
-            _abiOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {iAgi} 140 1]";
+            _abiOut.Text = $"[gm petmakeabi {CurrentPetId} {tHp} {tAtk} {tDef} {tAgi} 140 1]";
             if (_lblPredAtk == null) return;
             double pAtk = (tAtk - 19.0) / 139.0, pDef = (tDef - 12.0) / 139.0, pAgi = (tAgi - 12.0) / 139.0;
             _lblPredAtk.Text   = $"攻擊成長：{pAtk:F3}";
@@ -674,10 +670,7 @@ namespace SQ_Email_Tools
             long tAtk = (long)Math.Round(gAtk * 139 + 19);
             long tDef = (long)Math.Round(gDef * 139 + 12);
             long tAgi = (long)Math.Round(gAgi * 139 + 12);
-            long iHp  = (long)Math.Round(hp   / 0.0764);
-            long iAtk = (long)Math.Round(tAtk * 1.08);
-            long iDef = (long)Math.Round(tDef * 0.95);
-            _growOut.Text     = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {tAgi} 140 1]";
+            _growOut.Text     = $"[gm petmakeabi {CurrentPetId} {hp} {tAtk} {tDef} {tAgi} 140 1]";
             if (_lblGrowCalc != null)
                 _lblGrowCalc.Text = $"推導目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";
         }
@@ -774,7 +767,7 @@ namespace SQ_Email_Tools
 
             card.Controls.Add(new Label
             {
-                Text      = "※ 步驟1：Target_ATK = round(成長×139+19)  步驟2：Input_ATK = round(Target×1.08)",
+                Text      = "※ 步驟1：Target = round(成長×139+初值)  步驟2：1:1 直接寫入指令（無補償係數）",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -807,12 +800,8 @@ namespace SQ_Email_Tools
             long tDef = (long)Math.Round(gDef * 139 + 12);
             long tAgi = (long)Math.Round(gAgi * 139 + 12);
 
-            // 步驟2：目標面板 → GM 寫入參數
-            long iHp  = (long)Math.Round(hp   / 0.0764);
-            long iAtk = (long)Math.Round(tAtk * 1.08);
-            long iDef = (long)Math.Round(tDef * 0.95);
-
-            _tgOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {tAgi} 140 1]";
+            // 步驟2：1:1 直接寫入（無補償係數）
+            _tgOut.Text = $"[gm petmakeabi {CurrentPetId} {hp} {tAtk} {tDef} {tAgi} 140 1]";
 
             if (_lblTgCalc != null)
                 _lblTgCalc.Text = $"目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";

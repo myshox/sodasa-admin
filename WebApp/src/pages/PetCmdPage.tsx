@@ -44,26 +44,19 @@ export default function PetCmdPage() {
     : `[gm petmake ${petId} ${mkLv} ${mkReb}${useCdkey && cdkey ? ` ${cdkey}` : ''}]`
   const abiCmd = `[gm petmakeabi ${petId} ${hp} ${atk} ${def} ${spd} ${abiLv} ${abiReb}]`
 
-  // 目標面板數值反推計算
-  const convHp  = Math.round(tgtHp  / 0.0764)
-  const convAtk = Math.round(tgtAtk * 1.08)
-  const convDef = Math.round(tgtDef * 0.95)
-  const convAgi = tgtAgi
-  const abiCmd2 = `[gm petmakeabi ${petId} ${convHp} ${convAtk} ${convDef} ${convAgi} 140 1]`
+  // 目標面板數值反推計算（1:1 直接對應）
+  const abiCmd2 = `[gm petmakeabi ${petId} ${tgtHp} ${tgtAtk} ${tgtDef} ${tgtAgi} 140 1]`
   const predAtk   = ((tgtAtk - 19) / 139)
   const predDef   = ((tgtDef - 12) / 139)
   const predAgiV  = ((tgtAgi - 12) / 139)
   const predTotal = predAtk + predDef + predAgiV
 
-  // 精準三圍反推計算（兩段式）
+  // 精準三圍反推計算（步驟1：成長率 → 面板；步驟2：1:1 直接寫入）
   const grTgtAtk = Math.round(grAtk * 139 + 19)
   const grTgtDef = Math.round(grDef * 139 + 12)
   const grTgtAgi = Math.round(grAgi * 139 + 12)
-  const grInpHp  = Math.round(grHp  / 0.0764)
-  const grInpAtk = Math.round(grTgtAtk * 1.08)
-  const grInpDef = Math.round(grTgtDef * 0.95)
   const grTotal  = grAtk + grDef + grAgi
-  const abiCmd3  = `[gm petmakeabi ${petId} ${grInpHp} ${grInpAtk} ${grInpDef} ${grTgtAgi} 140 1]`
+  const abiCmd3  = `[gm petmakeabi ${petId} ${grHp} ${grTgtAtk} ${grTgtDef} ${grTgtAgi} 140 1]`
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -279,25 +272,12 @@ export default function PetCmdPage() {
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10,
           background: 'rgba(255,216,77,.05)', border: '1px solid rgba(255,216,77,.2)',
           borderRadius: 6, padding: '8px 12px' }}>
-          HP ÷ 0.0764 ｜ ATK × 1.08 ｜ DEF × 0.95 ｜ AGI 不變
+          輸入 140 等面板顯示值，1:1 直接帶入指令（無補償係數）
         </div>
         <Nud label="目標 HP（血量）" value={tgtHp}  onChange={setTgtHp}  min={1} />
         <Nud label="目標 ATK（攻擊）" value={tgtAtk} onChange={setTgtAtk} min={1} />
         <Nud label="目標 DEF（防禦）" value={tgtDef} onChange={setTgtDef} min={1} />
         <Nud label="目標 AGI（敏捷）" value={tgtAgi} onChange={setTgtAgi} min={1} />
-
-        <div style={{
-          background: 'rgba(255,216,77,.07)', border: '1px solid rgba(255,216,77,.25)',
-          borderRadius: 8, padding: '10px 14px', marginBottom: 12, marginTop: 4
-        }}>
-          <div style={{ fontSize: 12, color: '#ffd84d', fontWeight: 700, marginBottom: 8 }}>
-            💡 換算後的 GM 寫入參數
-          </div>
-          <InfoRow label="Input HP =" value={convHp.toLocaleString()} color="#6eff8a" />
-          <InfoRow label="Input ATK =" value={convAtk.toString()} color="#ffb93c" />
-          <InfoRow label="Input DEF =" value={convDef.toString()} color="#64b9ff" />
-          <InfoRow label="Input AGI =" value={convAgi.toString()} color="#b982ff" />
-        </div>
 
         <CmdBar cmd={abiCmd2} ckey="abi2" />
 
@@ -324,7 +304,7 @@ export default function PetCmdPage() {
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10,
           background: 'rgba(128,255,128,.05)', border: '1px solid rgba(128,255,128,.2)',
           borderRadius: 6, padding: '8px 12px' }}>
-          步驟1：Target = round(成長 × 139 + 初值)　步驟2：Input = round(Target × 補償係數)
+          步驟1：Target = round(成長 × 139 + 初值)　步驟2：1:1 直接帶入指令（無補償係數）
         </div>
 
         <Nud label="最終血量 HP" value={grHp} onChange={setGrHp} min={1} />
@@ -363,7 +343,7 @@ export default function PetCmdPage() {
         <CmdBar cmd={abiCmd3} ckey="abi3" />
 
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
-          ※ 此方法為兩段式精準計算，直接輸入目標成長率，完全避免比例分配誤差
+          ※ 成長率 → 面板（×139+初值）→ 1:1 寫入指令，無任何補償係數，所見即所得
         </p>
       </Card>
     </div>
