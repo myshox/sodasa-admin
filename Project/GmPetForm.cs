@@ -36,13 +36,33 @@ namespace SQ_Email_Tools
         private TextBox       _mkOut     = null!;
 
         // ── petmakeabi ────────────────────────────────────────────
-        private NumericUpDown _abiHp  = null!;
+        private NumericUpDown _abiHp  = null!;   // 目標面板值
         private NumericUpDown _abiAtk = null!;
         private NumericUpDown _abiDef = null!;
         private NumericUpDown _abiSpd = null!;
-        private NumericUpDown _abiLv  = null!;
-        private NumericUpDown _abiReb = null!;
         private TextBox       _abiOut = null!;
+        // 預測成長率
+        private Label _lblPredAtk   = null!;
+        private Label _lblPredDef   = null!;
+        private Label _lblPredAgi   = null!;
+        private Label _lblPredTotal = null!;
+
+        // ── 成長率反推 ────────────────────────────────────────────
+        private NumericUpDown _growHp      = null!;
+        private NumericUpDown _growAtk     = null!;
+        private NumericUpDown _growDef     = null!;
+        private NumericUpDown _growAgi     = null!;
+        private TextBox       _growOut     = null!;
+        private Label         _lblGrowCalc = null!;
+
+        // ── 精準三圍反推 ─────────────────────────────────────────
+        private NumericUpDown _tgHp       = null!;   // 目標最終血量
+        private NumericUpDown _tgGrowAtk  = null!;   // 預期攻擊成長（3位小數）
+        private NumericUpDown _tgGrowDef  = null!;   // 預期防禦成長
+        private NumericUpDown _tgGrowAgi  = null!;   // 預期敏捷成長
+        private TextBox       _tgOut      = null!;
+        private Label         _lblTgSum   = null!;   // 預期總成長唯讀顯示
+        private Label         _lblTgCalc  = null!;   // 推導目標面板顯示
 
         public GmPetForm()
         {
@@ -93,6 +113,10 @@ namespace SQ_Email_Tools
             inner.Controls.Add(BuildMkCard());
             inner.Controls.Add(Spacer(8));
             inner.Controls.Add(BuildAbiCard());
+            inner.Controls.Add(Spacer(8));
+            inner.Controls.Add(BuildGrowthCard());
+            inner.Controls.Add(Spacer(8));
+            inner.Controls.Add(BuildTotalGrowthCard());
             inner.Controls.Add(Spacer(12));
 
             scroll.Controls.Add(inner);
@@ -330,59 +354,44 @@ namespace SQ_Email_Tools
             var card = MakeCard("⚙  [gm petmakeabi]  完整四維指定");
             int cy = 36;
 
-            _abiHp  = MakeNud(1, 99999, 1000, 100);
-            _abiAtk = MakeNud(0, 99999,  200,  80);
-            _abiDef = MakeNud(0, 99999,  100,  80);
-            _abiSpd = MakeNud(0, 99999,  100,  80);
-            _abiLv  = MakeNud(1,   200,    1,  80);
-            _abiReb = MakeNud(0,    20,    0,  80);
+            card.Controls.Add(new Label
+            {
+                Text      = "  請輸入「目標面板數值」，系統自動換算實際寫入參數（尾數固定 140 1）",
+                ForeColor = Color.FromArgb(110, 190, 130),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
 
-            foreach (var n in new[] { _abiHp, _abiAtk, _abiDef, _abiSpd, _abiLv, _abiReb })
+            _abiHp  = MakeNud(1, 999999, 1000, 120);
+            _abiAtk = MakeNud(0,  99999,  200, 100);
+            _abiDef = MakeNud(0,  99999,  100, 100);
+            _abiSpd = MakeNud(0,  99999,  100, 100);
+
+            foreach (var n in new[] { _abiHp, _abiAtk, _abiDef, _abiSpd })
                 n.ValueChanged += (_, __) => RefreshAbi();
 
-            // 血量
-            _abiHp.Location = new Point(110, cy);
-            _abiHp.Width    = 120;
-            card.Controls.Add(MakeLabel("血量(HP)：", new Point(10, cy + 2)));
+            _abiHp.Location  = new Point(110, cy); _abiHp.Width  = 120;
+            card.Controls.Add(MakeLabel("目標血量 HP：", new Point(10, cy + 2)));
             card.Controls.Add(_abiHp);
             cy += 30;
 
-            // 攻擊
-            _abiAtk.Location = new Point(110, cy);
-            _abiAtk.Width    = 120;
-            card.Controls.Add(MakeLabel("攻　　擊：", new Point(10, cy + 2)));
+            _abiAtk.Location = new Point(110, cy); _abiAtk.Width = 120;
+            card.Controls.Add(MakeLabel("目標攻擊 ATK：", new Point(10, cy + 2)));
             card.Controls.Add(_abiAtk);
             cy += 30;
 
-            // 防禦
-            _abiDef.Location = new Point(110, cy);
-            _abiDef.Width    = 120;
-            card.Controls.Add(MakeLabel("防　　禦：", new Point(10, cy + 2)));
+            _abiDef.Location = new Point(110, cy); _abiDef.Width = 120;
+            card.Controls.Add(MakeLabel("目標防禦 DEF：", new Point(10, cy + 2)));
             card.Controls.Add(_abiDef);
             cy += 30;
 
-            // 速度
-            _abiSpd.Location = new Point(110, cy);
-            _abiSpd.Width    = 120;
-            card.Controls.Add(MakeLabel("速　　度：", new Point(10, cy + 2)));
+            _abiSpd.Location = new Point(110, cy); _abiSpd.Width = 120;
+            card.Controls.Add(MakeLabel("目標敏捷 AGI：", new Point(10, cy + 2)));
             card.Controls.Add(_abiSpd);
             cy += 30;
 
-            // 等級
-            _abiLv.Location = new Point(110, cy);
-            _abiLv.Width    = 120;
-            card.Controls.Add(MakeLabel("等　　級：", new Point(10, cy + 2)));
-            card.Controls.Add(_abiLv);
-            cy += 30;
-
-            // 轉數
-            _abiReb.Location = new Point(110, cy);
-            _abiReb.Width    = 120;
-            card.Controls.Add(MakeLabel("轉　　數：", new Point(10, cy + 2)));
-            card.Controls.Add(_abiReb);
-            cy += 30;
-
-            // 輸出
             _abiOut = new TextBox
             {
                 ReadOnly    = true,
@@ -405,13 +414,135 @@ namespace SQ_Email_Tools
 
             card.Controls.Add(new Label
             {
-                Text      = "※ petmakeabi 只能生成給自己（無 CDKEY 欄位）",
+                Text      = "※ 換算：HP÷0.0764　ATK×1.08　DEF×0.95　AGI不變，皆四捨五入",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
-                Location  = new Point(110, cy),
+                Location  = new Point(10, cy),
                 AutoSize  = true
             });
             cy += 22;
+
+            // 預測成長率面板
+            var pnlPred = new Panel
+            {
+                Location    = new Point(10, cy),
+                Size        = new Size(612, 88),
+                BackColor   = Color.FromArgb(12, 32, 18),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            pnlPred.Controls.Add(new Label
+            {
+                Text = "📊  預測成長率（估算：Lv1初值 攻擊 19、防禦 12、敏捷 12，共升 139 次）",
+                ForeColor = Color.FromArgb(80, 200, 100), Font = Theme.FontSmall, AutoSize = true, Location = new Point(8, 6)
+            });
+            _lblPredAtk   = new Label { ForeColor = Color.FromArgb(255, 185, 60),  Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold), AutoSize = true, Location = new Point(8,   28), Text = "攻擊成長：—" };
+            _lblPredDef   = new Label { ForeColor = Color.FromArgb(100, 185, 255), Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold), AutoSize = true, Location = new Point(195, 28), Text = "防禦成長：—" };
+            _lblPredAgi   = new Label { ForeColor = Color.FromArgb(185, 130, 255), Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold), AutoSize = true, Location = new Point(382, 28), Text = "敏捷成長：—" };
+            _lblPredTotal = new Label { ForeColor = Color.FromArgb(255, 230, 60),  Font = new Font(Theme.FontFamily, 11f, FontStyle.Bold), AutoSize = true, Location = new Point(8,   56), Text = "預測總成長：—" };
+            pnlPred.Controls.AddRange(new Control[] { _lblPredAtk, _lblPredDef, _lblPredAgi, _lblPredTotal });
+            card.Controls.Add(pnlPred);
+            cy += 96;
+
+            card.Controls.Add(new Label
+            {
+                Text      = "※ petmakeabi 只能生成給自己（無 CDKEY 欄位）",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            card.Height = cy + 8;
+            return card;
+        }
+
+        // ── 成長率反推卡片 ────────────────────────────────────────
+        private Panel BuildGrowthCard()
+        {
+            var card = MakeCard("🔢  成長率反推指令（成長率 → 面板目標 → GM 指令）");
+            int cy = 36;
+
+            card.Controls.Add(new Label
+            {
+                Text      = "  輸入預期成長率與最終血量，自動反推目標面板並產生指令",
+                ForeColor = Color.FromArgb(140, 200, 255),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            _growHp  = MakeNud(1, 999999, 1000, 120);
+            _growHp.Location = new Point(110, cy); _growHp.Width = 120;
+            card.Controls.Add(MakeLabel("最終血量 HP：", new Point(10, cy + 2)));
+            card.Controls.Add(_growHp);
+            cy += 30;
+
+            _growAtk = MakeGrowNud(7.266m);
+            _growAtk.Location = new Point(110, cy); _growAtk.Width = 110;
+            card.Controls.Add(MakeLabel("攻擊成長率：", new Point(10, cy + 2)));
+            card.Controls.Add(_growAtk);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的攻擊）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            _growDef = MakeGrowNud(3.158m);
+            _growDef.Location = new Point(110, cy); _growDef.Width = 110;
+            card.Controls.Add(MakeLabel("防禦成長率：", new Point(10, cy + 2)));
+            card.Controls.Add(_growDef);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的防禦）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            _growAgi = MakeGrowNud(2.878m);
+            _growAgi.Location = new Point(110, cy); _growAgi.Width = 110;
+            card.Controls.Add(MakeLabel("敏捷成長率：", new Point(10, cy + 2)));
+            card.Controls.Add(_growAgi);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的敏捷）", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            _lblGrowCalc = new Label
+            {
+                Text      = "推導目標面板：（請輸入成長率後自動計算）",
+                ForeColor = Color.FromArgb(160, 220, 180),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            };
+            card.Controls.Add(_lblGrowCalc);
+            cy += 22;
+
+            _growOut = new TextBox
+            {
+                ReadOnly    = true,
+                BackColor   = Color.FromArgb(20, 20, 40),
+                ForeColor   = Color.FromArgb(160, 200, 255),
+                Font        = new Font("Consolas", 11f, FontStyle.Bold),
+                Location    = new Point(110, cy),
+                Width       = 400,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            var btnCopyGrow = Theme.MakeButton("複製", Color.FromArgb(40, 60, 120), Color.FromArgb(140, 200, 255), 60, 26);
+            btnCopyGrow.Location = new Point(518, cy);
+            btnCopyGrow.Font     = Theme.FontSmall;
+            btnCopyGrow.Click   += (_, __) => DoCopy(_growOut.Text, btnCopyGrow);
+
+            card.Controls.Add(new Label { Text = "指令預覽：", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, Location = new Point(10, cy + 4), Width = 96, TextAlign = ContentAlignment.MiddleRight });
+            card.Controls.Add(_growOut);
+            card.Controls.Add(btnCopyGrow);
+            cy += 34;
+
+            card.Controls.Add(new Label
+            {
+                Text      = "※ ATK目標=round(成長×139+19)　DEF目標=round(成長×139+12)　AGI目標=round(成長×139+12)",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            foreach (var n in new[] { _growHp, _growAtk, _growDef, _growAgi })
+                n.ValueChanged += (_, __) => RefreshGrow();
 
             card.Height = cy + 8;
             return card;
@@ -490,7 +621,7 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         private int CurrentPetId => (int)_nudPetId.Value;
 
-        private void RefreshAll() { RefreshMk(); RefreshAbi(); }
+        private void RefreshAll() { RefreshMk(); RefreshAbi(); RefreshGrow(); RefreshTotalGrow(); }
 
         private void RefreshMk()
         {
@@ -516,9 +647,175 @@ namespace SQ_Email_Tools
         private void RefreshAbi()
         {
             if (_abiOut == null) return;
-            _abiOut.Text =
-                $"[gm petmakeabi {CurrentPetId} {(int)_abiHp.Value} {(int)_abiAtk.Value} " +
-                $"{(int)_abiDef.Value} {(int)_abiSpd.Value} {(int)_abiLv.Value} {(int)_abiReb.Value}]";
+            long tHp  = (long)_abiHp.Value;
+            long tAtk = (long)_abiAtk.Value;
+            long tDef = (long)_abiDef.Value;
+            long tAgi = (long)_abiSpd.Value;
+            long iHp  = (long)Math.Round(tHp  / 0.0764);
+            long iAtk = (long)Math.Round(tAtk * 1.08);
+            long iDef = (long)Math.Round(tDef * 0.95);
+            long iAgi = tAgi;
+            _abiOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {iAgi} 140 1]";
+            if (_lblPredAtk == null) return;
+            double pAtk = (tAtk - 19.0) / 139.0, pDef = (tDef - 12.0) / 139.0, pAgi = (tAgi - 12.0) / 139.0;
+            _lblPredAtk.Text   = $"攻擊成長：{pAtk:F3}";
+            _lblPredDef.Text   = $"防禦成長：{pDef:F3}";
+            _lblPredAgi.Text   = $"敏捷成長：{pAgi:F3}";
+            _lblPredTotal.Text = $"預測總成長：{pAtk + pDef + pAgi:F3}";
+        }
+
+        private void RefreshGrow()
+        {
+            if (_growOut == null) return;
+            long   hp   = (long)_growHp.Value;
+            double gAtk = (double)_growAtk.Value;
+            double gDef = (double)_growDef.Value;
+            double gAgi = (double)_growAgi.Value;
+            long tAtk = (long)Math.Round(gAtk * 139 + 19);
+            long tDef = (long)Math.Round(gDef * 139 + 12);
+            long tAgi = (long)Math.Round(gAgi * 139 + 12);
+            long iHp  = (long)Math.Round(hp   / 0.0764);
+            long iAtk = (long)Math.Round(tAtk * 1.08);
+            long iDef = (long)Math.Round(tDef * 0.95);
+            _growOut.Text     = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {tAgi} 140 1]";
+            if (_lblGrowCalc != null)
+                _lblGrowCalc.Text = $"推導目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";
+        }
+
+        // ── 精準三圍反推卡片（兩段式）────────────────────────────
+        private Panel BuildTotalGrowthCard()
+        {
+            var card = MakeCard("✅  精準三圍反推指令（直接輸入各成長率，兩段式計算）");
+            int cy = 36;
+
+            card.Controls.Add(new Label
+            {
+                Text      = "  直接輸入三圍成長率與目標血量 → 精準還原 140 等面板 → 生成 GM 指令",
+                ForeColor = Color.FromArgb(130, 220, 130),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            // 最終血量
+            _tgHp = MakeNud(1, 999999, 2050, 120);
+            _tgHp.Location = new Point(110, cy); _tgHp.Width = 120;
+            card.Controls.Add(MakeLabel("最終血量 HP：", new Point(10, cy + 2)));
+            card.Controls.Add(_tgHp);
+            cy += 30;
+
+            // 三圍成長率（直接輸入，3 位小數）
+            _tgGrowAtk = MakeGrowNud(3.1m);
+            _tgGrowAtk.Location = new Point(110, cy); _tgGrowAtk.Width = 110;
+            card.Controls.Add(MakeLabel("預期攻擊成長：", new Point(10, cy + 2)));
+            card.Controls.Add(_tgGrowAtk);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的攻擊）", ForeColor = Color.FromArgb(255, 185, 60), Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            _tgGrowDef = MakeGrowNud(2.1m);
+            _tgGrowDef.Location = new Point(110, cy); _tgGrowDef.Width = 110;
+            card.Controls.Add(MakeLabel("預期防禦成長：", new Point(10, cy + 2)));
+            card.Controls.Add(_tgGrowDef);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的防禦）", ForeColor = Color.FromArgb(100, 185, 255), Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            _tgGrowAgi = MakeGrowNud(2.0m);
+            _tgGrowAgi.Location = new Point(110, cy); _tgGrowAgi.Width = 110;
+            card.Controls.Add(MakeLabel("預期敏捷成長：", new Point(10, cy + 2)));
+            card.Controls.Add(_tgGrowAgi);
+            card.Controls.Add(new Label { Text = "（每升 1 級增加的敏捷）", ForeColor = Color.FromArgb(185, 130, 255), Font = Theme.FontSmall, AutoSize = true, Location = new Point(228, cy + 4) });
+            cy += 30;
+
+            // 唯讀預期總成長
+            _lblTgSum = new Label
+            {
+                Text      = "預期總成長：7.200",
+                ForeColor = Color.FromArgb(255, 230, 80),
+                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                AutoSize  = true,
+                Location  = new Point(110, cy)
+            };
+            card.Controls.Add(MakeLabel("預期總成長：", new Point(10, cy + 2)));
+            card.Controls.Add(_lblTgSum);
+            cy += 26;
+
+            // 推導目標面板顯示
+            _lblTgCalc = new Label
+            {
+                Text      = "目標面板：（請輸入成長率後自動計算）",
+                ForeColor = Color.FromArgb(160, 220, 180),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            };
+            card.Controls.Add(_lblTgCalc);
+            cy += 22;
+
+            // 指令輸出
+            _tgOut = new TextBox
+            {
+                ReadOnly    = true,
+                BackColor   = Color.FromArgb(20, 20, 40),
+                ForeColor   = Color.FromArgb(255, 210, 120),
+                Font        = new Font("Consolas", 11f, FontStyle.Bold),
+                Location    = new Point(110, cy),
+                Width       = 400,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            var btnCopyTg = Theme.MakeButton("複製", Color.FromArgb(80, 55, 10), Color.FromArgb(255, 210, 100), 60, 26);
+            btnCopyTg.Location = new Point(518, cy);
+            btnCopyTg.Font     = Theme.FontSmall;
+            btnCopyTg.Click   += (_, __) => DoCopy(_tgOut.Text, btnCopyTg);
+            card.Controls.Add(new Label { Text = "指令預覽：", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, Location = new Point(10, cy + 4), Width = 96, TextAlign = ContentAlignment.MiddleRight });
+            card.Controls.Add(_tgOut);
+            card.Controls.Add(btnCopyTg);
+            cy += 34;
+
+            card.Controls.Add(new Label
+            {
+                Text      = "※ 步驟1：Target_ATK = round(成長×139+19)  步驟2：Input_ATK = round(Target×1.08)",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            foreach (var n in new NumericUpDown[] { _tgHp, _tgGrowAtk, _tgGrowDef, _tgGrowAgi })
+                n.ValueChanged += (_, __) => RefreshTotalGrow();
+
+            card.Height = cy + 8;
+            return card;
+        }
+
+        private void RefreshTotalGrow()
+        {
+            if (_tgOut == null) return;
+
+            long   hp   = (long)_tgHp.Value;
+            double gAtk = (double)_tgGrowAtk.Value;
+            double gDef = (double)_tgGrowDef.Value;
+            double gAgi = (double)_tgGrowAgi.Value;
+
+            // 唯讀預期總成長
+            if (_lblTgSum != null)
+                _lblTgSum.Text = $"{gAtk + gDef + gAgi:F3}";
+
+            // 步驟1：成長率 → 140 等目標面板
+            long tAtk = (long)Math.Round(gAtk * 139 + 19);
+            long tDef = (long)Math.Round(gDef * 139 + 12);
+            long tAgi = (long)Math.Round(gAgi * 139 + 12);
+
+            // 步驟2：目標面板 → GM 寫入參數
+            long iHp  = (long)Math.Round(hp   / 0.0764);
+            long iAtk = (long)Math.Round(tAtk * 1.08);
+            long iDef = (long)Math.Round(tDef * 0.95);
+
+            _tgOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {iAtk} {iDef} {tAgi} 140 1]";
+
+            if (_lblTgCalc != null)
+                _lblTgCalc.Text = $"目標面板：ATK = {tAtk}　DEF = {tDef}　AGI = {tAgi}";
         }
 
         // ══════════════════════════════════════════════════════════
@@ -586,6 +883,22 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextPrimary,
                 Font      = Theme.FontBody,
                 Width     = w
+            };
+        }
+
+        private static NumericUpDown MakeGrowNud(decimal defaultVal = 0m)
+        {
+            return new NumericUpDown
+            {
+                Minimum       = 0m,
+                Maximum       = 99.999m,
+                Value         = Math.Max(0m, Math.Min(99.999m, defaultVal)),
+                DecimalPlaces = 3,
+                Increment     = 0.001m,
+                BackColor     = Theme.BgLight,
+                ForeColor     = Color.FromArgb(255, 215, 100),
+                Font          = Theme.FontBody,
+                Width         = 110
             };
         }
     }
