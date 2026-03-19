@@ -153,6 +153,7 @@ export default function PlayerAutocomplete({
                     toggleCheck(p.account)
                   }
                 }}
+                data-suggestion-item
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '8px 12px', cursor: 'pointer', fontSize: 13,

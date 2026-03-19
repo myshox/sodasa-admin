@@ -56,13 +56,13 @@ namespace SQ_Email_Tools
         private Label         _lblGrowCalc = null!;
 
         // ── 精準三圍反推 ─────────────────────────────────────────
-        private NumericUpDown _tgHp      = null!;   // 目標最終血量
-        private NumericUpDown _tgGrowAtk = null!;   // 預期攻擊成長（3位小數）
-        private NumericUpDown _tgGrowDef = null!;   // 預期防禦成長
-        private NumericUpDown _tgGrowAgi = null!;   // 預期敏捷成長
+        private NumericUpDown _tgHp      = null!;
+        private NumericUpDown _tgGrowAtk = null!;
+        private NumericUpDown _tgGrowDef = null!;
+        private NumericUpDown _tgGrowAgi = null!;
         private TextBox       _tgOut     = null!;
-        private Label         _lblTgSum  = null!;   // 預期總成長唯讀顯示
-        private Label         _lblTgCalc = null!;   // GM 寫入參數顯示
+        private Label         _lblTgSum  = null!;
+        private Label         _lblTgCalc = null!;
 
         public GmPetForm()
         {
@@ -810,9 +810,6 @@ namespace SQ_Email_Tools
                 _lblTgCalc.Text = $"GM 寫入值：HP = {iHp}　ATK = {iAtk}　DEF = {iDef}　AGI = {iAgi}";
         }
 
-        // ══════════════════════════════════════════════════════════
-        //  工具方法
-        // ══════════════════════════════════════════════════════════
         private static void DoCopy(string text, Button btn)
         {
             if (string.IsNullOrEmpty(text)) return;

@@ -1826,9 +1826,9 @@ namespace SQ_Email_Tools
 
         private NumericUpDown _nudTwd;          // 台幣輸入
         private Label         _lblGoldCalc;     // 對應金幣預覽
-        private RadioButton   _rbOnlyProgress;
-        private RadioButton   _rbWithGold;
-        private RadioButton   _rbOnlyGold;
+        // 操作類型：-1=未選 0=僅累積 1=累積+金幣 2=只金幣
+        private int           _opMode = -1;
+        private Button[]      _opBtns = Array.Empty<Button>();
         private Label         _lblCycleAfter;
         private Panel         _barFillAfter;
         private Button[]      _tierBtns;
@@ -1842,11 +1842,11 @@ namespace SQ_Email_Tools
         private Button[] _bonusBtns = Array.Empty<Button>();
 
         /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）；若為「只給金幣」模式則為 0</summary>
-        public long TwdAmount  => (_rbOnlyGold != null && _rbOnlyGold.Checked) ? 0 : (long)_nudTwd.Value;
+        public long TwdAmount  => _opMode == 2 ? 0 : (long)_nudTwd.Value;
         /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
         public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L) * (1 + _bonusPct / 100.0));
-        public bool GiveGold   => _rbWithGold.Checked || (_rbOnlyGold != null && _rbOnlyGold.Checked);
-        public bool OnlyGold   => _rbOnlyGold != null && _rbOnlyGold.Checked;
+        public bool GiveGold   => _opMode == 1 || _opMode == 2;
+        public bool OnlyGold   => _opMode == 2;
         /// <summary>true = 使用者按了「清0累儲進度」</summary>
         public bool IsResetRequest { get; private set; }
         /// <summary>true = 對話框內執行了修復循環或發放獎勵，呼叫端應刷新列表/詳情</summary>
@@ -2096,37 +2096,48 @@ namespace SQ_Email_Tools
 
             // ── 操作類型（強制選擇，預設空白）──────────────────────
             Div(x, y, W); y += 10;
-            var opBox = new Panel { Location = new Point(x, y), Size = new Size(W, 118), BackColor = Theme.BgCard };
-            opBox.Controls.Add(new Label
+            Controls.Add(new Label
             {
-                Text      = "⚠ STEP 3  操作類型（必填）— 請明確選擇，系統不設預設值：",
+                Text      = "⚠ STEP 3  操作類型（必填）— 請明確點選其中一項：",
                 ForeColor = Theme.AccentOrange, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize = true, Location = new Point(10, 8)
+                AutoSize = true, Location = new Point(x, y)
             });
-            _rbOnlyProgress = new RadioButton
+            y += 24;
+
+            // 三種操作模式的設定（mode=0/1/2）
+            var opDefs = new[]
             {
-                Text      = "🔘  【僅增加累儲進度】— 不發放金幣（補資料 / 賽季轉移用）",
-                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 32), Checked = false, Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
+                (mode:0, label:"⚫  【僅增加累儲進度】",   desc:"不發放金幣（補資料 / 賽季轉移用）",
+                 selBg:Color.FromArgb(20,50,100),  selFg:Color.FromArgb(140,200,255), selBorder:Color.FromArgb(80,150,255)),
+                (mode:1, label:"🟢  【累積進度 ＋ 發放金幣】", desc:"正常補單使用",
+                 selBg:Color.FromArgb(15,65,20),   selFg:Color.FromArgb(80,255,120),  selBorder:Color.FromArgb(50,200,80)),
+                (mode:2, label:"🟡  【只增加金幣，不充值累積】", desc:"發金幣但不計入累積儲值進度",
+                 selBg:Color.FromArgb(70,50,5),    selFg:Color.FromArgb(255,220,80),  selBorder:Color.FromArgb(255,200,50)),
             };
-            _rbWithGold = new RadioButton
+            _opBtns = new Button[3];
+            for (int mi = 0; mi < opDefs.Length; mi++)
             {
-                Text      = "🟡  【增加累儲進度 ＋ 同步發放金幣】— 正常補單使用",
-                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 58), Checked = false, Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
-            };
-            _rbOnlyGold = new RadioButton
-            {
-                Text      = "💰  【只增加金幣，不充值累積】— 發金幣但不計入累積儲值進度",
-                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f),
-                AutoSize = true, Location = new Point(10, 86), Checked = false, Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
-            };
-            opBox.Controls.AddRange(new Control[] { _rbOnlyProgress, _rbWithGold, _rbOnlyGold });
-            Controls.Add(opBox);
-            y += 126;
+                int capturedMode = opDefs[mi].mode;
+                var btn = new Button
+                {
+                    Text      = opDefs[mi].label + "\n     " + opDefs[mi].desc,
+                    BackColor = Theme.BgLight,
+                    ForeColor = Color.FromArgb(130, 140, 160),
+                    FlatStyle = FlatStyle.Flat,
+                    Font      = new Font(Theme.FontFamily, 9f),
+                    Size      = new Size(W, 42),
+                    Location  = new Point(x, y),
+                    Cursor    = Cursors.Hand,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    UseVisualStyleBackColor = false
+                };
+                btn.FlatAppearance.BorderColor = Color.FromArgb(50, 55, 70);
+                btn.FlatAppearance.BorderSize  = 1;
+                btn.Click += (s, e) => { _opMode = capturedMode; RefreshOpButtons(); };
+                Controls.Add(btn);
+                _opBtns[mi] = btn;
+                y += 46;
+            }
 
             // ── 修復循環 / 發放獎勵（與玩家詳情頁同功能，兩邊一致）──────────────
             if (!string.IsNullOrEmpty(_account))
@@ -2192,7 +2203,7 @@ namespace SQ_Email_Tools
             btnOk.Location = new Point(x + 350, y);
             btnOk.Click += (s, e) =>
             {
-                if (!_rbOnlyProgress.Checked && !_rbWithGold.Checked && !_rbOnlyGold.Checked)
+                if (_opMode < 0)
                 {
                     MessageBox.Show("請選擇操作類型（STEP 3）。\n系統不設預設值，以防止誤操作。",
                         "⚠ 尚未選擇操作類型", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2200,7 +2211,7 @@ namespace SQ_Email_Tools
                 }
                 long twd  = TwdAmount;
                 long gold = GoldAmount;
-                if (_rbOnlyGold.Checked)
+                if (_opMode == 2)
                 {
                     if (gold <= 0)
                     {
@@ -2223,13 +2234,13 @@ namespace SQ_Email_Tools
                     : $"\n   累積後：第 {newCyc + 1} 循環，本循環 NT${newIn:N0} / $25,000";
 
                 string modeTitle, modeDetail, icon;
-                if (_rbOnlyProgress.Checked)
+                if (_opMode == 0)
                 {
                     modeTitle  = "【僅增加累儲進度】";
                     modeDetail = $"❌ 不會發放金幣\n✅ 累積充值進度 +NT${twd:N0}（只計台幣，不含贈金）{cycNote}\n✅ 歷史總累儲同步更新";
                     icon       = "⚠";
                 }
-                else if (_rbOnlyGold.Checked)
+                else if (_opMode == 2)
                 {
                     long baseGold  = _selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L;
                     long bonusGold = gold - baseGold;
@@ -2271,6 +2282,23 @@ namespace SQ_Email_Tools
             RefreshTierButtons(-1);
             UpdateGoldPreview();
             UpdateCycleAfter();
+        }
+
+        private void RefreshOpButtons()
+        {
+            // 選中：亮色背景 + 粗邊框 + 亮文字；未選：暗灰背景 + 細邊框 + 灰文字
+            Color[] selBgs     = { Color.FromArgb(20,50,100), Color.FromArgb(15,65,20), Color.FromArgb(70,50,5) };
+            Color[] selFgs     = { Color.FromArgb(140,200,255), Color.FromArgb(80,255,120), Color.FromArgb(255,220,80) };
+            Color[] selBorders = { Color.FromArgb(80,150,255), Color.FromArgb(50,200,80), Color.FromArgb(255,200,50) };
+            for (int i = 0; i < _opBtns.Length; i++)
+            {
+                bool sel = i == _opMode;
+                _opBtns[i].BackColor = sel ? selBgs[i] : Theme.BgLight;
+                _opBtns[i].ForeColor = sel ? selFgs[i] : Color.FromArgb(130, 140, 160);
+                _opBtns[i].FlatAppearance.BorderColor = sel ? selBorders[i] : Color.FromArgb(50, 55, 70);
+                _opBtns[i].FlatAppearance.BorderSize  = sel ? 2 : 1;
+                _opBtns[i].Font = new Font(Theme.FontFamily, sel ? 9.5f : 9f, sel ? FontStyle.Bold : FontStyle.Regular);
+            }
         }
 
         private void Div(int x, int y, int w) =>

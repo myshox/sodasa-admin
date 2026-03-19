@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import { S } from '../strings'
+import useIsMobile from '../hooks/useIsMobile'
 
 const REMEMBER_KEY = 'gm_remember'
 
 export default function LoginPage() {
+  const isMobile = useIsMobile()
   const [user,     setUser]     = useState('')
   const [pass,     setPass]     = useState('')
   const [remember, setRemember] = useState(false)
@@ -45,11 +47,13 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'var(--bg-page)'
+      justifyContent: 'center', background: 'var(--bg-page)',
+      padding: isMobile ? 16 : 0, boxSizing: 'border-box'
     }}>
       <form onSubmit={login} style={{
         background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised)',
-        borderRadius: 16, padding: '40px 48px', width: 360,
+        borderRadius: 16, padding: isMobile ? '24px 20px' : '40px 48px',
+        width: isMobile ? '100%' : 360, maxWidth: 360, boxSizing: 'border-box',
         display: 'flex', flexDirection: 'column', gap: 18
       }}>
         <div style={{ textAlign: 'center', marginBottom: 8 }}>

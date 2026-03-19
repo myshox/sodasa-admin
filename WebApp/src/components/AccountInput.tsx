@@ -143,6 +143,7 @@ export default function AccountInput({
             {chars.map(c => (
               <div
                 key={c.account}
+                data-suggestion-item
                 onClick={() => pick(c)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',

@@ -164,17 +164,16 @@ export default function Layout() {
   if (isMobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
-        {/* 頂部 Header */}
-        <header style={{ height: 56, background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, zIndex: 100 }}>
+        {/* 頂部 Header（手機觸控區至少 44px） */}
+        <header style={{ minHeight: 56, background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', padding: '0 12px 0 16px', gap: 8, flexShrink: 0, zIndex: 100 }}>
           <button onClick={() => setDrawerOpen(true)}
-            style={{ width: 42, height: 42, background: 'var(--neu-bg)', boxShadow: '4px 4px 8px #bebebe, -4px -4px 8px #ffffff', borderRadius: 12, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
+            style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: '4px 4px 8px #bebebe, -4px -4px 8px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
             ☰
           </button>
           <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🍅 {S.appName}</span>
-          {/* 充值快捷按鈕 */}
           <NavLink to="/recharge"
             style={({ isActive }) => ({
-              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, textDecoration: 'none', fontSize: 13, fontWeight: 700, flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '10px 14px', borderRadius: 10, textDecoration: 'none', fontSize: 14, fontWeight: 700, flexShrink: 0,
               background: isActive ? 'rgba(74,222,128,.2)' : 'rgba(74,222,128,.12)',
               border: '1px solid rgba(74,222,128,.35)', color: '#4ade80',
             })}>
@@ -188,7 +187,7 @@ export default function Layout() {
         )}
 
         {/* 側拉抽屜 — 關閉時加 pointerEvents:none 防止攔截觸控 */}
-        <div ref={drawerRef} style={{
+        <div ref={drawerRef} data-drawer-nav style={{
           position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
           background: 'var(--bg-sidebar)',
           display: 'flex', flexDirection: 'column',
@@ -198,11 +197,10 @@ export default function Layout() {
           boxShadow: drawerOpen ? '8px 0 24px rgba(0,0,0,.12), -2px 0 8px rgba(255,255,255,.4)' : 'none',
           pointerEvents: drawerOpen ? undefined : 'none',
         }}>
-          {/* 關閉按鈕 */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>🍅 {S.appName}</div>
             <button onClick={() => setDrawerOpen(false)}
-              style={{ width: 38, height: 38, background: 'var(--neu-bg)', boxShadow: 'inset 2px 2px 4px #bebebe, inset -2px -2px 4px #ffffff', borderRadius: 10, fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: 'inset 2px 2px 4px #bebebe, inset -2px -2px 4px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
               ✕
             </button>
           </div>

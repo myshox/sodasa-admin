@@ -434,7 +434,6 @@ namespace SQ_Email_Tools
 
             toolbar.Controls.Add(row2);
             toolbar.Controls.Add(row3);
-            p.Controls.Add(toolbar);
 
             // SplitContainer for list + grid
             var split = new SplitContainer
@@ -522,7 +521,19 @@ namespace SQ_Email_Tools
             };
             split.Panel2.Controls.Add(_dgvMain);
 
-            p.Controls.Add(split);
+            var rankTbl = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+                Margin = Padding.Empty, Padding = Padding.Empty,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
+            };
+            rankTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 112f));
+            rankTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            rankTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            toolbar.Dock = DockStyle.Fill;
+            rankTbl.Controls.Add(toolbar, 0, 0);
+            rankTbl.Controls.Add(split,   0, 1);
+            p.Controls.Add(rankTbl);
         }
 
         // ===================================================================
@@ -575,7 +586,6 @@ namespace SQ_Email_Tools
                 foreach (var b in actBtns) { x -= b.Width + 6; b.Left = x; b.Top = 11; }
             };
             toolbar.Controls.AddRange(actBtns);
-            p.Controls.Add(toolbar);
 
             // ── 主體 SplitContainer：左=排行卡片+查詢, 右=DataGridView ──
             var split2 = new SplitContainer
@@ -740,7 +750,20 @@ namespace SQ_Email_Tools
             };
 
             split2.Panel2.Controls.Add(_dgvActivity);
-            p.Controls.Add(split2);
+
+            var actTbl = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+                Margin = Padding.Empty, Padding = Padding.Empty,
+                CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
+            };
+            actTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
+            actTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            actTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            toolbar.Dock = DockStyle.Fill;
+            actTbl.Controls.Add(toolbar, 0, 0);
+            actTbl.Controls.Add(split2,  0, 1);
+            p.Controls.Add(actTbl);
         }
 
         private async Task LoadCapturePetTypesAsync()

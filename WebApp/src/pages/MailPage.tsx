@@ -43,18 +43,20 @@ export default function MailPage() {
         </button>
       </div>
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, flex: 1, minWidth: 0, overflow: 'hidden', width: isMobile ? '100%' : undefined }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px 140px', padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
+          <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px 140px', padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, minWidth: isMobile ? 380 : undefined }}>
             <span>發件人</span><span>標題</span><span>狀態</span><span>時間</span>
           </div>
           {rows.length === 0
             ? <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.searchHint}</p>
             : rows.map(r => (
-              <div key={r.id} onClick={() => setSel(r)} style={{
+              <div key={r.id} onClick={() => setSel(r)} data-suggestion-item style={{
                 display: 'grid', gridTemplateColumns: '80px 1fr 80px 140px',
                 padding: '10px 16px', borderBottom: '1px solid var(--border)',
                 fontSize: 13, alignItems: 'center', cursor: 'pointer',
-                background: sel?.id === r.id ? 'rgba(74,158,255,.08)' : 'transparent'
+                background: sel?.id === r.id ? 'rgba(74,158,255,.08)' : 'transparent',
+                minWidth: isMobile ? 380 : undefined
               }}>
                 <span style={{ color: 'var(--text-muted)' }}>{r.sender}</span>
                 <span style={{ fontWeight: r.isRead ? 400 : 700, color: r.isRead ? 'var(--text-secondary)' : 'var(--text-primary)' }}>{r.title}</span>
@@ -62,6 +64,7 @@ export default function MailPage() {
                 <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.time}</span>
               </div>
             ))}
+          </div>
         </div>
         {sel && (
           <div style={{ width: isMobile ? '100%' : 300, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, flexShrink: 0 }}>
