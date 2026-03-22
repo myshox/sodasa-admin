@@ -2,23 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import type { DashboardStats } from '../api'
-
-function useIsMobile() {
-  const [m, setM] = useState(window.innerWidth < 768)
-  useEffect(() => {
-    const h = () => setM(window.innerWidth < 768)
-    window.addEventListener('resize', h)
-    return () => window.removeEventListener('resize', h)
-  }, [])
-  return m
-}
+import useIsMobile from '../hooks/useIsMobile'
 
 const StatCard = ({ icon, label, value, color, sub }: {
   icon: string; label: string; value: string | number; color: string; sub?: string
 }) => (
   <div style={{
     background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised-sm)',
-    borderRadius: 14, padding: '18px 20px', flex: 1, minWidth: 140
+    borderRadius: 14, padding: '18px 20px', flex: 1, minWidth: 0, maxWidth: '100%'
   }}>
     <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
     <div style={{ fontSize: 24, fontWeight: 800, color, letterSpacing: -0.5 }}>{value}</div>
@@ -53,7 +44,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div style={{ padding: isMobile ? '16px 14px' : '28px 32px', maxWidth: 1200 }}>
+    <div style={{ padding: isMobile ? '12px 0' : '28px 32px', maxWidth: 1200, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
       {/* 標題 */}
       <div style={{ marginBottom: isMobile ? 16 : 24 }}>
         <h1 style={{ fontSize: isMobile ? 20 : 26, fontWeight: 800, margin: 0,
@@ -73,7 +64,7 @@ export default function Dashboard() {
       )}
 
       {/* 統計卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(6,1fr)', gap: isMobile ? 10 : 14, marginBottom: isMobile ? 20 : 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(6, minmax(0, 1fr))', gap: isMobile ? 10 : 14, marginBottom: isMobile ? 20 : 28 }}>
         <StatCard icon="👥" label="總玩家數"   value={fmt(stats?.totalPlayers)}  color="var(--accent-blue)" />
         <StatCard icon="🟢" label="目前在線"   value={fmt(stats?.onlinePlayers)} color="var(--accent-green)" />
         <StatCard icon="🚫" label="已封號"     value={fmt(stats?.bannedPlayers)} color="var(--accent-red)" />
@@ -87,7 +78,7 @@ export default function Dashboard() {
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' }}>
           常用功能
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isMobile ? 10 : 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: isMobile ? 10 : 14 }}>
           {quickLinks.map(q => (
             <button key={q.path} onClick={() => nav(q.path)}
               style={{

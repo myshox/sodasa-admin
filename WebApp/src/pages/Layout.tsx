@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { S } from '../strings'
+import { MOBILE_BREAKPOINT } from '../constants/layout'
 
 type NavItem = { to: string; icon: string; label: string; title?: string }
 type NavGroup = { label: string; items: NavItem[] }
@@ -59,15 +60,15 @@ export default function Layout() {
   const nav = useNavigate()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT)
   const drawerRef = useRef<HTMLDivElement>(null)
 
   const logout = () => { localStorage.clear(); nav('/login') }
   const user = localStorage.getItem('gm_user') ?? 'GM'
 
-  // 偵測螢幕寬度
+  // 偵測螢幕寬度（與 useIsMobile / 手機切版一致）
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768)
+    const onResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -165,7 +166,13 @@ export default function Layout() {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
         {/* 頂部 Header（手機觸控區至少 44px） */}
-        <header style={{ minHeight: 56, background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', padding: '0 12px 0 16px', gap: 8, flexShrink: 0, zIndex: 100 }}>
+        <header style={{
+          minHeight: 56,
+          paddingTop: 'max(6px, env(safe-area-inset-top))',
+          paddingLeft: 'max(12px, env(safe-area-inset-left))',
+          paddingRight: 'max(12px, env(safe-area-inset-right))',
+          background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', paddingBottom: 0, gap: 8, flexShrink: 0, zIndex: 100,
+        }}>
           <button onClick={() => setDrawerOpen(true)}
             style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: '4px 4px 8px #bebebe, -4px -4px 8px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
             ☰
@@ -188,7 +195,8 @@ export default function Layout() {
 
         {/* 側拉抽屜 — 關閉時加 pointerEvents:none 防止攔截觸控 */}
         <div ref={drawerRef} data-drawer-nav style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 280,
+          position: 'fixed', top: 0, left: 0, bottom: 0, width: 'min(300px, calc(100vw - 40px))',
+          paddingTop: 'env(safe-area-inset-top)',
           background: 'var(--bg-sidebar)',
           display: 'flex', flexDirection: 'column',
           zIndex: 300,
@@ -259,7 +267,7 @@ export default function Layout() {
         </div>
 
         {/* 主內容 */}
-        <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
+        <main className="app-main-scroll" style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', background: 'var(--bg-page)', WebkitOverflowScrolling: 'touch' as const }}>
           <Outlet />
         </main>
       </div>

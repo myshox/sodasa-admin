@@ -17,6 +17,7 @@ namespace SQ_Email_Tools
         private int           _bonus    = 0;  // 回饋百分比 (0/5/10/15/20)
         private Button[]      _tierBtns;
         private Button[]      _bonusBtns;
+        private Panel           _scrollHost = null!;
 
         /// <summary>台幣金額（不含優惠贈金）：選套餐 = 套餐台幣，手動 = 輸入的台幣</summary>
         public long TwdAmount     => _tierTwd > 0 ? _tierTwd : (long)_nudValue.Value;
@@ -61,12 +62,15 @@ namespace SQ_Email_Tools
             MinimizeBox     = false;
             StartPosition   = FormStartPosition.CenterParent;
 
+            _scrollHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.BgPage };
+            Controls.Add(_scrollHost);
+
             const int x = 16;
             int y = 14;
 
             // ── 目前累積儲值 ────────────────────────────────────────
-            Controls.Add(new Label { Text = "目前累積儲值：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 3) });
-            Controls.Add(new Label { Text = $"NT$ {currentValue:N0}", ForeColor = Color.FromArgb(255, 200, 80), Font = Theme.FontHeader, AutoSize = true, Location = new Point(x + 110, y) });
+            _scrollHost.Controls.Add(new Label { Text = "目前累積儲值：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 3) });
+            _scrollHost.Controls.Add(new Label { Text = $"NT$ {currentValue:N0}", ForeColor = Color.FromArgb(255, 200, 80), Font = Theme.FontHeader, AutoSize = true, Location = new Point(x + 110, y) });
             y += 34;
 
             // ── VIP 橫幅（若玩家已達 VIP 資格）────────────────────
@@ -88,16 +92,16 @@ namespace SQ_Email_Tools
                     Dock      = DockStyle.Fill,
                     TextAlign = ContentAlignment.MiddleLeft
                 });
-                Controls.Add(banner);
+                _scrollHost.Controls.Add(banner);
                 y += 36;
             }
             y += 0;
-            Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
+            _scrollHost.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
             y += 10;
 
             // ── STEP 1：選擇充值套餐 ─────────────────────────────────
-            Controls.Add(new Label { Text = "STEP 1  選擇充值套餐：", ForeColor = Color.FromArgb(100, 180, 255), Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold), AutoSize = true, Location = new Point(x, y) });
-            Controls.Add(new Label { Text = "1台幣 = 100金幣（大額有加成）", ForeColor = Color.FromArgb(100, 190, 100), Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 200, y + 3) });
+            _scrollHost.Controls.Add(new Label { Text = "STEP 1  選擇充值套餐：", ForeColor = Color.FromArgb(100, 180, 255), Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold), AutoSize = true, Location = new Point(x, y) });
+            _scrollHost.Controls.Add(new Label { Text = "1台幣 = 100金幣（大額有加成）", ForeColor = Color.FromArgb(100, 190, 100), Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 200, y + 3) });
             y += 22;
 
             _tierBtns = new Button[Tiers.Length];
@@ -127,19 +131,19 @@ namespace SQ_Email_Tools
                     RefreshTierButtons();
                     RecalcAndUpdate();
                 };
-                Controls.Add(btn);
+                _scrollHost.Controls.Add(btn);
                 _tierBtns[i] = btn;
                 bx += 78;
             }
             y += 62;
 
             // ── STEP 2：選擇回饋加成 ─────────────────────────────────
-            Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
+            _scrollHost.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
             y += 8;
             string step2Hint = vipLevel > 0
                 ? $"STEP 2  VIP 回饋加成（{vipEmoji} 已自動套用，可手動調整）："
                 : "STEP 2  選擇回饋加成（可選）：";
-            Controls.Add(new Label { Text = step2Hint, ForeColor = Color.FromArgb(255, 180, 80), Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold), AutoSize = true, Location = new Point(x, y) });
+            _scrollHost.Controls.Add(new Label { Text = step2Hint, ForeColor = Color.FromArgb(255, 180, 80), Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold), AutoSize = true, Location = new Point(x, y) });
             y += 22;
 
             // VIP 預設加成百分比
@@ -175,7 +179,7 @@ namespace SQ_Email_Tools
                     RefreshBonusButtons();
                     RecalcAndUpdate();
                 };
-                Controls.Add(btn);
+                _scrollHost.Controls.Add(btn);
                 _bonusBtns[i] = btn;
                 bx += 100;
             }
@@ -185,7 +189,7 @@ namespace SQ_Email_Tools
             Load += (s, e) => RefreshBonusButtons();
 
             // ── 自動計算預覽 ─────────────────────────────────────────
-            Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
+            _scrollHost.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(544, 1), BackColor = Theme.Border });
             y += 8;
             _lblCalc = new Label
             {
@@ -195,11 +199,11 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(x, y)
             };
-            Controls.Add(_lblCalc);
+            _scrollHost.Controls.Add(_lblCalc);
             y += 32;
 
             // ── 手動輸入台幣 ─────────────────────────────────────────
-            Controls.Add(new Label { Text = "或手動輸入台幣（NT$）：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 5) });
+            _scrollHost.Controls.Add(new Label { Text = "或手動輸入台幣（NT$）：", ForeColor = Theme.TextMuted, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 5) });
             _nudValue = new NumericUpDown
             {
                 Location  = new Point(x + 148, y),
@@ -213,7 +217,7 @@ namespace SQ_Email_Tools
                 ThousandsSeparator = true
             };
             _nudValue.ValueChanged += (s, e) => { _tierGold = 0; _tierTwd = 0; RefreshTierButtons(); RecalcAndUpdate(); };
-            Controls.Add(_nudValue);
+            _scrollHost.Controls.Add(_nudValue);
             y += 44;
 
             // ── 確定 / 取消 ──────────────────────────────────────────
@@ -266,7 +270,7 @@ namespace SQ_Email_Tools
                 Close();
             };
 
-            Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
+            _scrollHost.Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
 
             // 預設選「無加成」
             _bonus = 0;
@@ -564,7 +568,8 @@ namespace SQ_Email_Tools
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
-            _bodyPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+            // NoScrollPanel：避免子控制項取得焦點時捲動位置被自動拉動，仍可手動捲到頂/底
+            _bodyPanel = new NoScrollPanel { Dock = DockStyle.Fill, AutoScroll = true };
             _bodyPanel.Controls.Add(_loadingLbl);
 
             Controls.Add(btnRow);
@@ -1832,6 +1837,7 @@ namespace SQ_Email_Tools
         private Label         _lblCycleAfter;
         private Panel         _barFillAfter;
         private Button[]      _tierBtns;
+        private Panel           _scrollHost = null!; // 內容過高時可垂直捲動
         private readonly long _currentTotal;   // 目前 paydata.point (NT$)
         private readonly long _lifetimeTotal;  // 歷史總累儲 (NT$)
 
@@ -1889,6 +1895,9 @@ namespace SQ_Email_Tools
             MinimizeBox    = false;
             StartPosition  = FormStartPosition.CenterParent;
 
+            _scrollHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.BgPage };
+            Controls.Add(_scrollHost);
+
             const int x = 18;
             const int W = 616;
             int y = 14;
@@ -1941,12 +1950,12 @@ namespace SQ_Email_Tools
             });
             infoBox.Controls.Add(barBg0);
             infoBox.Controls.Add(new Label { Text = $"{curPct}%", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(W - 54, 78) });
-            Controls.Add(infoBox);
+            _scrollHost.Controls.Add(infoBox);
             y += 104;
 
             // ── 快選套餐（以台幣為輸入，金幣自動套加成）─────────────
             Div(x, y, W); y += 10;
-            Controls.Add(new Label
+            _scrollHost.Controls.Add(new Label
             {
                 Text = "STEP 1  選擇充值套餐（台幣）— 金幣依加成率自動計算：",
                 ForeColor = Theme.AccentBlue, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
@@ -1982,7 +1991,7 @@ namespace SQ_Email_Tools
                     UpdateGoldPreview();
                     UpdateCycleAfter();
                 };
-                Controls.Add(btn);
+                _scrollHost.Controls.Add(btn);
                 _tierBtns[i] = btn;
                 bx += 84;
             }
@@ -1990,7 +1999,7 @@ namespace SQ_Email_Tools
 
             // ── 優惠加成 ─────────────────────────────────────────
             Div(x, y, W); y += 10;
-            Controls.Add(new Label
+            _scrollHost.Controls.Add(new Label
             {
                 Text      = "STEP 2  選擇優惠加成%（贈金加成，累積儲值進度只計台幣，贈金不計入進度）：",
                 ForeColor = Theme.AccentGreen, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 2)
@@ -2023,7 +2032,7 @@ namespace SQ_Email_Tools
                     RefreshBonusBtns();
                     UpdateGoldPreview();
                 };
-                Controls.Add(bb);
+                _scrollHost.Controls.Add(bb);
                 _bonusBtns[i] = bb;
                 bbx += 84;
             }
@@ -2032,7 +2041,7 @@ namespace SQ_Email_Tools
 
             // ── 手動輸入台幣 ──────────────────────────────────────
             Div(x, y, W); y += 10;
-            Controls.Add(new Label
+            _scrollHost.Controls.Add(new Label
             {
                 Text = "STEP 2  或手動輸入台幣金額（金幣以基礎率 ×100 計算，無套餐加成）：",
                 ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 4)
@@ -2052,9 +2061,9 @@ namespace SQ_Email_Tools
                 ThousandsSeparator = true
             };
             _nudTwd.ValueChanged += (s, e) => { RefreshTierButtons(-1); _selectedGold = -1; UpdateGoldPreview(); UpdateCycleAfter(); };
-            Controls.Add(_nudTwd);
+            _scrollHost.Controls.Add(_nudTwd);
 
-            Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
+            _scrollHost.Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
             y += 32;
 
             _lblGoldCalc = new Label
@@ -2066,12 +2075,12 @@ namespace SQ_Email_Tools
                 Size      = new Size(W, 22),
                 Location  = new Point(x, y)
             };
-            Controls.Add(_lblGoldCalc);
+            _scrollHost.Controls.Add(_lblGoldCalc);
             y += 28;
 
             // ── 新增後循環預覽 ────────────────────────────────────
             Div(x, y, W); y += 10;
-            Controls.Add(new Label
+            _scrollHost.Controls.Add(new Label
             {
                 Text = "新增後累儲進度預覽：",
                 ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
@@ -2085,18 +2094,18 @@ namespace SQ_Email_Tools
                 Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
                 AutoSize = true, Location = new Point(x, y)
             };
-            Controls.Add(_lblCycleAfter);
+            _scrollHost.Controls.Add(_lblCycleAfter);
             y += 22;
 
             var barBgAfter = new Panel { Location = new Point(x, y), Size = new Size(W - 52, 8), BackColor = Theme.BgCard };
             _barFillAfter  = new Panel { Location = new Point(0, 0), Size = new Size(4, 8), BackColor = Color.FromArgb(50, 220, 120) };
             barBgAfter.Controls.Add(_barFillAfter);
-            Controls.Add(barBgAfter);
+            _scrollHost.Controls.Add(barBgAfter);
             y += 18;
 
             // ── 操作類型（強制選擇，預設空白）──────────────────────
             Div(x, y, W); y += 10;
-            Controls.Add(new Label
+            _scrollHost.Controls.Add(new Label
             {
                 Text      = "⚠ STEP 3  操作類型（必填）— 請明確點選其中一項：",
                 ForeColor = Theme.AccentOrange, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
@@ -2134,7 +2143,7 @@ namespace SQ_Email_Tools
                 btn.FlatAppearance.BorderColor = Color.FromArgb(50, 55, 70);
                 btn.FlatAppearance.BorderSize  = 1;
                 btn.Click += (s, e) => { _opMode = capturedMode; RefreshOpButtons(); };
-                Controls.Add(btn);
+                _scrollHost.Controls.Add(btn);
                 _opBtns[mi] = btn;
                 y += 46;
             }
@@ -2179,7 +2188,7 @@ namespace SQ_Email_Tools
                     ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, AutoSize = true,
                     Location = new Point(ux, 6)
                 });
-                Controls.Add(utilPanel);
+                _scrollHost.Controls.Add(utilPanel);
                 y += 38;
             }
 
@@ -2276,7 +2285,7 @@ namespace SQ_Email_Tools
             var btnCancel = Theme.MakeButton("✕ 取消", Theme.BgLight, Theme.TextSecondary, 90, 36);
             btnCancel.Location = new Point(x + 480, y);
             btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
+            _scrollHost.Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
 
             // 初始化
             RefreshTierButtons(-1);
@@ -2302,7 +2311,7 @@ namespace SQ_Email_Tools
         }
 
         private void Div(int x, int y, int w) =>
-            Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(w, 1), BackColor = Theme.Border });
+            _scrollHost.Controls.Add(new Panel { Location = new Point(x, y), Size = new Size(w, 1), BackColor = Theme.Border });
 
         private void RefreshTierButtons(long selectedTwd)
         {

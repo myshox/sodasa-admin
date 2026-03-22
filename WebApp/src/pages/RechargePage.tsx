@@ -4,16 +4,7 @@ import api from '../api'
 import { S } from '../strings'
 import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { PlayerRow } from '../api'
-
-function useIsMobile() {
-  const [m, setM] = useState(window.innerWidth < 768)
-  useEffect(() => {
-    const h = () => setM(window.innerWidth < 768)
-    window.addEventListener('resize', h)
-    return () => window.removeEventListener('resize', h)
-  }, [])
-  return m
-}
+import useIsMobile from '../hooks/useIsMobile'
 
 const TIERS = [
   { label: 'NT$100',  subLabel: '1萬',    twd: 100,    gold: 10_000 },

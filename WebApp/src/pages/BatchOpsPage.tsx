@@ -253,11 +253,11 @@ function SingleSendTab() {
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.4 }}>👉 左側雙擊道具加入購物車 · 標題／範例在 STEP 3 · 發送按鈕在右側購物車下方</p>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>名稱搜尋</div><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
           <Divider />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ flex: 1 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>道具編號</span><input type="number" value={manualId} onChange={e => setManualId(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualToCart()} placeholder="例 1001" style={{ width: '100%', marginTop: 2 }} /></label>
-            <label style={{ width: 60 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>數量</span><input type="number" value={manualQty} onChange={e => setManualQty(+e.target.value || 1)} min={1} max={999} style={{ width: '100%', marginTop: 2 }} /></label>
-            <label style={{ width: 55 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Type</span><input type="number" value={manualType} onChange={e => setManualType(+e.target.value || 1)} min={1} max={9} style={{ width: '100%', marginTop: 2 }} /></label>
-            <button onClick={addManualToCart} style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 14px', alignSelf: 'flex-end' }}>＋ 加入</button>
+          <div className="batchops-step2-manual" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ flex: '1 1 140px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>道具編號</span><input type="number" value={manualId} onChange={e => setManualId(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualToCart()} placeholder="例 1001" style={{ width: '100%', marginTop: 2 }} /></label>
+            <label style={{ flex: '0 0 88px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>數量</span><input type="number" value={manualQty} onChange={e => setManualQty(+e.target.value || 1)} min={1} max={999} style={{ width: '100%', marginTop: 2 }} /></label>
+            <label style={{ flex: '0 0 80px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>Type</span><input type="number" value={manualType} onChange={e => setManualType(+e.target.value || 1)} min={1} max={9} style={{ width: '100%', marginTop: 2 }} /></label>
+            <button type="button" onClick={addManualToCart} style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 14px', alignSelf: 'flex-end' }}>＋ 加入</button>
           </div>
           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-input)', borderRadius: 4, padding: '4px 8px' }}>Type: 1=道具 2=寵物 3=金幣 4=元寶 5=道具(不可轉) 6=公會 7=寵物糖 8=VIP點</div>
         </Card>
@@ -523,11 +523,11 @@ function BatchSendTab() {
         <Card title="STEP 2 — 加入道具">
           <div style={{ marginBottom: 10 }}><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
           <Divider />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-            <label style={{ flex: 1 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>道具編號</span><input type="number" value={manualId} onChange={e => setManualId(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualToCart()} placeholder="例 1001" style={{ width: '100%', marginTop: 2 }} /></label>
-            <label style={{ width: 60 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>數量/人</span><input type="number" value={manualQty} onChange={e => setManualQty(+e.target.value || 1)} min={1} max={99} style={{ width: '100%', marginTop: 2 }} /></label>
-            <label style={{ width: 55 }}><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Type</span><input type="number" value={manualType} onChange={e => setManualType(+e.target.value || 1)} min={1} max={9} style={{ width: '100%', marginTop: 2 }} /></label>
-            <button onClick={addManualToCart} style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 14px', alignSelf: 'flex-end' }}>＋</button>
+          <div className="batchops-step2-manual" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ flex: '1 1 140px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>道具編號</span><input type="number" value={manualId} onChange={e => setManualId(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManualToCart()} placeholder="例 1001" style={{ width: '100%', marginTop: 2 }} /></label>
+            <label style={{ flex: '0 0 88px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>數量/人</span><input type="number" value={manualQty} onChange={e => setManualQty(+e.target.value || 1)} min={1} max={99} style={{ width: '100%', marginTop: 2 }} /></label>
+            <label style={{ flex: '0 0 80px', minWidth: 0 }}><span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block' }}>Type</span><input type="number" value={manualType} onChange={e => setManualType(+e.target.value || 1)} min={1} max={9} style={{ width: '100%', marginTop: 2 }} /></label>
+            <button type="button" onClick={addManualToCart} style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 14px', alignSelf: 'flex-end' }}>＋ 加入</button>
           </div>
         </Card>
         <Card title="STEP 3 — 郵件設定（含儲存／載入範例）">
@@ -702,16 +702,16 @@ export default function BatchOpsPage() {
 // ── 共用小元件 ───────────────────────────────────────────────
 const Card = ({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) => (
   <div className={`batchops-card ${className ?? ''}`.trim()} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 14 }}>
-    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 10 }}>{title}</h3>
+    <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 10, wordBreak: 'normal', overflowWrap: 'break-word' }}>{title}</h3>
     {children}
   </div>
 )
 
 const Divider = () => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
-    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>或直接輸入編號</span>
-    <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+  <div className="batchops-divider" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0' }}>
+    <div style={{ flex: 1, height: 1, background: 'var(--border)', minWidth: 12 }} />
+    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>或直接輸入編號</span>
+    <div style={{ flex: 1, height: 1, background: 'var(--border)', minWidth: 12 }} />
   </div>
 )
 
