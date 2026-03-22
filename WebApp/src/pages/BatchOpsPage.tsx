@@ -14,6 +14,121 @@ type MainTab = 'single' | 'batch' | 'gold'
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 interface MailRawEntry { id: number; type: number; buff1: string; buff2: string; rawData: string; buff3: string; sendTime: string; isRead: boolean; deleted: boolean }
 
+// ── 郵件範例紀錄（存 localStorage，可儲存/載入多組標題+內容+購物車）
+const MAIL_TEMPLATES_KEY = 'gmtool_mail_templates'
+interface MailTemplate { id: string; name: string; title: string; content: string; cart: CartItem[] }
+function getMailTemplates(): MailTemplate[] {
+  try {
+    const raw = localStorage.getItem(MAIL_TEMPLATES_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw) as MailTemplate[]
+    return Array.isArray(arr) ? arr : []
+  } catch { return [] }
+}
+function saveMailTemplate(t: MailTemplate): void {
+  const list = getMailTemplates()
+  const idx = list.findIndex(x => x.id === t.id)
+  if (idx >= 0) list[idx] = t
+  else list.push(t)
+  localStorage.setItem(MAIL_TEMPLATES_KEY, JSON.stringify(list))
+}
+function deleteMailTemplate(id: string): void {
+  const list = getMailTemplates().filter(x => x.id !== id)
+  localStorage.setItem(MAIL_TEMPLATES_KEY, JSON.stringify(list))
+}
+
+function MailTemplatesBlock(
+  props: { title: string; content: string; cart: CartItem[]; setTitle: (v: string) => void; setContent: (v: string) => void; setCart: (v: CartItem[]) => void }
+) {
+  const { title, content, cart, setTitle, setContent, setCart } = props
+  const [templates, setTemplates] = useState<MailTemplate[]>(() => getMailTemplates())
+  const [editing, setEditing] = useState<MailTemplate | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+
+  const refresh = () => setTemplates(getMailTemplates())
+  const load = (t: MailTemplate) => {
+    setTitle(t.title)
+    setContent(t.content)
+    setCart(t.cart.length ? [...t.cart] : [])
+  }
+  const save = () => {
+    const name = window.prompt('請輸入範例名稱（例如：活動獎勵、補發道具）', '')
+    if (!name?.trim()) return
+    const t: MailTemplate = { id: `t${Date.now()}`, name: name.trim(), title, content, cart: [...cart] }
+    saveMailTemplate(t)
+    refresh()
+  }
+  const remove = (id: string) => {
+    if (!window.confirm('確定刪除此範例？')) return
+    deleteMailTemplate(id)
+    refresh()
+  }
+  const startEdit = (t: MailTemplate) => {
+    setEditing(t)
+    setEditName(t.name)
+    setEditTitle(t.title)
+    setEditContent(t.content)
+  }
+  const saveEdit = () => {
+    if (!editing) return
+    if (!editName.trim()) { window.alert('請輸入範例名稱'); return }
+    saveMailTemplate({ ...editing, name: editName.trim(), title: editTitle, content: editContent })
+    setEditing(null)
+    refresh()
+  }
+  const saveEditWithCart = () => {
+    if (!editing) return
+    if (!editName.trim()) { window.alert('請輸入範例名稱'); return }
+    saveMailTemplate({ ...editing, name: editName.trim(), title: editTitle, content: editContent, cart: [...cart] })
+    setEditing(null)
+    refresh()
+  }
+
+  return (
+    <div style={{ marginBottom: 14, padding: '12px 14px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, position: 'relative', zIndex: 3, overflow: 'visible' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', rowGap: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>📋 範例</span>
+        <button type="button" onClick={save} style={{ fontSize: 13, padding: '10px 16px', minHeight: 44, minWidth: 48, background: 'var(--accent-green)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, position: 'relative', zIndex: 4 }}>
+          ＋ 儲存目前為範例
+        </button>
+        {templates.length === 0 ? (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>尚無範例，儲存後可一鍵載入</span>
+        ) : (
+          templates.map(t => (
+            <span key={t.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', minHeight: 36, background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}>
+              <button type="button" onClick={() => load(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-blue)', fontWeight: 600, padding: '4px 0', minHeight: 28 }}>
+                {t.name}
+              </button>
+              <button type="button" onClick={() => startEdit(t)} title="編輯範例" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 2px', fontSize: 12, minWidth: 24, minHeight: 28 }}>✎</button>
+              <button type="button" onClick={() => remove(t.id)} title="刪除範例" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0 4px', fontSize: 14, minWidth: 28, minHeight: 28 }}>×</button>
+            </span>
+          ))
+        )}
+      </div>
+      {editing && (
+        <div style={{ marginTop: 12, padding: 12, background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>✎ 編輯範例「{editing.name}」</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>名稱</label>
+            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="範例名稱" style={{ padding: '8px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>標題</label>
+            <input value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="郵件標題" style={{ padding: '8px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>內容</label>
+            <input value={editContent} onChange={e => setEditContent(e.target.value)} placeholder="郵件內容" style={{ padding: '8px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+              <button type="button" onClick={saveEdit} style={{ padding: '8px 14px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>儲存（保留原購物車）</button>
+              <button type="button" onClick={saveEditWithCart} style={{ padding: '8px 14px', background: 'var(--accent-green)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>儲存並用目前購物車取代</button>
+              <button type="button" onClick={() => setEditing(null)} style={{ padding: '8px 14px', background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>取消</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ────────────────────────────────────────────────────────────
 // Tab 1 — 道具給予（單人）
 // ────────────────────────────────────────────────────────────
@@ -88,13 +203,13 @@ function SingleSendTab() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+    <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
       <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
-      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
+      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
         <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
+          <div className={isMobile ? 'batchops-step1-row' : undefined} style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : undefined }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <PlayerAutocomplete value={playerQ} onChange={setPlayerQ}
                 onSelect={p => { setSelectedAccount(p.account); setSelectedName(p.onlineName || p.account); setPlayerQ(p.onlineName || p.account) }}
                 placeholder="搜尋帳號或角色名稱" />
@@ -135,6 +250,7 @@ function SingleSendTab() {
           )}
         </Card>
         <Card title="STEP 2 — 加入道具 / 寵物">
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.4 }}>👉 左側雙擊道具加入購物車 · 標題／範例在 STEP 3 · 發送按鈕在右側購物車下方</p>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>名稱搜尋</div><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
           <Divider />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -145,23 +261,24 @@ function SingleSendTab() {
           </div>
           <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-input)', borderRadius: 4, padding: '4px 8px' }}>Type: 1=道具 2=寵物 3=金幣 4=元寶 5=道具(不可轉) 6=公會 7=寵物糖 8=VIP點</div>
         </Card>
-        <Card title="STEP 3 — 郵件設定">
+        <Card title="STEP 3 — 郵件設定（含儲存／載入範例）">
+          <MailTemplatesBlock title={title} content={content} cart={cart} setTitle={setTitle} setContent={setContent} setCart={setCart} />
           <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>郵件標題（選填）</label>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="[GM] 道具發送" style={{ width: '100%', marginBottom: 8, marginTop: 2 }} />
           <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>郵件內容（選填）</label>
           <input value={content} onChange={e => setContent(e.target.value)} placeholder="GM 發放道具" style={{ width: '100%', marginTop: 2 }} />
         </Card>
       </div>
-      <div style={{ width: 280, flexShrink: 0 }}>
+      <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, position: 'relative', zIndex: 1 }}>
         <Card title={`🛒 購物車 (${cart.length} 種)`}>
-          {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>購物車為空<br /><span style={{ fontSize: 11 }}>從左側清單點選道具</span></p>
-            : <><table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', marginBottom: 10 }}>
+          {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>購物車為空<br /><span style={{ fontSize: 11 }}>從左側清單點選道具加入</span></p>
+            : <><div className="batchops-cart-wrap"><table style={{ width: '100%', minWidth: isMobile ? 280 : undefined, fontSize: 12, borderCollapse: 'collapse', marginBottom: 10 }}>
                 <thead><tr style={{ borderBottom: '1px solid var(--border)' }}><th style={{ padding: '3px 4px', textAlign: 'left', color: 'var(--text-muted)' }}>道具</th><th style={{ padding: '3px 4px', color: 'var(--text-muted)', width: 30 }}>T</th><th style={{ padding: '3px 4px', color: 'var(--text-muted)', width: 55 }}>數量</th><th style={{ width: 20 }}></th></tr></thead>
                 <tbody>{cart.map((c, i) => <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '4px 4px' }}><span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>#{c.itemId}</span>{c.name && <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 4 }}>{c.name}</span>}</td><td style={{ padding: '4px 4px', color: 'var(--text-muted)' }}>{c.type}</td><td style={{ padding: '2px 4px' }}><input type="number" value={c.qty} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} min={1} max={999} style={{ width: 50, fontSize: 12 }} /></td><td><button onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button></td></tr>)}</tbody>
-              </table>
+              </table></div>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8, padding: 0 }}>清空購物車</button></>}
-          <button onClick={send} disabled={loading || recipients.length === 0 || cart.length === 0} style={{ width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '10px 0', fontSize: 14, borderRadius: 8, opacity: (recipients.length === 0 || cart.length === 0) ? 0.5 : 1 }}>
-            {loading ? '發送中…' : recipients.length > 1 ? `📬 發送至 ${recipients.length} 位玩家` : `📬 發送至 ${recipients[0]?.name || '玩家'}`}
+          <button onClick={send} disabled={loading || recipients.length === 0 || cart.length === 0} style={{ width: '100%', minHeight: 48, background: (recipients.length === 0 || cart.length === 0) ? 'var(--bg-input)' : 'var(--accent-blue)', color: (recipients.length === 0 || cart.length === 0) ? 'var(--text-muted)' : '#fff', padding: '12px 0', fontSize: 14, fontWeight: 600, borderRadius: 8, border: '2px solid var(--border)', cursor: (recipients.length === 0 || cart.length === 0) ? 'not-allowed' : 'pointer' }}>
+            {loading ? '發送中…' : (recipients.length === 0 || cart.length === 0) ? '📬 發送（請先加入道具與玩家）' : recipients.length > 1 ? `📬 發送至 ${recipients.length} 位玩家` : `📬 發送至 ${recipients[0]?.name || '玩家'}`}
           </button>
         </Card>
         {sentSummary && (
@@ -329,11 +446,11 @@ function BatchSendTab() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+    <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
       <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
-      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
+      <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         <Card title="STEP 1 — 目標玩家">
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div className={isMobile ? 'batchops-target-row' : undefined} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
             <button style={btnStyle('all')} onClick={() => { setTarget('all'); setSearchList([]); setSelected(new Set()) }}>🌐 全部玩家</button>
             <button style={btnStyle('online')} onClick={() => { setTarget('online'); setSearchList([]); setSelected(new Set()) }}>🟢 在線玩家</button>
             <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>📝 自訂帳號</button>
@@ -343,7 +460,7 @@ function BatchSendTab() {
           {target === 'custom' && <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder={'一行一個帳號\naccount1\naccount2'} style={{ width: '100%', height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />}
 
           {target === 'search' && <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div className={isMobile ? 'batchops-search-row' : undefined} style={{ display: 'flex', gap: 8, marginBottom: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : undefined }}>
               <PlayerAutocomplete value={searchQ} onChange={setSearchQ}
                 onSelect={(p: PlayerRow) => { setSearchList(prev => prev.find(x => x.account === p.account) ? prev : [...prev, p]); setSelected(prev => { const s = new Set(prev); s.add(p.account); return s }); setSearchQ('') }}
                 placeholder="搜尋玩家加入清單…" style={{ flex: 1 }} />
@@ -413,18 +530,10 @@ function BatchSendTab() {
             <button onClick={addManualToCart} style={{ background: 'var(--accent-green)', color: '#fff', padding: '8px 14px', alignSelf: 'flex-end' }}>＋</button>
           </div>
         </Card>
-        <Card title="STEP 3 — 郵件設定">
+        <Card title="STEP 3 — 郵件設定（含儲存／載入範例）">
+          <MailTemplatesBlock title={title} content={content} cart={cart} setTitle={setTitle} setContent={setContent} setCart={setCart} />
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="郵件標題" style={{ width: '100%', marginBottom: 8 }} />
           <textarea value={content} onChange={e => setContent(e.target.value)} placeholder="郵件內容" style={{ width: '100%', height: 60, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />
-          {result && (
-            <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, fontSize: 13,
-              background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)',
-              border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`,
-              color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-              {result}
-            </div>
-          )}
-          <button onClick={send} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 24px', fontSize: 14, marginTop: 10 }}>{loading ? '發送中…' : `📤 批量發送`}</button>
         </Card>
 
         {showSent && sentAccounts.length > 0 && (
@@ -445,16 +554,20 @@ function BatchSendTab() {
           </div>
         )}
       </div>
-      <div style={{ width: isMobile ? '100%' : 260, flexShrink: 0 }}>
+      <div style={{ width: isMobile ? '100%' : 260, flexShrink: 0, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Card title={`🛒 購物車（${cart.length} 種）`}>
           {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 16 }}>購物車為空</p>
-            : <>{cart.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+            : <><div className="batchops-cart-wrap">{cart.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                 <span style={{ color: 'var(--accent-blue)', fontWeight: 600, flex: 1 }}>#{c.itemId}{c.name ? ` ${c.name}` : ''}</span>
                 <input type="number" value={c.qty} min={1} max={99} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} style={{ width: 50, fontSize: 12, textAlign: 'center' }} />
                 <button onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-              </div>)}
+              </div>)}</div>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8, padding: 0 }}>清空</button></>}
         </Card>
+        {result && <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)', border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`, color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)' }}>{result}</div>}
+        <button onClick={send} disabled={loading} style={{ minHeight: 48, width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '12px 16px', fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: loading ? 'wait' : 'pointer' }}>
+          {loading ? '發送中…' : '📤 批量發送'}
+        </button>
       </div>
     </div>
   )
@@ -552,7 +665,7 @@ export default function BatchOpsPage() {
   ]
 
   return (
-    <div style={{ padding: isMobile ? 12 : 24 }}>
+    <div className="batchops-page" style={{ padding: isMobile ? 12 : 24, paddingBottom: 80 }}>
       {/* 標題 */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, margin: 0,
@@ -565,7 +678,7 @@ export default function BatchOpsPage() {
       </div>
 
       {/* Tab 列 */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
+      <div className="batchops-tabs" style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border)', overflowX: 'auto', flexShrink: 0 }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} title={t.desc} style={{
             padding: isMobile ? '9px 14px' : '9px 20px', fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
@@ -587,8 +700,8 @@ export default function BatchOpsPage() {
 }
 
 // ── 共用小元件 ───────────────────────────────────────────────
-const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 14 }}>
+const Card = ({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) => (
+  <div className={`batchops-card ${className ?? ''}`.trim()} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16, marginBottom: 14 }}>
     <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 10 }}>{title}</h3>
     {children}
   </div>

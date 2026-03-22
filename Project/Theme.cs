@@ -369,17 +369,19 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         // 郵件範本按鈕（可套用/儲存範本，供三個發送介面共用）
         // ══════════════════════════════════════════════════════════
-        /// <summary>建立「📋 範本 ▾」按鈕，點擊彈出選單套用/儲存範本</summary>
-        public static Button MakeTemplateButton(TextBox titleBox, TextBox contentBox)
+        /// <summary>建立「📋 範本 ▾」按鈕，點擊彈出選單套用/儲存範本。可選：儲存/載入購物車</summary>
+        public static Button MakeTemplateButton(TextBox titleBox, TextBox contentBox,
+            Func<List<MailTemplateCartItem>> getCart = null,
+            Action<MailTemplate> onApplyTemplate = null)
         {
             var btn = new Button
             {
                 Text     = "📋 範本 ▾",
-                Width    = 100, Height = 26,
+                Size     = new Size(140, 40),
                 BackColor = Color.FromArgb(50, 80, 130),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font      = FontSmall,
+                Font      = FontBody,
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false,
             };
@@ -387,7 +389,15 @@ namespace SQ_Email_Tools
 
             btn.Click += (s, e) =>
             {
-                var menu = new ContextMenuStrip { BackColor = BgCard, ForeColor = TextPrimary, Font = FontBody };
+                var menu = new ContextMenuStrip
+                {
+                    BackColor = BgCard,
+                    ForeColor = TextPrimary,
+                    Font = FontBody,
+                    Padding = new Padding(8, 6, 8, 6),
+                    ShowImageMargin = false,
+                    MinimumSize = new Size(260, 0)
+                };
 
                 // ── 標題 ──
                 var hdr = new ToolStripLabel("  📋  郵件範本")
@@ -416,6 +426,7 @@ namespace SQ_Email_Tools
                         {
                             if (!string.IsNullOrEmpty(localT.Buff1)) titleBox.Text = localT.Buff1;
                             if (!string.IsNullOrEmpty(localT.Buff2)) contentBox.Text = localT.Buff2;
+                            onApplyTemplate?.Invoke(localT);
                         };
                     }
                     menu.Items.Add(new ToolStripSeparator());
@@ -464,13 +475,19 @@ namespace SQ_Email_Tools
                         string name = txtName.Text.Trim();
                         if (string.IsNullOrEmpty(name))
                         { MessageBox.Show("請輸入範本名稱", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                        TemplateManager.Instance.Add(new MailTemplate
+                        var t = new MailTemplate
                         {
-                            Name  = name,
-                            Buff1 = titleBox.Text.Trim(),
-                            Buff2 = contentBox.Text.Trim(),
+                            Name      = name,
+                            Buff1     = titleBox.Text.Trim(),
+                            Buff2     = contentBox.Text.Trim(),
                             CreatedAt = DateTime.Now
-                        });
+                        };
+                        if (getCart != null)
+                        {
+                            try { t.Cart = getCart() ?? new List<MailTemplateCartItem>(); }
+                            catch { t.Cart = new List<MailTemplateCartItem>(); }
+                        }
+                        TemplateManager.Instance.Add(t);
                         MessageBox.Show($"✅ 範本「{name}」已儲存！", "儲存成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         dlg.Close();
                     };
@@ -486,7 +503,11 @@ namespace SQ_Email_Tools
                     manageItem.Click += (_, __) => ShowTemplateManager(btn.FindForm());
                 }
 
-                menu.Show(btn, new Point(0, btn.Height));
+                // 選單在按鈕右側展開，避免被左側面板裁切或遮住
+                var pt = btn.Parent?.PointToScreen(new Point(btn.Right, btn.Top)) ?? btn.PointToScreen(new Point(btn.Width, 0));
+                if (pt.X + 220 > Screen.FromControl(btn).WorkingArea.Right)
+                    pt = btn.Parent?.PointToScreen(new Point(btn.Left, btn.Bottom)) ?? btn.PointToScreen(new Point(0, btn.Height));
+                menu.Show(pt);
             };
 
             return btn;
@@ -574,8 +595,54 @@ namespace SQ_Email_Tools
             RefreshDgv();
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 46, BackColor = BgDark };
+            var btnEdit = MakeButton("✎  編輯選取", AccentBlue, Color.White, 100, 30);
+            btnEdit.Location = new Point(12, 8);
+            btnEdit.Click   += (_, __) =>
+            {
+                int idx = dgv.CurrentRow?.Index ?? -1;
+                if (idx < 0) return;
+                var list = TemplateManager.Instance.Templates.ToList();
+                if (idx >= list.Count) return;
+                var old = list[idx];
+                var editDlg = new Form
+                {
+                    Text = "編輯範例",
+                    Size = new Size(420, 220),
+                    StartPosition = FormStartPosition.CenterParent,
+                    BackColor = BgCard, ForeColor = TextPrimary, Font = FontBody,
+                    FormBorderStyle = FormBorderStyle.FixedDialog
+                };
+                var lblName  = new Label { Text = "範本名稱：", Location = new Point(12, 14), ForeColor = TextSecondary, Font = FontBody };
+                var txtName  = new TextBox { Location = new Point(100, 12), Width = 300, Text = old.Name, BackColor = BgLight, ForeColor = TextPrimary };
+                var lblTitle = new Label { Text = "標題：",      Location = new Point(12, 46), ForeColor = TextSecondary, Font = FontBody };
+                var txtTitle = new TextBox { Location = new Point(100, 44), Width = 300, Text = old.Buff1 ?? "", BackColor = BgLight, ForeColor = TextPrimary };
+                var lblBody  = new Label { Text = "內容：",      Location = new Point(12, 78), ForeColor = TextSecondary, Font = FontBody };
+                var txtBody  = new TextBox { Location = new Point(100, 76), Width = 300, Text = old.Buff2 ?? "", BackColor = BgLight, ForeColor = TextPrimary };
+                var btnOk2   = MakePrimaryButton("儲存", 80, 28);
+                btnOk2.Location = new Point(220, 118);
+                var btnNo2   = MakeButton("取消", BgMid, TextMuted, 70, 28);
+                btnNo2.Location = new Point(130, 118);
+                btnOk2.Click += (_, __) =>
+                {
+                    if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入範本名稱", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                    var updated = new MailTemplate
+                    {
+                        Name = txtName.Text.Trim(),
+                        Buff1 = txtTitle.Text?.Trim() ?? "",
+                        Buff2 = txtBody.Text?.Trim() ?? "",
+                        Cart = old.Cart ?? new List<MailTemplateCartItem>(),
+                        CreatedAt = old.CreatedAt
+                    };
+                    TemplateManager.Instance.Replace(old, updated);
+                    editDlg.Close();
+                    RefreshDgv();
+                };
+                btnNo2.Click += (_, __) => editDlg.Close();
+                editDlg.Controls.AddRange(new Control[] { lblName, txtName, lblTitle, txtTitle, lblBody, txtBody, btnOk2, btnNo2 });
+                editDlg.ShowDialog(parent);
+            };
             var btnDel = MakeButton("🗑  刪除選取", AccentRed, Color.White, 110, 30);
-            btnDel.Location = new Point(12, 8);
+            btnDel.Location = new Point(118, 8);
             btnDel.Click   += (_, __) =>
             {
                 int idx = dgv.CurrentRow?.Index ?? -1;
@@ -587,12 +654,13 @@ namespace SQ_Email_Tools
                 TemplateManager.Instance.Remove(list[idx]);
                 RefreshDgv();
             };
+            bottom.Controls.Add(btnEdit);
             bottom.Controls.Add(btnDel);
             bottom.Controls.Add(new Label
             {
                 Text = "提示：範本儲存在應用程式目錄的 templates.json",
                 ForeColor = TextMuted, Font = FontSmall,
-                AutoSize = true, Location = new Point(130, 14)
+                AutoSize = true, Location = new Point(238, 14)
             });
 
             dlg.Controls.Add(dgv);

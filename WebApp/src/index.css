@@ -242,4 +242,73 @@ a[href] { position: relative; z-index: 1; }
     align-items: center !important;
     justify-content: center !important;
   }
+
+  /* ── 批量工具／郵件頁切版 ── */
+  .batchops-page {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .batchops-mail-layout {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .batchops-mail-layout > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .batchops-card h3 {
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+    word-break: break-word;
+    hyphens: auto;
+  }
+  .batchops-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin;
+    padding-bottom: 4px !important;
+    margin-bottom: 16px !important;
+    gap: 6px !important;
+  }
+  .batchops-tabs button {
+    flex-shrink: 0 !important;
+  }
+  .batchops-cart-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+  .batchops-step1-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .batchops-step1-row > button {
+    width: 100% !important;
+  }
+  .batchops-target-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 4px !important;
+  }
+  .batchops-target-row button {
+    flex-shrink: 0 !important;
+  }
+  .batchops-search-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .batchops-search-row > button {
+    width: 100% !important;
+  }
+}
+
+/* 批量工具：卡片標題長字換行（全寬度） */
+.batchops-card h3 {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }

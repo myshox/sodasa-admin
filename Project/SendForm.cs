@@ -589,12 +589,35 @@ namespace SQ_Email_Tools
             };
             _chkSchedule.CheckedChanged += (s, e) => _dtStart.Enabled = _chkSchedule.Checked;
 
-            // 範本按鈕（放在標題行右側）
-            var tplBtn = Theme.MakeTemplateButton(_txtTitle, _txtContent);
+            // 範本按鈕（含購物車儲存/載入，與道具給予、批量發送一致）
+            var tplBtn = Theme.MakeTemplateButton(_txtTitle, _txtContent,
+                getCart: () => _cart.Select(c => new MailTemplateCartItem
+                {
+                    ItemId = c.Item.Id,
+                    Qty    = c.Qty,
+                    Type   = c.Item.IsPet ? 2 : 1,
+                    Name   = c.Item.Name ?? ""
+                }).ToList(),
+                onApplyTemplate: t =>
+                {
+                    _cart.Clear();
+                    var gm = GameDataManager.Instance;
+                    foreach (var it in t.Cart ?? new List<MailTemplateCartItem>())
+                    {
+                        var info = it.Type == 2 ? gm.GetPetById(it.ItemId) : gm.GetItemById(it.ItemId);
+                        if (info != null)
+                            _cart.Add(new CartEntry { Item = info, Qty = Math.Max(1, it.Qty), Type = it.Type });
+                    }
+                    RefreshCartDgv();
+                });
 
             AddSendRow("標      題：", _txtTitle,  260);
-            tplBtn.Location = new Point(88 + 266, sy - 26 - 8 + 2);
+            sy += 10;
+            tplBtn.Location = new Point(88, sy);
+            tplBtn.Size = new Size(140, 40);
             sendPanel.Controls.Add(tplBtn);
+            tplBtn.BringToFront();
+            sy += tplBtn.Height + 10;
 
             AddSendRow("信件內容：", _txtContent, 260);
             // 數量/type 改為在購物車欄直接編輯，此處移除

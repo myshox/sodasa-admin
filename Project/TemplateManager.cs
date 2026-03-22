@@ -43,6 +43,15 @@ namespace SQ_Email_Tools
             Persist();
         }
 
+        /// <summary>取代既有範本（編輯後呼叫，保留 Cart 可傳入更新後的 t）</summary>
+        public void Replace(MailTemplate old, MailTemplate updated)
+        {
+            int i = _templates.IndexOf(old);
+            if (i < 0) return;
+            _templates[i] = updated;
+            Persist();
+        }
+
         private void Persist()
         {
             File.WriteAllText(_filePath,

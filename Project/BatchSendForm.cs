@@ -454,13 +454,35 @@ namespace SQ_Email_Tools
                 Value  = DateTime.Now.AddDays(30)
             };
 
-            // 範本按鈕（橫跨兩欄，放在標題列右側）
-            var tplBtn = Theme.MakeTemplateButton(_txtTitle, _txtContent);
+            // 範本按鈕（含購物車儲存/載入，與網頁版範例紀錄一致）
+            var tplBtn = Theme.MakeTemplateButton(_txtTitle, _txtContent,
+                getCart: () => _cart.Select(c => new MailTemplateCartItem
+                {
+                    ItemId = c.Item.Id,
+                    Qty    = c.Qty,
+                    Type   = c.Item.IsPet ? 2 : 1,
+                    Name   = c.Item.Name ?? ""
+                }).ToList(),
+                onApplyTemplate: t =>
+                {
+                    _cart.Clear();
+                    var gm = GameDataManager.Instance;
+                    foreach (var it in t.Cart ?? new List<MailTemplateCartItem>())
+                    {
+                        var info = it.Type == 2 ? gm.GetPetById(it.ItemId) : gm.GetItemById(it.ItemId);
+                        if (info != null)
+                            _cart.Add(new CartEntry { Item = info, Qty = Math.Max(1, it.Qty) });
+                    }
+                    RefreshCartDgv();
+                });
 
             AddRow("標      題：", _txtTitle,  260);
-            // 把範本按鈕貼在標題列右側
-            tplBtn.Location = new Point(84 + 266, sy - 28 - 8 + 2);
+            sy += 10;
+            tplBtn.Location = new Point(84, sy);
+            tplBtn.Size = new Size(140, 40);
             settingPanel.Controls.Add(tplBtn);
+            tplBtn.BringToFront();
+            sy += tplBtn.Height + 10;
 
             AddRow("信件內容：", _txtContent, 260);
             AddRow("到期日期：", _dtEnd,       140, "（預設 30 天）");

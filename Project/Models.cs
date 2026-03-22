@@ -194,16 +194,26 @@ namespace SQ_Email_Tools
         public int    Quantity  { get; set; } = 1;
     }
 
-    // ── 郵件範本 ──────────────────────────────────────
+    // ── 郵件範本（標題/內容/購物車，與網頁版範例紀錄一致）──────────────────
+    public class MailTemplateCartItem
+    {
+        public int    ItemId { get; set; }
+        public int    Qty    { get; set; } = 1;
+        public int    Type   { get; set; } = 1;  // 1=道具 2=寵物 等
+        public string Name   { get; set; } = "";  // 選填，顯示用
+    }
+
     public class MailTemplate
     {
-        public string Name  { get; set; }
-        public int    Type  { get; set; }
-        public int    Data  { get; set; }
-        public string Buff1 { get; set; }
-        public string Buff2 { get; set; }
-        public string Buff3 { get; set; }
+        public string   Name      { get; set; }
+        public int      Type      { get; set; }
+        public int      Data      { get; set; }
+        public string   Buff1     { get; set; }  // 標題
+        public string   Buff2     { get; set; }  // 內容
+        public string   Buff3     { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+        /// <summary>儲存的購物車（載入範本時一併還原）</summary>
+        public List<MailTemplateCartItem> Cart { get; set; } = new List<MailTemplateCartItem>();
     }
 
     // ── GM 操作日誌 ───────────────────────────────────
