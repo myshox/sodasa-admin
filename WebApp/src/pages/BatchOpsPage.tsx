@@ -14,56 +14,81 @@ type MainTab = 'single' | 'batch' | 'gold'
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
 interface MailRawEntry { id: number; type: number; buff1: string; buff2: string; rawData: string; buff3: string; sendTime: string; isRead: boolean; deleted: boolean }
 
-// ── 郵件範例紀錄（存 localStorage，可儲存/載入多組標題+內容+購物車）
-const MAIL_TEMPLATES_KEY = 'gmtool_mail_templates'
+// ── 郵件範例：存伺服器 Data/mail_templates.json（桌機/手機瀏覽器共用）；舊版 localStorage 會自動上傳一次後清除
+const MAIL_TEMPLATES_KEY_LEGACY = 'gmtool_mail_templates'
 interface MailTemplate { id: string; name: string; title: string; content: string; cart: CartItem[] }
-function getMailTemplates(): MailTemplate[] {
+function readLegacyLocalTemplates(): MailTemplate[] {
   try {
-    const raw = localStorage.getItem(MAIL_TEMPLATES_KEY)
+    const raw = localStorage.getItem(MAIL_TEMPLATES_KEY_LEGACY)
     if (!raw) return []
     const arr = JSON.parse(raw) as MailTemplate[]
     return Array.isArray(arr) ? arr : []
   } catch { return [] }
-}
-function saveMailTemplate(t: MailTemplate): void {
-  const list = getMailTemplates()
-  const idx = list.findIndex(x => x.id === t.id)
-  if (idx >= 0) list[idx] = t
-  else list.push(t)
-  localStorage.setItem(MAIL_TEMPLATES_KEY, JSON.stringify(list))
-}
-function deleteMailTemplate(id: string): void {
-  const list = getMailTemplates().filter(x => x.id !== id)
-  localStorage.setItem(MAIL_TEMPLATES_KEY, JSON.stringify(list))
 }
 
 function MailTemplatesBlock(
   props: { title: string; content: string; cart: CartItem[]; setTitle: (v: string) => void; setContent: (v: string) => void; setCart: (v: CartItem[]) => void }
 ) {
   const { title, content, cart, setTitle, setContent, setCart } = props
-  const [templates, setTemplates] = useState<MailTemplate[]>(() => getMailTemplates())
+  const [templates, setTemplates] = useState<MailTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [syncErr, setSyncErr] = useState('')
   const [editing, setEditing] = useState<MailTemplate | null>(null)
   const [editName, setEditName] = useState('')
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
 
-  const refresh = () => setTemplates(getMailTemplates())
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setSyncErr('')
+      try {
+        const r = await api.get<MailTemplate[]>('/mail-templates')
+        const server = Array.isArray(r.data) ? r.data : []
+        if (server.length > 0) {
+          if (!cancelled) setTemplates(server)
+        } else {
+          const legacy = readLegacyLocalTemplates()
+          if (legacy.length > 0) {
+            await api.put('/mail-templates', legacy)
+            try { localStorage.removeItem(MAIL_TEMPLATES_KEY_LEGACY) } catch { /* ignore */ }
+            if (!cancelled) setTemplates(legacy)
+          }
+        }
+      } catch {
+        if (!cancelled) setSyncErr('無法載入範例（請確認已登入且後端可用）')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const persist = async (next: MailTemplate[]) => {
+    setSyncErr('')
+    try {
+      await api.put('/mail-templates', next)
+      setTemplates(next)
+    } catch {
+      setSyncErr('儲存範例失敗，請稍後再試')
+    }
+  }
+
   const load = (t: MailTemplate) => {
     setTitle(t.title)
     setContent(t.content)
     setCart(t.cart.length ? [...t.cart] : [])
   }
-  const save = () => {
+  const save = async () => {
     const name = window.prompt('請輸入範例名稱（例如：活動獎勵、補發道具）', '')
     if (!name?.trim()) return
     const t: MailTemplate = { id: `t${Date.now()}`, name: name.trim(), title, content, cart: [...cart] }
-    saveMailTemplate(t)
-    refresh()
+    await persist([...templates, t])
   }
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     if (!window.confirm('確定刪除此範例？')) return
-    deleteMailTemplate(id)
-    refresh()
+    await persist(templates.filter(x => x.id !== id))
   }
   const startEdit = (t: MailTemplate) => {
     setEditing(t)
@@ -71,25 +96,29 @@ function MailTemplatesBlock(
     setEditTitle(t.title)
     setEditContent(t.content)
   }
-  const saveEdit = () => {
+
+  const saveEdit = async () => {
     if (!editing) return
     if (!editName.trim()) { window.alert('請輸入範例名稱'); return }
-    saveMailTemplate({ ...editing, name: editName.trim(), title: editTitle, content: editContent })
+    const next = templates.map(x => x.id === editing.id ? { ...editing, name: editName.trim(), title: editTitle, content: editContent } : x)
+    await persist(next)
     setEditing(null)
-    refresh()
   }
-  const saveEditWithCart = () => {
+  const saveEditWithCart = async () => {
     if (!editing) return
     if (!editName.trim()) { window.alert('請輸入範例名稱'); return }
-    saveMailTemplate({ ...editing, name: editName.trim(), title: editTitle, content: editContent, cart: [...cart] })
+    const next = templates.map(x => x.id === editing.id ? { ...editing, name: editName.trim(), title: editTitle, content: editContent, cart: [...cart] } : x)
+    await persist(next)
     setEditing(null)
-    refresh()
   }
 
   return (
     <div style={{ marginBottom: 14, padding: '12px 14px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, position: 'relative', zIndex: 3, overflow: 'visible' }}>
+      {syncErr && (
+        <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 6, fontSize: 12, color: 'var(--accent-red)' }}>{syncErr}</div>
+      )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', rowGap: 10 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>📋 範例</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', flexShrink: 0 }}>📋 範例{loading ? '（載入中…）' : '（伺服器同步）'}</span>
         <button type="button" onClick={save} style={{ fontSize: 13, padding: '10px 16px', minHeight: 44, minWidth: 48, background: 'var(--accent-green)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, position: 'relative', zIndex: 4 }}>
           ＋ 儲存目前為範例
         </button>

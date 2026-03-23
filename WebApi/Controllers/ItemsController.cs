@@ -69,7 +69,7 @@ public class ItemsController : ControllerBase
         // 把 publish/Data/*.json 複製回 repo 的 WebApi/Data/
         var repoDataDir = Path.Combine(repo, "WebApi", "Data");
         Directory.CreateDirectory(repoDataDir);
-        foreach (var f in new[] { "items.json", "pets.json" })
+        foreach (var f in new[] { "items.json", "pets.json", "mail_templates.json" })
         {
             var src = Path.Combine(DataDir, f);
             var dst = Path.Combine(repoDataDir, f);
@@ -90,7 +90,7 @@ public class ItemsController : ControllerBase
             return (p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd()).Trim();
         }
 
-        Run("add WebApi/Data/items.json WebApi/Data/pets.json");
+        Run("add WebApi/Data/items.json WebApi/Data/pets.json WebApi/Data/mail_templates.json");
         var commitOut = Run("commit -m \"update: sync items/pets data files\"");
         var pushOut   = Run("push origin master");
 

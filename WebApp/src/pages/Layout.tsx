@@ -285,7 +285,7 @@ export default function Layout() {
       }}>
         <SidebarContent />
       </aside>
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)', padding: 2 }}>
+      <main className="app-main-scroll app-main-desktop" style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
         <Outlet />
       </main>
     </div>

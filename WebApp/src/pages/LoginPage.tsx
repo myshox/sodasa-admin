@@ -2,37 +2,39 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import { S } from '../strings'
-import useIsMobile from '../hooks/useIsMobile'
-
 const REMEMBER_KEY = 'gm_remember'
 
 export default function LoginPage() {
-  const isMobile = useIsMobile()
-  const [user,     setUser]     = useState('')
-  const [pass,     setPass]     = useState('')
+  const [user, setUser] = useState('')
+  const [pass, setPass] = useState('')
   const [remember, setRemember] = useState(false)
   const [showPass, setShowPass] = useState(false)
-  const [err,      setErr]      = useState('')
-  const [loading,  setLoading]  = useState(false)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(false)
   const nav = useNavigate()
 
-  // 頁面載入時讀取記住的帳密
   useEffect(() => {
     try {
       const saved = localStorage.getItem(REMEMBER_KEY)
       if (saved) {
         const { u, p } = JSON.parse(saved)
-        setUser(u || ''); setPass(p || ''); setRemember(true)
+        setUser(u || '')
+        setPass(p || '')
+        setRemember(true)
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const login = async (e: React.FormEvent) => {
-    e.preventDefault(); setErr(''); setLoading(true)
+    e.preventDefault()
+    setErr('')
+    setLoading(true)
     try {
       const r = await api.post('/auth/login', { username: user, password: pass })
       localStorage.setItem('gm_token', r.data.token)
-      localStorage.setItem('gm_user',  r.data.username)
+      localStorage.setItem('gm_user', r.data.username)
       if (remember) {
         localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user, p: pass }))
       } else {
@@ -41,57 +43,91 @@ export default function LoginPage() {
       nav('/')
     } catch {
       setErr(S.loginErr)
-    } finally { setLoading(false) }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: 'var(--bg-page)',
-      padding: isMobile ? 16 : 0, boxSizing: 'border-box'
-    }}>
-      <form onSubmit={login} style={{
-        background: 'var(--bg-card)', boxShadow: 'var(--neu-shadow-raised)',
-        borderRadius: 16, padding: isMobile ? '24px 20px' : '40px 48px',
-        width: isMobile ? '100%' : 360, maxWidth: 360, boxSizing: 'border-box',
-        display: 'flex', flexDirection: 'column', gap: 18
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 36 }}>🍅</div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{S.loginTitle}</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{S.loginSub}</p>
+    <div className="login-root">
+      <form onSubmit={login} className="login-card">
+        <div className="login-brand">
+          <div className="emoji">🍅</div>
+          <h2>{S.loginTitle}</h2>
+          <p>{S.loginSub}</p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{S.loginUser}</label>
-          <input value={user} onChange={e => setUser(e.target.value)}
-            placeholder={S.loginPlhUser} autoFocus style={{ width: '100%' }} />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>{S.loginUser}</label>
+          <input
+            value={user}
+            onChange={e => setUser(e.target.value)}
+            placeholder={S.loginPlhUser}
+            autoFocus
+            style={{ width: '100%' }}
+            autoComplete="username"
+          />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{S.loginPass}</label>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>{S.loginPass}</label>
           <div style={{ position: 'relative' }}>
-            <input type={showPass ? 'text' : 'password'} value={pass}
+            <input
+              type={showPass ? 'text' : 'password'}
+              value={pass}
               onChange={e => setPass(e.target.value)}
-              placeholder={S.loginPlhPass} style={{ width: '100%', paddingRight: 38 }} />
-            <button type="button" onClick={() => setShowPass(v => !v)}
+              placeholder={S.loginPlhPass}
+              style={{ width: '100%', paddingRight: 44 }}
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(v => !v)}
+              aria-label={showPass ? '隱藏密碼' : '顯示密碼'}
               style={{
-                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: 15, padding: '2px 4px'
-              }}>
+                position: 'absolute',
+                right: 6,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'var(--neu-bg-light)',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-muted)',
+                fontSize: 18,
+                padding: '6px 8px',
+                borderRadius: 8,
+                boxShadow: 'var(--neu-shadow-inset-sm)',
+              }}
+            >
               {showPass ? '🙈' : '👁'}
             </button>
           </div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-            style={{ width: 15, height: 15, cursor: 'pointer' }} />
+
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            cursor: 'pointer',
+            userSelect: 'none',
+            marginTop: 4,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={e => setRemember(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: 'pointer' }}
+          />
           <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>記住帳號密碼</span>
         </label>
-        {err && <p style={{ color: 'var(--accent-red)', fontSize: 12, textAlign: 'center' }}>{err}</p>}
-        <button type="submit" disabled={loading} style={{
-          background: 'var(--accent-blue)', color: '#fff',
-          padding: '10px 0', fontSize: 15, marginTop: 4
-        }}>
+
+        {err && (
+          <p style={{ color: 'var(--accent-red)', fontSize: 13, textAlign: 'center', margin: 0 }}>{err}</p>
+        )}
+
+        <button type="submit" disabled={loading} className="login-submit primary">
           {loading ? S.loginLoading : S.loginBtn}
         </button>
       </form>

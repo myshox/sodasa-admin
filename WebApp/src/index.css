@@ -30,11 +30,27 @@
   --border:         rgba(190, 190, 190, 0.4);
   --radius:         12px;
   --radius-sm:      10px;
+  --radius-xl:      18px;
+  /* 全站版面 */
+  --page-max:       1180px;
+  --page-pad-x:     24px;
+  --page-pad-y:     20px;
+  --ui-glow-blue:   rgba(91, 124, 255, 0.12);
+  --ui-glow-green:  rgba(82, 199, 122, 0.12);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body, #root { height: 100%; font-family: 'Microsoft JhengHei UI', 'Segoe UI', sans-serif; }
-body { background: var(--bg-page); color: var(--text-primary); font-size: 14px; }
+html, body, #root { height: 100%; }
+body {
+  font-family: 'Segoe UI', 'Microsoft JhengHei UI', 'Microsoft YaHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
+  background: var(--bg-page);
+  background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(91, 124, 255, 0.08), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 100% 50%, rgba(82, 199, 122, 0.06), transparent 45%);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
 a { color: var(--accent-blue); text-decoration: none; }
 
 /* ── 網頁版（桌面）：按鈕與可點元素一致可點、層級正確 ── */
@@ -363,4 +379,307 @@ a[href] { position: relative; z-index: 1; }
 .batchops-card h3 {
   word-break: normal;
   overflow-wrap: break-word;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   全站頁面骨架 · 首頁 · 登入（與 Layout 主內容區搭配）
+   ═══════════════════════════════════════════════════════════════ */
+.page-shell {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--page-pad-y) var(--page-pad-x);
+  box-sizing: border-box;
+}
+
+.app-main-desktop {
+  padding: 18px 22px 36px !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1023px) {
+  .page-shell {
+    padding: 16px 0 28px;
+  }
+}
+
+/* ── 首頁 Dashboard ── */
+.dashboard-hero {
+  position: relative;
+  border-radius: var(--radius-xl);
+  padding: 22px 22px 20px;
+  margin-bottom: 22px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(91, 124, 255, 0.14) 0%, rgba(82, 199, 122, 0.1) 50%, rgba(240, 167, 85, 0.08) 100%);
+  box-shadow: var(--neu-shadow-raised-sm);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+.dashboard-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.35) 0%, transparent 55%);
+  pointer-events: none;
+}
+.dashboard-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+.dashboard-title {
+  font-size: clamp(1.35rem, 4vw, 1.65rem);
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #3b5bdb 0%, #2d9d6c 55%, #c27803 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.dashboard-sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.dashboard-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(91, 124, 255, 0.12);
+  border-radius: 999px;
+  border: 1px solid rgba(91, 124, 255, 0.22);
+}
+
+.dashboard-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+@media (max-width: 1023px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+.ui-stat-card {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 14px 14px 14px 16px;
+  box-shadow: var(--neu-shadow-raised-sm);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  min-width: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.ui-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 14px #c5cad4, -4px -4px 10px #ffffff;
+}
+.ui-stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--stat-accent, var(--accent-blue));
+}
+.ui-stat-card .ui-stat-icon {
+  font-size: 22px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.ui-stat-card .ui-stat-value {
+  font-size: clamp(1.1rem, 3vw, 1.35rem);
+  font-weight: 800;
+  color: var(--stat-accent, var(--accent-blue));
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+.ui-stat-card .ui-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-weight: 600;
+}
+.ui-stat-card .ui-stat-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.dashboard-quick {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1023px) {
+  .dashboard-quick {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+.ui-quick-card {
+  position: relative;
+  text-align: left;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 16px 14px;
+  box-shadow: var(--neu-shadow-raised-sm);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  min-height: 0;
+}
+.ui-quick-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 8px 8px 18px #c0c5d0, -4px -4px 12px #ffffff;
+}
+.ui-quick-card:active {
+  transform: translateY(0);
+}
+.ui-quick-card .q-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+  box-shadow: inset 1px 1px 3px rgba(255,255,255,.6);
+}
+.ui-quick-card .q-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.ui-quick-card .q-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.dashboard-hint {
+  margin-top: 24px;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  background: linear-gradient(145deg, rgba(91, 124, 255, 0.09), rgba(255, 255, 255, 0.5));
+  border: 1px solid rgba(91, 124, 255, 0.2);
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+.dashboard-hint h3 {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent-blue);
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dashboard-hint-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+@media (max-width: 1023px) {
+  .dashboard-hint-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dashboard-hint-grid strong {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.dashboard-alert {
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: rgba(245, 101, 101, 0.1);
+  border: 1px solid rgba(232, 93, 93, 0.45);
+  color: var(--accent-red);
+}
+
+/* ── 登入頁 ── */
+.login-root {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  box-shadow: var(--neu-shadow-raised);
+  border-radius: var(--radius-xl);
+  padding: 36px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+@media (max-width: 1023px) {
+  .login-card {
+    padding: 28px 22px;
+    border-radius: var(--radius);
+  }
+}
+.login-brand {
+  text-align: center;
+  margin-bottom: 12px;
+}
+.login-brand .emoji {
+  font-size: 40px;
+  line-height: 1;
+  filter: drop-shadow(2px 3px 4px rgba(0,0,0,.08));
+}
+.login-brand h2 {
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-top: 10px;
+  letter-spacing: -0.02em;
+}
+.login-brand p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
+.login-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 0 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
 }
