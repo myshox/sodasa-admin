@@ -93,8 +93,10 @@ export default function RechargePage() {
   const [calcRevBonus, setCalcRevBonus] = useState(0)
   const [calcTab, setCalcTab] = useState<'twd' | 'gold'>('twd')
 
-  const finalTwd  = selectedTier ? selectedTier.twd : parseInt(customTwd, 10) || 0
-  const baseGoldAuto = selectedTier ? selectedTier.gold : (parseInt(customTwd, 10) || 0) * 100
+  const customTwdNum = parseInt(customTwd, 10) || 0
+  const finalTwd = selectedTier ? selectedTier.twd : customTwdNum
+  // 與 EXE RechargeForm 一致：手動台幣依 TIERS 分段匯率（twdToGold），不可固定 ×100
+  const baseGoldAuto = selectedTier ? selectedTier.gold : twdToGold(customTwdNum).baseGold
   const finalGold = Math.floor(baseGoldAuto * (1 + bonus / 100))
   const giveGold  = opType === 'gold' || opType === 'onlyGold'
   // onlyGold 模式：不影響累積進度，afterCycle 不變
@@ -335,7 +337,7 @@ export default function RechargePage() {
 
           {/* STEP 2：套餐 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
-            <StepLabel n={2} text="選擇套餐" sub="1台幣 = 100金幣，大額有加成" />
+            <StepLabel n={2} text="選擇套餐" sub="大額套餐匯率優於 1:100；手動輸入台幣亦依分段匯率（與 EXE 相同）" />
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3,1fr)' : 'repeat(7,1fr)', gap: isMobile ? 8 : 8, marginTop: 14 }}>
               {TIERS.map(tier => {
                 const sel = selectedTier === tier

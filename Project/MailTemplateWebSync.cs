@@ -51,6 +51,69 @@ namespace SQ_Email_Tools
             return wires.Select(ToNative).ToList();
         }
 
+        /// <summary>
+        /// 一鍵同步：下載伺服器範本後與本機合併（以伺服器為主，補上僅本機有的範本），再整包上傳，使 EXE 與網頁一致。
+        /// </summary>
+        public static async Task SyncMergeAsync(string baseUrl, string token)
+        {
+            var remote = await DownloadTemplatesAsync(baseUrl, token);
+            var local = TemplateManager.Instance.Templates.ToList();
+            var merged = MergeRemoteAndLocal(remote, local);
+            await UploadTemplatesAsync(baseUrl, token, merged);
+        }
+
+        /// <summary>
+        /// 合併規則：先放入伺服器全部範本；再補上「本機獨有」（無 WebId，或 WebId 已不在伺服器清單內）。
+        /// 同 WebId 只保留伺服器版本。
+        /// </summary>
+        public static List<MailTemplate> MergeRemoteAndLocal(IReadOnlyList<MailTemplate> remote, IReadOnlyList<MailTemplate> local)
+        {
+            var merged = new List<MailTemplate>();
+            var remoteIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var r in remote)
+            {
+                if (!string.IsNullOrWhiteSpace(r.WebId))
+                    remoteIds.Add(r.WebId);
+                merged.Add(CloneTemplate(r));
+            }
+            foreach (var l in local)
+            {
+                if (string.IsNullOrWhiteSpace(l.WebId))
+                {
+                    merged.Add(CloneTemplate(l));
+                    continue;
+                }
+                if (!remoteIds.Contains(l.WebId))
+                    merged.Add(CloneTemplate(l));
+            }
+            return merged;
+        }
+
+        static MailTemplate CloneTemplate(MailTemplate t)
+        {
+            return new MailTemplate
+            {
+                WebId = t.WebId ?? "",
+                Name = t.Name,
+                Buff1 = t.Buff1,
+                Buff2 = t.Buff2,
+                Buff3 = t.Buff3,
+                Type = t.Type,
+                Data = t.Data,
+                CreatedAt = t.CreatedAt,
+                Cart = t.Cart == null
+                    ? new List<MailTemplateCartItem>()
+                    : t.Cart.Select(c => new MailTemplateCartItem
+                    {
+                        ItemId = c.ItemId,
+                        Qty = c.Qty,
+                        Type = c.Type,
+                        Name = c.Name ?? "",
+                        Buff3 = c.Buff3 ?? "",
+                    }).ToList(),
+            };
+        }
+
         /// <summary>將本機範本上傳至伺服器（覆寫伺服器整份清單）。成功後寫回 WebId 至 templates.json。</summary>
         public static async Task UploadTemplatesAsync(string baseUrl, string token, IReadOnlyList<MailTemplate> templates)
         {

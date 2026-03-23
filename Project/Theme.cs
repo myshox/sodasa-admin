@@ -563,7 +563,7 @@ namespace SQ_Email_Tools
             var dlg = new Form
             {
                 Text = "與 GM 網頁版同步範本",
-                Size = new Size(440, 268),
+                Size = new Size(440, 300),
                 StartPosition = FormStartPosition.CenterParent,
                 BackColor = BgCard,
                 ForeColor = TextPrimary,
@@ -580,18 +580,49 @@ namespace SQ_Email_Tools
             var txtPass = new TextBox { Location = new Point(12, 132), Width = 400, PasswordChar = '*', BackColor = BgLight, ForeColor = TextPrimary };
             var lblHint = new Label
             {
-                Text = "⬇ 下載：以伺服器範本取代本機 templates.json\r\n⬆ 上傳：以本機範本覆寫伺服器（網頁批量工具將顯示相同範例）",
+                Text = "🔄 一鍵同步：合併伺服器＋本機（網頁優先），再寫回兩端\r\n⬇ 下載：只覆蓋本機　⬆ 上傳：只覆蓋網頁（整包取代）",
                 Location = new Point(12, 160),
                 ForeColor = TextMuted,
                 Font = FontSmall,
-                Size = new Size(400, 36),
+                Size = new Size(400, 44),
             };
-            var btnDown = MakePrimaryButton("⬇ 下載", 100, 32);
-            btnDown.Location = new Point(12, 200);
-            var btnUp = MakeButton("⬆ 上傳", AccentGreen, Color.White, 100, 32);
-            btnUp.Location = new Point(118, 200);
-            var btnClose = MakeButton("關閉", BgMid, TextMuted, 80, 32);
-            btnClose.Location = new Point(332, 200);
+            var btnMerge = MakePrimaryButton("🔄 一鍵同步", 120, 32);
+            btnMerge.Location = new Point(12, 218);
+            var btnDown = MakeButton("⬇ 僅下載", AccentBlue, Color.White, 88, 32);
+            btnDown.Location = new Point(138, 218);
+            var btnUp = MakeButton("⬆ 僅上傳", AccentGreen, Color.White, 88, 32);
+            btnUp.Location = new Point(232, 218);
+            var btnClose = MakeButton("關閉", BgMid, TextMuted, 72, 32);
+            btnClose.Location = new Point(326, 218);
+
+            async void OnMerge(object s, EventArgs e)
+            {
+                try
+                {
+                    var u = MailTemplateWebSync.NormalizeBaseUrl(txtBase.Text);
+                    var tok = await MailTemplateWebSync.LoginAsync(u, txtUser.Text?.Trim(), txtPass.Text);
+                    if (string.IsNullOrEmpty(tok))
+                    {
+                        MessageBox.Show("登入失敗，請確認帳號密碼與伺服器網址。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    if (MessageBox.Show(
+                            "一鍵同步會：\n" +
+                            "1）從伺服器讀取網頁範本\n" +
+                            "2）合併「僅本機有」的範本\n" +
+                            "3）整包寫回本機與網頁（兩端一致）\n\n" +
+                            "（已存在於網頁的範本以伺服器內容為準）\n\n確定執行？",
+                            "一鍵同步", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    await MailTemplateWebSync.SyncMergeAsync(u, tok);
+                    refreshDgv();
+                    MessageBox.Show("一鍵同步完成，本機 templates.json 與網頁範例已對齊。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    dlg.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("一鍵同步失敗：\n" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
 
             async void OnDownload(object s, EventArgs e)
             {
@@ -608,7 +639,7 @@ namespace SQ_Email_Tools
                     if (MessageBox.Show($"即將以伺服器上的 {list.Count} 筆範本取代本機 templates.json。\n\n確定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                     TemplateManager.Instance.Save(list);
                     refreshDgv();
-                    MessageBox.Show("已從網頁伺服器下載範本。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("已從網頁伺服器下載範本（僅更新本機）。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     dlg.Close();
                 }
                 catch (Exception ex)
@@ -632,7 +663,7 @@ namespace SQ_Email_Tools
                     if (MessageBox.Show($"即將上傳 {list.Count} 筆範本到伺服器，覆寫網頁版現有範本。\n\n確定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                     await MailTemplateWebSync.UploadTemplatesAsync(u, tok, list);
                     refreshDgv();
-                    MessageBox.Show("已上傳至網頁伺服器。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("已上傳至網頁伺服器（僅覆寫網頁）。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     dlg.Close();
                 }
                 catch (Exception ex)
@@ -641,10 +672,11 @@ namespace SQ_Email_Tools
                 }
             }
 
+            btnMerge.Click += OnMerge;
             btnDown.Click += OnDownload;
             btnUp.Click += OnUpload;
             btnClose.Click += (_, __) => dlg.Close();
-            dlg.Controls.AddRange(new Control[] { lblBase, txtBase, lblUser, txtUser, lblPass, txtPass, lblHint, btnDown, btnUp, btnClose });
+            dlg.Controls.AddRange(new Control[] { lblBase, txtBase, lblUser, txtUser, lblPass, txtPass, lblHint, btnMerge, btnDown, btnUp, btnClose });
             dlg.ShowDialog(parent);
         }
 
