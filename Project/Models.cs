@@ -201,10 +201,14 @@ namespace SQ_Email_Tools
         public int    Qty    { get; set; } = 1;
         public int    Type   { get; set; } = 1;  // 1=道具 2=寵物 等
         public string Name   { get; set; } = "";  // 選填，顯示用
+        /// <summary>網頁版購物車欄位（寵物等）</summary>
+        public string Buff3  { get; set; } = "";
     }
 
     public class MailTemplate
     {
+        /// <summary>網頁版範例 id（與伺服器 mail_templates 同步）</summary>
+        public string   WebId     { get; set; } = "";
         public string   Name      { get; set; }
         public int      Type      { get; set; }
         public int      Data      { get; set; }

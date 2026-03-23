@@ -557,6 +557,97 @@ namespace SQ_Email_Tools
             return result;
         }
 
+        /// <summary>與 GM 網頁版同步範本（下載／上傳至伺服器 mail_templates）</summary>
+        private static void ShowWebSyncDialog(Form parent, Action refreshDgv)
+        {
+            var dlg = new Form
+            {
+                Text = "與 GM 網頁版同步範本",
+                Size = new Size(440, 268),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = BgCard,
+                ForeColor = TextPrimary,
+                Font = FontBody,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+            };
+            var lblBase = new Label { Text = "伺服器網址（不需結尾 /）", Location = new Point(12, 12), ForeColor = TextSecondary, AutoSize = true };
+            var txtBase = new TextBox { Text = "https://gm.sodasa.org", Location = new Point(12, 32), Width = 400, BackColor = BgLight, ForeColor = TextPrimary };
+            var lblUser = new Label { Text = "GM 帳號", Location = new Point(12, 62), ForeColor = TextSecondary, AutoSize = true };
+            var txtUser = new TextBox { Location = new Point(12, 82), Width = 400, BackColor = BgLight, ForeColor = TextPrimary };
+            var lblPass = new Label { Text = "GM 密碼", Location = new Point(12, 112), ForeColor = TextSecondary, AutoSize = true };
+            var txtPass = new TextBox { Location = new Point(12, 132), Width = 400, PasswordChar = '*', BackColor = BgLight, ForeColor = TextPrimary };
+            var lblHint = new Label
+            {
+                Text = "⬇ 下載：以伺服器範本取代本機 templates.json\r\n⬆ 上傳：以本機範本覆寫伺服器（網頁批量工具將顯示相同範例）",
+                Location = new Point(12, 160),
+                ForeColor = TextMuted,
+                Font = FontSmall,
+                Size = new Size(400, 36),
+            };
+            var btnDown = MakePrimaryButton("⬇ 下載", 100, 32);
+            btnDown.Location = new Point(12, 200);
+            var btnUp = MakeButton("⬆ 上傳", AccentGreen, Color.White, 100, 32);
+            btnUp.Location = new Point(118, 200);
+            var btnClose = MakeButton("關閉", BgMid, TextMuted, 80, 32);
+            btnClose.Location = new Point(332, 200);
+
+            async void OnDownload(object s, EventArgs e)
+            {
+                try
+                {
+                    var u = MailTemplateWebSync.NormalizeBaseUrl(txtBase.Text);
+                    var tok = await MailTemplateWebSync.LoginAsync(u, txtUser.Text?.Trim(), txtPass.Text);
+                    if (string.IsNullOrEmpty(tok))
+                    {
+                        MessageBox.Show("登入失敗，請確認帳號密碼與伺服器網址。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    var list = await MailTemplateWebSync.DownloadTemplatesAsync(u, tok);
+                    if (MessageBox.Show($"即將以伺服器上的 {list.Count} 筆範本取代本機 templates.json。\n\n確定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    TemplateManager.Instance.Save(list);
+                    refreshDgv();
+                    MessageBox.Show("已從網頁伺服器下載範本。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    dlg.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("下載失敗：\n" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+
+            async void OnUpload(object s, EventArgs e)
+            {
+                try
+                {
+                    var u = MailTemplateWebSync.NormalizeBaseUrl(txtBase.Text);
+                    var tok = await MailTemplateWebSync.LoginAsync(u, txtUser.Text?.Trim(), txtPass.Text);
+                    if (string.IsNullOrEmpty(tok))
+                    {
+                        MessageBox.Show("登入失敗，請確認帳號密碼與伺服器網址。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    var list = TemplateManager.Instance.Templates.ToList();
+                    if (MessageBox.Show($"即將上傳 {list.Count} 筆範本到伺服器，覆寫網頁版現有範本。\n\n確定？", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    await MailTemplateWebSync.UploadTemplatesAsync(u, tok, list);
+                    refreshDgv();
+                    MessageBox.Show("已上傳至網頁伺服器。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    dlg.Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("上傳失敗：\n" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+
+            btnDown.Click += OnDownload;
+            btnUp.Click += OnUpload;
+            btnClose.Click += (_, __) => dlg.Close();
+            dlg.Controls.AddRange(new Control[] { lblBase, txtBase, lblUser, txtUser, lblPass, txtPass, lblHint, btnDown, btnUp, btnClose });
+            dlg.ShowDialog(parent);
+        }
+
         private static void ShowTemplateManager(Form parent)
         {
             var dlg = new Form
@@ -595,6 +686,9 @@ namespace SQ_Email_Tools
             RefreshDgv();
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 46, BackColor = BgDark };
+            var btnWeb = MakeButton("🌐 與網頁同步…", AccentBlue, Color.White, 130, 30);
+            btnWeb.Location = new Point(230, 8);
+            btnWeb.Click += (_, __) => ShowWebSyncDialog(parent, RefreshDgv);
             var btnEdit = MakeButton("✎  編輯選取", AccentBlue, Color.White, 100, 30);
             btnEdit.Location = new Point(12, 8);
             btnEdit.Click   += (_, __) =>
@@ -627,6 +721,7 @@ namespace SQ_Email_Tools
                     if (string.IsNullOrWhiteSpace(txtName.Text)) { MessageBox.Show("請輸入範本名稱", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
                     var updated = new MailTemplate
                     {
+                        WebId = old.WebId ?? "",
                         Name = txtName.Text.Trim(),
                         Buff1 = txtTitle.Text?.Trim() ?? "",
                         Buff2 = txtBody.Text?.Trim() ?? "",
@@ -654,13 +749,14 @@ namespace SQ_Email_Tools
                 TemplateManager.Instance.Remove(list[idx]);
                 RefreshDgv();
             };
+            bottom.Controls.Add(btnWeb);
             bottom.Controls.Add(btnEdit);
             bottom.Controls.Add(btnDel);
             bottom.Controls.Add(new Label
             {
-                Text = "提示：範本儲存在應用程式目錄的 templates.json",
+                Text = "本機 templates.json · 可按「與網頁同步」雙向同步",
                 ForeColor = TextMuted, Font = FontSmall,
-                AutoSize = true, Location = new Point(238, 14)
+                AutoSize = true, Location = new Point(368, 14)
             });
 
             dlg.Controls.Add(dgv);
