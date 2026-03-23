@@ -1822,7 +1822,7 @@ namespace SQ_Email_Tools
     // 調整累積充值對話框（雙軌制 + 強制選擇防呆）
     //
     //   ✦ paydata.point 單位：NT$（台幣），1循環 = NT$25,000
-    //   ✦ 快選套餐自動依加成率換算金幣；手動輸入使用基礎率 ×100
+    //   ✦ 快選套餐自動依加成率換算金幣；手動輸入依 TIERS 分段匯率（與 RechargeForm / 網頁一致）
     //   ✦ 操作類型強制二擇一，預設空白，送出前彈防呆確認視窗
     // ══════════════════════════════════════════════════════════════
     public class AdjustRechargeDialog : Form
@@ -1841,7 +1841,7 @@ namespace SQ_Email_Tools
         private readonly long _currentTotal;   // 目前 paydata.point (NT$)
         private readonly long _lifetimeTotal;  // 歷史總累儲 (NT$)
 
-        // 選取的套餐金幣（-1 = 手動輸入，用 ×100 基礎率）
+        // 選取的套餐金幣（-1 = 手動輸入，依 TwdToGoldBase 分段匯率）
         private long _selectedGold = -1;
         // 優惠加成 %（0/5/10/15/20）—— 只影響玩家實際入帳金幣，不影響累積儲值進度
         private int _bonusPct = 0;
@@ -1850,7 +1850,7 @@ namespace SQ_Email_Tools
         /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）；若為「只給金幣」模式則為 0</summary>
         public long TwdAmount  => _opMode == 2 ? 0 : (long)_nudTwd.Value;
         /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
-        public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L) * (1 + _bonusPct / 100.0));
+        public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : TwdToGoldBase((long)_nudTwd.Value)) * (1 + _bonusPct / 100.0));
         public bool GiveGold   => _opMode == 1 || _opMode == 2;
         public bool OnlyGold   => _opMode == 2;
         /// <summary>true = 使用者按了「清0累儲進度」</summary>
@@ -1873,6 +1873,31 @@ namespace SQ_Email_Tools
             ("NT$5K\n62.5萬",   5_000,    625_000),
             ("NT$10K\n130萬",  10_000,  1_300_000),
         };
+
+        /// <summary>手動台幣 → 基礎金幣（無贈金），與 RechargeForm.TwdToGold / 網頁 twdToGold 相同邏輯。</summary>
+        private static long TwdToGoldBase(long twd)
+        {
+            if (twd <= 0) return 0;
+            var best = Tiers[0];
+            foreach (var t in Tiers) if (twd >= t.Twd) best = t;
+            return (long)Math.Floor(twd * (double)best.Gold / best.Twd);
+        }
+
+        private static double TwdToGoldRate(long twd)
+        {
+            if (twd <= 0) return 100;
+            var best = Tiers[0];
+            foreach (var t in Tiers) if (twd >= t.Twd) best = t;
+            return (double)best.Gold / best.Twd;
+        }
+
+        private static string TwdToGoldTierLabel(long twd)
+        {
+            if (twd <= 0) return "—";
+            var best = Tiers[0];
+            foreach (var t in Tiers) if (twd >= t.Twd) best = t;
+            return best.Label.Replace("\n", " ");
+        }
 
         /// <param name="account">玩家帳號（cdkey）；有值時對話框顯示「修復循環顯示」「發放第N輪累積獎勵」</param>
         /// <param name="claimReady">是否可發放本輪累積獎勵（需 account 有值）</param>
@@ -1911,7 +1936,7 @@ namespace SQ_Email_Tools
             var infoBox = new Panel { Location = new Point(x, y), Size = new Size(W, 96), BackColor = Theme.BgCard };
             infoBox.Controls.Add(new Label
             {
-                Text      = "累積充值（台幣，實際付款） — 1 台幣 = 100 元寶",
+                Text      = "累積充值（台幣，實際付款） — 金幣換算依套餐分段匯率（與充值管理相同）",
                 ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 6)
             });
             infoBox.Controls.Add(new Label
@@ -2043,7 +2068,7 @@ namespace SQ_Email_Tools
             Div(x, y, W); y += 10;
             _scrollHost.Controls.Add(new Label
             {
-                Text = "STEP 2  或手動輸入台幣金額（金幣以基礎率 ×100 計算，無套餐加成）：",
+                Text = "或手動輸入台幣金額（依上方套餐分段匯率計算基礎金幣，與充值管理／網頁一致）：",
                 ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 4)
             });
             y += 22;
@@ -2251,22 +2276,22 @@ namespace SQ_Email_Tools
                 }
                 else if (_opMode == 2)
                 {
-                    long baseGold  = _selectedGold >= 0 ? _selectedGold : (long)_nudTwd.Value * 100L;
+                    long baseGold  = _selectedGold >= 0 ? _selectedGold : TwdToGoldBase((long)_nudTwd.Value);
                     long bonusGold = gold - baseGold;
                     string goldBreakdown = _bonusPct > 0
                         ? $"+{baseGold:N0}（套餐）＋ +{bonusGold:N0}（+{_bonusPct}% 優惠）＝ 共 {gold:N0} 金幣"
-                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : "基礎率 ×100")}）";
+                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : $"{TwdToGoldTierLabel(twd)} 分段匯率")}）";
                     modeTitle  = "【只增加金幣，不充值累積】";
                     modeDetail = $"✅ 金幣入帳：{goldBreakdown}\n❌ 累積充值進度不變（不計台幣、不記錄補單）\n❌ 歷史總累儲不變";
                     icon       = "💰";
                 }
                 else
                 {
-                    long baseGold  = _selectedGold >= 0 ? _selectedGold : twd * 100L;
+                    long baseGold  = _selectedGold >= 0 ? _selectedGold : TwdToGoldBase(twd);
                     long bonusGold = gold - baseGold;
                     string goldBreakdown = _bonusPct > 0
                         ? $"+{baseGold:N0}（套餐）＋ +{bonusGold:N0}（+{_bonusPct}% 優惠）＝ 共 {gold:N0} 金幣"
-                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : "基礎率 ×100")}）";
+                        : $"+{gold:N0} 金幣（{(_selectedGold >= 0 ? "套餐加成" : $"{TwdToGoldTierLabel(twd)} 分段匯率")}）";
                     modeTitle  = "【增加累儲進度 ＋ 同步發放金幣】";
                     modeDetail = $"✅ 金幣入帳：{goldBreakdown}\n✅ 累積充值進度 +NT${twd:N0}（只計台幣，優惠贈金不納入）{cycNote}\n✅ 歷史總累儲同步更新";
                     icon       = "💰";
@@ -2328,12 +2353,12 @@ namespace SQ_Email_Tools
         private void UpdateGoldPreview()
         {
             long twd       = (long)_nudTwd.Value;
-            long baseGold  = _selectedGold >= 0 ? _selectedGold : twd * 100L;
+            long baseGold  = _selectedGold >= 0 ? _selectedGold : TwdToGoldBase(twd);
             long bonusGold = (long)Math.Round(baseGold * _bonusPct / 100.0);
             long totalGold = baseGold + bonusGold;
             string rateNote = _selectedGold >= 0
                 ? $"套餐加成 {(double)baseGold / twd:F1}x/NT$"
-                : "基礎率 ×100";
+                : $"{TwdToGoldTierLabel(twd)}　{TwdToGoldRate(twd):F1}x/NT$";
             string bonusNote = _bonusPct > 0
                 ? $"  ＋  {bonusGold:N0}（+{_bonusPct}%）"
                 : "";
