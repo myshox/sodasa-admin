@@ -9,7 +9,13 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <AssemblyName>SQ_Email_Tools_TW</AssemblyName>
     <RootNamespace>SQ_Email_Tools</RootNamespace>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <!-- 與 GM 網頁版 UI 改版對齊；右鍵 EXE → 內容 可見相同版號 -->
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <Product>蘇打石器 GM 管理系統</Product>
+    <Description>私服後台管理工具（與 gm.sodasa.org 網頁版配套）</Description>
+    <Company>SODASA</Company>
     <!-- 直接 publish 到 GMTool 資料夾，確保 dll/exe 同步更新 -->
     <PublishDir>$(ProjectDir)..\GMTool\</PublishDir>
   </PropertyGroup>

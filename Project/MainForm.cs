@@ -49,7 +49,7 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         private void InitUI()
         {
-            Text          = "蘇打石器 GM 管理系統";
+            Text          = $"蘇打石器 GM 管理系統  v{AppVersion.DisplayShort}";
             Size          = new Size(1360, 800);
             MinimumSize   = new Size(1100, 640);
             BackColor     = Theme.BgPage;
@@ -74,14 +74,14 @@ namespace SQ_Email_Tools
                 BackColor = Theme.BgSidebar
             };
 
-            const int LOGO_H     = 62;
+            const int LOGO_H     = 70;
             const int RECHARGE_H = 50;
-            const int HEADER_H   = LOGO_H + RECHARGE_H; // 112
+            const int HEADER_H   = LOGO_H + RECHARGE_H;
             const int BOTTOM_H   = 106;
             const int NAV_X      = 0;
             int       NAV_W      = SW - 1; // 右側 1px border
 
-            // ── Logo（絕對定位，y=0，62px）──────────────────────
+            // ── Logo（含版號列）──────────────────────
             var logoPanel = new Panel
             {
                 Bounds    = new Rectangle(0, 0, NAV_W, LOGO_H),
@@ -103,13 +103,21 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(18, 36)
             });
+            logoPanel.Controls.Add(new Label
+            {
+                Text      = $"v{AppVersion.DisplayShort}  ·  GM Console",
+                ForeColor = Theme.AccentBlue,
+                Font      = Theme.FontTiny,
+                AutoSize  = true,
+                Location  = new Point(18, 52)
+            });
             logoPanel.Controls.Add(new Panel
             {
                 Bounds    = new Rectangle(0, LOGO_H - 1, NAV_W, 1),
                 BackColor = Theme.Border
             });
 
-            // ── 充值管理（絕對定位，y=62，50px，永遠可見）──────
+            // ── 充值管理（Logo 下方，永遠可見）──────
             var rechargePanel = new Panel
             {
                 Bounds    = new Rectangle(0, LOGO_H, NAV_W, RECHARGE_H),
@@ -145,7 +153,7 @@ namespace SQ_Email_Tools
                 BackColor = Theme.Border
             });
 
-            // ── 導覽 viewport（絕對定位，y=112，高度動態）───────
+            // ── 導覽 viewport（充值列下方，高度動態）───────
             _navPanel = new Panel
             {
                 Bounds    = new Rectangle(NAV_X, HEADER_H, NAV_W, 400), // 高度由 Resize 更新
