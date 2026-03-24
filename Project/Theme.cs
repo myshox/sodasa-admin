@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -72,6 +73,23 @@ namespace SQ_Email_Tools
 
         // ── 基本控制項工廠 ──────────────────────────────────────
 
+        /// <summary>減少 Panel／Form 等重繪閃爍（DataGridView 亦適用）。DoubleBuffered 為 protected，需反射設定。</summary>
+        public static void EnableSmoothPaint(Control c)
+        {
+            if (c == null) return;
+            try
+            {
+                typeof(Control).InvokeMember(
+                    "DoubleBuffered",
+                    BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic,
+                    null, c, new object[] { true });
+            }
+            catch
+            {
+                // 極少數宿主環境下略過
+            }
+        }
+
         /// <summary>Soft UI 風格按鈕：淺灰底 + 淺邊框模擬凸起</summary>
         public static Button MakeButton(string text, Color bg, Color fg, int w = 110, int h = 34)
         {
@@ -86,8 +104,8 @@ namespace SQ_Email_Tools
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
             };
-            // Neumorphism：上/左亮邊、下/右暗邊模擬凸起
-            btn.FlatAppearance.BorderColor        = Color.FromArgb(220, 226, 235);
+            // 深色主題：藍灰邊框（與網頁邊框色一致）
+            btn.FlatAppearance.BorderColor        = Border;
             btn.FlatAppearance.BorderSize         = 1;
             btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(bg, 0.08f);
             btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(bg, 0.05f);
@@ -223,7 +241,7 @@ namespace SQ_Email_Tools
             // 資料列（深底 + 近白字，高對比）
             dgv.DefaultCellStyle.BackColor          = BgCard;
             dgv.DefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 60, 90, 150);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 37,  99, 180);
             dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
             dgv.DefaultCellStyle.Padding            = new Padding(8, 0, 8, 0);
@@ -231,7 +249,7 @@ namespace SQ_Email_Tools
             // 交錯列
             dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 37,  99, 235);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 30, 120, 220);
             dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
 
             // 欄位標題列
@@ -241,6 +259,8 @@ namespace SQ_Email_Tools
             dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
             dgv.ColumnHeadersHeight                     = 38;
             dgv.RowTemplate.Height                      = 36;
+
+            EnableSmoothPaint(dgv);
         }
 
         public static string FontFamily => _ff;
@@ -301,7 +321,7 @@ namespace SQ_Email_Tools
             };
             btn.FlatAppearance.BorderColor        = Border;
             btn.FlatAppearance.BorderSize         = 1;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(225, 230, 238);
+            btn.FlatAppearance.MouseOverBackColor = ControlPaint.Light(BgLight, 0.12f);
             return btn;
         }
 

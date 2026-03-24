@@ -13,6 +13,7 @@ namespace SQ_Email_Tools
             try
             {
                 ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+                Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new MainForm());

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -59,6 +60,18 @@ namespace SQ_Email_Tools
 
             BuildContentArea();
             BuildSidebar();
+            ApplyUiSmoothing();
+        }
+
+        /// <summary>主視窗與主要容器雙緩衝，減少捲動／切頁閃爍</summary>
+        private void ApplyUiSmoothing()
+        {
+            Theme.EnableSmoothPaint(this);
+            Theme.EnableSmoothPaint(_contentArea);
+            Theme.EnableSmoothPaint(_playerPage);
+            Theme.EnableSmoothPaint(_sidebar);
+            Theme.EnableSmoothPaint(_navPanel);
+            Theme.EnableSmoothPaint(_navContent);
         }
 
         // ══════════════════════════════════════════════════════════
@@ -501,6 +514,10 @@ namespace SQ_Email_Tools
             _sidebar.Resize += (s, e) => UpdateLayout();
             Shown += (_, __) => UpdateLayout();
 
+            Theme.EnableSmoothPaint(logoPanel);
+            Theme.EnableSmoothPaint(rechargePanel);
+            Theme.EnableSmoothPaint(bottomPanel);
+
             Controls.Add(_sidebar);
         }
 
@@ -717,6 +734,7 @@ namespace SQ_Email_Tools
 
             hub.Dock      = DockStyle.Fill;
             hub.BackColor = Theme.BgPage;
+            Theme.EnableSmoothPaint(hub);
 
             _contentArea.Controls.Add(hub);
             _currentHubPanel = hub;
