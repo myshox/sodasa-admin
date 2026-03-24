@@ -86,7 +86,7 @@ export default function BatchGoldPage() {
   }
 
   return (
-    <div style={{ padding: 28, maxWidth: 900 }}>
+    <div className="gm-page-stack gm-max-lg">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>💰 {S.navBatchGold}</h1>
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 16 }}>

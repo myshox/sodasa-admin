@@ -13,7 +13,7 @@ export default function MarketPage() {
   const [tab, setTab] = useState<Tab>('street')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="gm-page-fill">
       {/* 標題列 */}
       <div style={{ padding: '14px 20px 0', background: 'var(--bg-sidebar)', flexShrink: 0 }}>
         <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 2px', color: 'var(--text-primary)' }}>🏪 市場查詢</h1>

@@ -694,7 +694,7 @@ export default function BatchOpsPage() {
   ]
 
   return (
-    <div className="batchops-page" style={{ padding: isMobile ? 12 : 24, paddingBottom: 80 }}>
+    <div className="batchops-page gm-page-stack">
       {/* 標題 */}
       <div style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 800, margin: 0,

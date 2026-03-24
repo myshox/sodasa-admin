@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api'
 import { S } from '../strings'
-import useIsMobile from '../hooks/useIsMobile'
 
 const SHOPS = [
   { id: 'vipshop', label: '金幣商店', icon: '💰', unit: '金幣' },
@@ -11,7 +10,6 @@ const SHOPS = [
 ]
 
 export default function ShopStatsPage() {
-  const isMobile = useIsMobile()
   const [tab, setTab] = useState('vipshop')
   const [data, setData] = useState<{ items: any[]; spenders: any[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -22,8 +20,8 @@ export default function ShopStatsPage() {
   }, [tab])
 
   return (
-    <div style={{ padding: isMobile ? 16 : 28 }}>
-      <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 20 }}>🏪 {S.navShop}</h1>
+    <div className="gm-page-stack">
+      <h1>🏪 {S.navShop}</h1>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {SHOPS.map(s => (
           <button key={s.id} onClick={() => setTab(s.id)}

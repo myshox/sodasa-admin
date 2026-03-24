@@ -119,21 +119,22 @@ export default function GuildPage() {
   const clearSel  = () => setSelMembers(new Set())
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#13151e', color: '#ddd', fontFamily: 'sans-serif' }}>
+    <div className="gm-page-fill guild-page">
       {/* 標題列 */}
-      <div style={{ padding: '14px 20px', background: '#1c1e26', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderBottom: '1px solid #2a2d3a' }}>
-        <span style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>家族管理</span>
+      <div className="guild-topbar">
+        <span className="guild-topbar-title">家族管理</span>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="搜尋家族名稱..."
-          style={{ padding: '5px 10px', background: '#22242e', border: '1px solid #3a3d4e', borderRadius: 6, color: '#ddd', width: 180 }}
+          style={{ padding: '5px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', width: 180 }}
         />
-        <button onClick={loadGuilds} disabled={loading}
-          style={{ padding: '5px 14px', background: '#2060c0', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer' }}>
+        <button type="button" onClick={loadGuilds} disabled={loading}
+          className="primary"
+          style={{ padding: '5px 14px', borderRadius: 6 }}>
           {loading ? '載入中...' : '重新載入'}
         </button>
         {msg && (
-          <span style={{ marginLeft: 8, color: msg.ok ? '#4ddd80' : '#ff6b6b', fontSize: 13 }}>
+          <span style={{ marginLeft: 8, color: msg.ok ? 'var(--accent-green)' : 'var(--accent-red)', fontSize: 13 }}>
             {msg.text}
           </span>
         )}
@@ -142,12 +143,12 @@ export default function GuildPage() {
       {/* 主體：左（家族列表）+ 右（成員） */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', gap: 0 }}>
         {/* ── 左側：家族列表 ── */}
-        <div style={{ width: 320, minWidth: 220, display: 'flex', flexDirection: 'column', borderRight: '1px solid #2a2d3a', overflow: 'hidden' }}>
-          <div style={{ padding: '8px 12px', fontSize: 12, color: '#888', borderBottom: '1px solid #222' }}>
+        <div className="guild-sidebar">
+          <div className="guild-list-hint">
             家族列表（共 {filtered.length} 個）
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading && <div style={{ padding: 16, color: '#888' }}>載入中...</div>}
+            {loading && <div style={{ padding: 16, color: 'var(--text-muted)' }}>載入中...</div>}
             {!loading && filtered.length === 0 && (
               <div style={{ padding: 16, color: '#666' }}>無家族資料</div>
             )}

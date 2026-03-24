@@ -22,7 +22,7 @@ export default function GoldLogPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
         {'\u{1F48E}'} {S.pageGoldLog}
       </h1>

@@ -26,7 +26,7 @@ export default function RechargeAnalyticsPage() {
   if (loading) return <div style={{ padding: 28 }}><p style={{ color: 'var(--text-muted)' }}>載入中…</p></div>
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>💰 {S.navRechargeAna}</h1>
       <button onClick={load} style={{ marginBottom: 20, padding: '8px 16px', background: 'var(--accent-blue)', color: '#fff', borderRadius: 8 }}>↺ 重新整理</button>
 

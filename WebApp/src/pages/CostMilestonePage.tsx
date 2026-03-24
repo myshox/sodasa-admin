@@ -431,7 +431,7 @@ export default function CostMilestonePage() {
   const maxPct    = info ? Math.min(100, (info.costPoint / 100_000) * 100) : 0
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
+    <div className="gm-page-stack">
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0,
           background: 'linear-gradient(135deg,#fbbf24,#fb923c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>

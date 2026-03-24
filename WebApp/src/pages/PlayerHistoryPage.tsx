@@ -120,7 +120,7 @@ export default function PlayerHistoryPage() {
   })()
 
   return (
-    <div style={{ display: 'flex', height: '100%', gap: 0 }}>
+    <div className="gm-page-fill-row" style={{ gap: 0 }}>
 
       {/* ── 左側玩家名單 ── */}
       <div style={{

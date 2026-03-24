@@ -121,7 +121,7 @@ export default function PetRankPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px 40px' }}>
+    <div className="gm-page-stack">
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>🐾 練寵排行榜管理</h2>
 
       {msg && (

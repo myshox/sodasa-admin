@@ -25,7 +25,7 @@ export default function MailPage() {
   }
 
   return (
-    <div style={{ padding: isMobile ? 12 : 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>
         {'\u{1F4E7}'} {S.navMail}
       </h1>

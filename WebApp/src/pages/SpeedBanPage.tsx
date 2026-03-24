@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import api from '../api'
-import useIsMobile from '../hooks/useIsMobile'
 
 interface SpeedPlayer {
   account: string
@@ -15,7 +14,6 @@ interface SpeedPlayer {
 }
 
 export default function SpeedBanPage() {
-  const isMobile = useIsMobile()
   const [list, setList]     = useState<SpeedPlayer[]>([])
   const [loading, setLoading] = useState(false)
   const [minCnt, setMinCnt]   = useState(10)
@@ -91,7 +89,7 @@ export default function SpeedBanPage() {
   ]
 
   return (
-    <div style={{ padding: isMobile ? 12 : 28 }}>
+    <div className="gm-page-stack">
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0,
           background: 'linear-gradient(135deg,#f87171,#fb923c)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>

@@ -34,7 +34,7 @@ export default function OnlinePage() {
   }, [autoRefresh])
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-inner">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700 }}>🟢 {S.pageOnline}</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

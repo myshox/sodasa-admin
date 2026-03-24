@@ -76,7 +76,7 @@ export default function ItemSearchPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
+    <div className="gm-page-fill-row">
       {/* ── 左側物品清單 ── */}
       <div style={{ width: 210, minWidth: 190, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', background: 'var(--bg-sidebar)', height: '100vh', position: 'sticky', top: 0 }}>
         <div style={{ padding: '14px 12px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

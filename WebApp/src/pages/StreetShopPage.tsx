@@ -104,7 +104,7 @@ export default function StreetShopPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
+    <div className="gm-page-fill-row">
       {/* ── 左側攤主清單 ── */}
       <div style={{
         width: 200, minWidth: 180, borderRight: '1px solid var(--border)',

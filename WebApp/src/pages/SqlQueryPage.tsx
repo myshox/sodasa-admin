@@ -28,7 +28,7 @@ export default function SqlQueryPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>💻 {S.navSql}</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>⚠ 僅允許 SELECT / SHOW / DESCRIBE 查詢（資料只讀）</p>
       <textarea value={sql} onChange={e => setSql(e.target.value)} style={{

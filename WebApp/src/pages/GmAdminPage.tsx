@@ -85,7 +85,7 @@ export default function GmAdminPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>🔑 {S.navGmAdmin}</h1>
 
       {apiErr && (

@@ -59,7 +59,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="page-shell">
+    <div className="page-shell gm-page-animate">
       <header className="dashboard-hero">
         <div className="dashboard-hero-inner">
           <h1 className="dashboard-title">GM 管理後台</h1>

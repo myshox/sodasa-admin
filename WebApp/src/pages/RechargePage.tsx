@@ -205,7 +205,7 @@ export default function RechargePage() {
   )
 
   return (
-    <div style={{ padding: isMobile ? '14px 12px' : '28px 32px', maxWidth: 1200, width: '100%', boxSizing: 'border-box' }}>
+    <div className="gm-page-stack gm-max-xl" style={{ width: '100%', boxSizing: 'border-box' }}>
       {/* ── 標題 ── */}
       <div style={{ marginBottom: isMobile ? 14 : 24 }}>
         <h1 style={{ fontSize: isMobile ? 19 : 24, fontWeight: 800, margin: 0, background: 'linear-gradient(135deg,#4ade80,#22d3ee)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>

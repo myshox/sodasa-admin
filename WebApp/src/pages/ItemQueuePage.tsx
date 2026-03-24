@@ -49,7 +49,7 @@ export default function ItemQueuePage() {
   }
 
   return (
-    <div style={{ padding: 28, maxWidth: 720 }}>
+    <div className="gm-page-stack gm-max-md">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>📬 {S.navItemQueue}</h1>
       <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
         發送道具至玩家信箱（maildata），玩家重新登入後在信件欄領取。

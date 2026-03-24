@@ -34,7 +34,7 @@ export default function VipPage() {
   const diamondCount = rows.filter(r => r.vipLevel === 2).length
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>💎 {S.navVip}</h1>
 
       {/* VIP 說明卡片 */}

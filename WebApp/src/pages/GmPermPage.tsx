@@ -30,7 +30,7 @@ export default function GmPermPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>🛡 {S.navGmPerm}</h1>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>NeiCe=1 為 GM 標記 | GroupId 預設 0=一般玩家</p>
       {msg && <p style={{ color: 'var(--accent-green)', marginBottom: 12 }}>{msg}</p>}

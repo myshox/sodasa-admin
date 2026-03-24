@@ -124,7 +124,7 @@ export default function ItemSendPage() {
   }
 
   return (
-    <div style={{ padding: isMobile ? 12 : 28 }}>
+    <div className="gm-page-inner">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>📬 {S.navItemQueue}</h1>
 
       {result && (

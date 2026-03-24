@@ -27,7 +27,7 @@ export default function TradeAuditPage() {
   if (loading) return <div style={{ padding: 28 }}><p style={{ color: 'var(--text-muted)' }}>載入中…</p></div>
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>🔍 {S.navTradeAudit}</h1>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>⚠ 本模組僅供參考，建議結合人工判斷再進行處置</p>
       <button onClick={load} style={{ marginBottom: 20, padding: '8px 16px', background: 'var(--accent-blue)', color: '#fff', borderRadius: 8 }}>↺ 重新整理</button>

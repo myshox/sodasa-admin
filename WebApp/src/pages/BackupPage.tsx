@@ -26,7 +26,7 @@ export default function BackupPage() {
   }
 
   return (
-    <div style={{ padding: 28, maxWidth: 560 }}>
+    <div className="gm-page-stack gm-max-sm">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>💾 {S.navBackup}</h1>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, marginBottom: 20 }}>
         <p style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>備份內容：<strong>csalogin</strong>（玩家帳號）+ <strong>lock</strong>（封禁記錄）</p>

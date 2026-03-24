@@ -97,7 +97,7 @@ export default function BanPage() {
     : effectiveDays === 0 ? '永久封禁' : `封禁 ${effectiveDays} 天`
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>🔒 {S.pageBan}</h1>
 
       {msg && <div style={{ background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 8, padding: '8px 16px', marginBottom: 16, color: 'var(--accent-green)', fontSize: 13 }}>{msg}</div>}

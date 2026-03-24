@@ -302,8 +302,8 @@ export default function PlayersPage() {
   const cycleProgress = detail ? Math.min(100, ((detail.paydataPoint ?? 0) / CYCLE) * 100) : 0
 
   return (
-    <div style={{ padding: isMobile ? 12 : 28 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>👥 {S.pagePlayerMgr}</h1>
+    <div className="gm-page-inner">
+      <h1>👥 {S.pagePlayerMgr}</h1>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <input value={q} onChange={e => setQ(e.target.value)}

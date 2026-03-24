@@ -30,7 +30,7 @@ export default function PlayerAnalyticsPage() {
   const weekLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>📊 {S.navPlayerAna}</h1>
       <button onClick={load} style={{ marginBottom: 20, padding: '8px 16px', background: 'var(--accent-blue)', color: '#fff', borderRadius: 8 }}>↺ 重新整理</button>
 

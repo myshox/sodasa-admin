@@ -192,7 +192,7 @@ export default function PetCmdPage() {
   )
 
   return (
-    <div style={{ padding: isMobile ? 16 : 28, maxWidth: 700 }}>
+    <div className="gm-page-stack gm-max-md">
       <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, marginBottom: 20 }}>
         🐾 {S.pagePetCmd}
       </h1>

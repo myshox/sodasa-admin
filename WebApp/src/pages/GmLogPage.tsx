@@ -34,7 +34,7 @@ export default function GmLogPage() {
   }
 
   return (
-    <div style={{ padding: 28 }}>
+    <div className="gm-page-stack">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700 }}>📋 {S.navGmLog}</h1>
         <div style={{ display: 'flex', gap: 8 }}>

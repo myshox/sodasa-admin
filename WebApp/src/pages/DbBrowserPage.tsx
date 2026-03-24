@@ -74,7 +74,7 @@ export default function DbBrowserPage() {
   const totalPages = result ? Math.ceil(result.total / pageSize) : 1
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 60px)', overflow: 'hidden' }}>
+    <div className="gm-page-fill-row" style={{ overflow: 'hidden' }}>
 
       {/* ── 左側表列表 ── */}
       <div style={{
