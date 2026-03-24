@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { S } from '../strings'
-import { MOBILE_BREAKPOINT } from '../constants/layout'
+import { MOBILE_BREAKPOINT, getRouteTitle } from '../constants/layout'
 
 type NavItem = { to: string; icon: string; label: string; title?: string }
 type NavGroup = { label: string; items: NavItem[] }
@@ -95,6 +95,8 @@ export default function Layout() {
     }
   }, [drawerOpen])
 
+  const pageTitle = getRouteTitle(location.pathname)
+
   const navLinkStyle = (isActive: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 10,
     padding: isMobile ? '12px 14px' : '8px 12px',
@@ -104,7 +106,8 @@ export default function Layout() {
     fontWeight: isActive ? 700 : 500,
     textDecoration: 'none',
     boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
-    transition: 'box-shadow .15s, color .15s',
+    border: isActive ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid transparent',
+    transition: 'box-shadow .15s, color .15s, border-color .15s',
   })
 
   const SidebarContent = () => (
@@ -112,8 +115,11 @@ export default function Layout() {
       {/* Logo */}
       <div style={{ padding: '18px 16px 14px', flexShrink: 0, boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
         <div style={{ fontSize: 22, marginBottom: 2 }}>🍅</div>
-        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>{S.appName}</div>
+        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{S.appName}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{S.appSub}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tech-cyan)', marginTop: 8, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.85 }}>
+          GM Console
+        </div>
       </div>
 
       {/* Nav */}
@@ -165,19 +171,36 @@ export default function Layout() {
   if (isMobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
+        <a href="#main-content" className="skip-link">
+          跳到主要內容
+        </a>
         {/* 頂部 Header（手機觸控區至少 44px） */}
         <header style={{
           minHeight: 56,
           paddingTop: 'max(6px, env(safe-area-inset-top))',
           paddingLeft: 'max(12px, env(safe-area-inset-left))',
           paddingRight: 'max(12px, env(safe-area-inset-right))',
-          background: 'var(--bg-sidebar)', boxShadow: '0 4px 12px rgba(0,0,0,.08)', display: 'flex', alignItems: 'center', paddingBottom: 0, gap: 8, flexShrink: 0, zIndex: 100,
+          background: 'linear-gradient(180deg, var(--bg-sidebar) 0%, rgba(207, 216, 232, 0.98) 100%)',
+          boxShadow: '0 4px 16px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(59, 130, 246, 0.08)',
+          display: 'flex', alignItems: 'center', paddingBottom: 8, gap: 8, flexShrink: 0, zIndex: 100,
         }}>
-          <button onClick={() => setDrawerOpen(true)}
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="開啟選單"
+            aria-expanded={drawerOpen}
+            aria-controls="gm-drawer-nav"
             style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: '4px 4px 8px #bebebe, -4px -4px 8px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0 }}>
             ☰
           </button>
-          <span style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🍅 {S.appName}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>
+              {S.appName}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '-0.02em' }}>
+              {pageTitle}
+            </div>
+          </div>
           <NavLink to="/recharge"
             style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '10px 14px', borderRadius: 10, textDecoration: 'none', fontSize: 14, fontWeight: 700, flexShrink: 0,
@@ -190,11 +213,21 @@ export default function Layout() {
 
         {/* Drawer 背景遮罩 */}
         {drawerOpen && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 200, backdropFilter: 'blur(2px)' }} />
+          <div
+            role="presentation"
+            aria-hidden
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.48)', zIndex: 200, backdropFilter: 'blur(4px)' }}
+          />
         )}
 
         {/* 側拉抽屜 — 關閉時加 pointerEvents:none 防止攔截觸控 */}
-        <div ref={drawerRef} data-drawer-nav style={{
+        <div
+          id="gm-drawer-nav"
+          ref={drawerRef}
+          data-drawer-nav
+          aria-label="主選單導覽"
+          aria-hidden={!drawerOpen}
+          style={{
           position: 'fixed', top: 0, left: 0, bottom: 0, width: 'min(300px, calc(100vw - 40px))',
           paddingTop: 'env(safe-area-inset-top)',
           background: 'var(--bg-sidebar)',
@@ -207,7 +240,10 @@ export default function Layout() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>🍅 {S.appName}</div>
-            <button onClick={() => setDrawerOpen(false)}
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="關閉選單"
               style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: 'inset 2px 2px 4px #bebebe, inset -2px -2px 4px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
               ✕
             </button>
@@ -267,7 +303,12 @@ export default function Layout() {
         </div>
 
         {/* 主內容 */}
-        <main className="app-main-scroll" style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', background: 'var(--bg-page)', WebkitOverflowScrolling: 'touch' as const }}>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="app-main-scroll"
+          style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', background: 'var(--bg-page)', WebkitOverflowScrolling: 'touch' as const }}
+        >
           <Outlet />
         </main>
       </div>
@@ -277,15 +318,18 @@ export default function Layout() {
   // ── 桌機版 ──
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)' }}>
+      <a href="#main-content" className="skip-link">
+        跳到主要內容
+      </a>
       <aside style={{
         width: 240,
-        background: 'var(--bg-sidebar)',
+        background: 'linear-gradient(180deg, var(--bg-sidebar) 0%, rgba(207, 216, 232, 0.98) 100%)',
         display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
-        boxShadow: '6px 0 16px rgba(0,0,0,.06), -2px 0 4px rgba(255,255,255,.5)',
+        boxShadow: '6px 0 20px rgba(15, 23, 42, 0.07), 0 0 0 1px rgba(59, 130, 246, 0.06)',
       }}>
         <SidebarContent />
       </aside>
-      <main className="app-main-scroll app-main-desktop" style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
+      <main id="main-content" tabIndex={-1} className="app-main-scroll app-main-desktop" style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
         <Outlet />
       </main>
     </div>

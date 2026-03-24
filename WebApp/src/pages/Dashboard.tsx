@@ -65,16 +65,16 @@ export default function Dashboard() {
           <h1 className="dashboard-title">GM 管理後台</h1>
           <p className="dashboard-sub">蘇打石器 · 私服管理 · 快捷入口與即時概況</p>
           {stats != null && (
-            <div className="dashboard-badge">
-              <span>📊</span>
-              <span>資料已更新</span>
+            <div className="dashboard-badge" aria-live="polite">
+              <span aria-hidden>📊</span>
+              <span>統計資料已載入</span>
             </div>
           )}
         </div>
       </header>
 
       {err && (
-        <div className="dashboard-alert">
+        <div className="dashboard-alert" role="alert">
           <strong>無法連線後端</strong>
           ，所有功能都無法使用。請確認 API 已啟動（Port 5050）且資料庫連線正確。
         </div>
@@ -101,6 +101,7 @@ export default function Dashboard() {
               type="button"
               className="ui-quick-card"
               onClick={() => nav(q.path)}
+              aria-label={`${q.label}：${q.desc}`}
             >
               <div
                 className="q-ico"

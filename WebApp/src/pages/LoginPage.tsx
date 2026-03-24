@@ -27,8 +27,11 @@ export default function LoginPage() {
     }
   }, [])
 
+  const canSubmit = user.trim().length > 0 && pass.length > 0
+
   const login = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canSubmit) return
     setErr('')
     setLoading(true)
     try {
@@ -50,40 +53,50 @@ export default function LoginPage() {
 
   return (
     <div className="login-root">
-      <form onSubmit={login} className="login-card">
+      <form onSubmit={login} className="login-card" aria-busy={loading} noValidate>
         <div className="login-brand">
-          <div className="emoji">🍅</div>
+          <div className="emoji" aria-hidden>🍅</div>
           <h2>{S.loginTitle}</h2>
           <p>{S.loginSub}</p>
+          <p className="ui-hint" style={{ marginTop: 10, textAlign: 'center' }}>
+            請使用已授權的 GM 帳號登入；若多次失敗請聯絡管理員。
+          </p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>{S.loginUser}</label>
+          <label className="ui-label" htmlFor="gm-login-user">{S.loginUser}</label>
           <input
+            id="gm-login-user"
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder={S.loginPlhUser}
             autoFocus
             style={{ width: '100%' }}
             autoComplete="username"
+            aria-invalid={err ? true : undefined}
+            aria-describedby={err ? 'gm-login-err' : undefined}
           />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>{S.loginPass}</label>
+          <label className="ui-label" htmlFor="gm-login-pass">{S.loginPass}</label>
           <div style={{ position: 'relative' }}>
             <input
+              id="gm-login-pass"
               type={showPass ? 'text' : 'password'}
               value={pass}
               onChange={e => setPass(e.target.value)}
               placeholder={S.loginPlhPass}
               style={{ width: '100%', paddingRight: 44 }}
               autoComplete="current-password"
+              aria-invalid={err ? true : undefined}
+              aria-describedby={err ? 'gm-login-err' : undefined}
             />
             <button
               type="button"
               onClick={() => setShowPass(v => !v)}
               aria-label={showPass ? '隱藏密碼' : '顯示密碼'}
+              aria-pressed={showPass}
               style={{
                 position: 'absolute',
                 right: 6,
@@ -124,10 +137,12 @@ export default function LoginPage() {
         </label>
 
         {err && (
-          <p style={{ color: 'var(--accent-red)', fontSize: 13, textAlign: 'center', margin: 0 }}>{err}</p>
+          <p id="gm-login-err" role="alert" className="ui-error" style={{ textAlign: 'center', margin: 0 }}>
+            {err}
+          </p>
         )}
 
-        <button type="submit" disabled={loading} className="login-submit primary">
+        <button type="submit" disabled={loading || !canSubmit} className="login-submit primary" title={!canSubmit ? '請先填寫帳號與密碼' : undefined}>
           {loading ? S.loginLoading : S.loginBtn}
         </button>
       </form>
