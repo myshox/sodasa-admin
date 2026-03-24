@@ -22,25 +22,27 @@ namespace SQ_Email_Tools
             return "Segoe UI";
         }
 
-        // ── 深色主題（深灰底 + 白字，確保所有文字清晰可見）────────────
-        public static readonly Color BgSidebar = Color.FromArgb( 22,  27,  38); // 側欄（最深）
-        public static readonly Color BgDark    = Color.FromArgb( 28,  34,  46); // Header/Toolbar
-        public static readonly Color BgPage    = Color.FromArgb( 36,  43,  58); // 頁面主底
-        public static readonly Color BgMid     = Color.FromArgb( 44,  52,  68); // 次底/分隔
-        public static readonly Color BgCard    = Color.FromArgb( 44,  52,  68); // 卡片
-        public static readonly Color BgLight   = Color.FromArgb( 56,  66,  86); // 輸入框（略亮）
+        // ── 深色主題（與 GM 網頁版同色調：藍／青科技風）────────────
+        public static readonly Color BgSidebar = Color.FromArgb( 18,  24,  36); // 側欄（略加深）
+        public static readonly Color BgDark    = Color.FromArgb( 26,  32,  44); // Header/Toolbar
+        public static readonly Color BgPage    = Color.FromArgb( 34,  41,  56); // 頁面主底
+        public static readonly Color BgMid     = Color.FromArgb( 42,  50,  66); // 次底/分隔
+        public static readonly Color BgCard    = Color.FromArgb( 42,  50,  66); // 卡片
+        public static readonly Color BgLight   = Color.FromArgb( 54,  64,  84); // 輸入框（略亮）
         public static readonly Color BgInput   = BgLight;
         public static readonly Color CardBg    = BgCard;
 
-        public static readonly Color Border    = Color.FromArgb( 72,  84, 108); // 邊框
-        public static readonly Color BorderHov = Color.FromArgb(100, 149, 255); // focus 藍
+        public static readonly Color Border     = Color.FromArgb( 65,  80, 110); // 邊框（偏藍灰）
+        public static readonly Color BorderHov   = Color.FromArgb( 59, 130, 246); // focus（與網頁 accent-blue 對齊）
+        public static readonly Color SidebarEdge = Color.FromArgb( 45,  85, 150); // 主區與側欄分隔微光
 
-        // 強調色（深底上高飽和，保持鮮明可見）
-        public static readonly Color AccentBlue   = Color.FromArgb(100, 149, 255);
-        public static readonly Color AccentGreen  = Color.FromArgb( 80, 220, 130);
-        public static readonly Color AccentRed    = Color.FromArgb(255,  90,  90);
-        public static readonly Color AccentOrange = Color.FromArgb(255, 178,  80);
-        public static readonly Color AccentPurple = Color.FromArgb(190, 140, 255);
+        // 強調色（與 WebApp CSS 變數對齊）
+        public static readonly Color AccentBlue   = Color.FromArgb( 59, 130, 246);
+        public static readonly Color AccentCyan    = Color.FromArgb(  6, 182, 212);
+        public static readonly Color AccentGreen   = Color.FromArgb( 34, 197,  94);
+        public static readonly Color AccentRed     = Color.FromArgb(239,  68,  68);
+        public static readonly Color AccentOrange  = Color.FromArgb(245, 158,  11);
+        public static readonly Color AccentPurple  = Color.FromArgb(139,  92, 246);
 
         // 文字（深底上確保高對比）
         public static readonly Color TextPrimary   = Color.FromArgb(230, 235, 245); // 主要文字（近白）
@@ -229,7 +231,7 @@ namespace SQ_Email_Tools
             // 交錯列
             dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 60, 90, 150);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 37,  99, 235);
             dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
 
             // 欄位標題列

@@ -106,7 +106,7 @@ namespace SQ_Email_Tools
             logoPanel.Controls.Add(new Label
             {
                 Text      = $"v{AppVersion.DisplayShort}  ·  GM Console",
-                ForeColor = Theme.AccentBlue,
+                ForeColor = Theme.AccentCyan,
                 Font      = Theme.FontTiny,
                 AutoSize  = true,
                 Location  = new Point(18, 52)
@@ -484,8 +484,8 @@ namespace SQ_Email_Tools
             bottomPanel.Controls.AddRange(new Control[]
                 { _lblDbDot, _lblDbText, _lblGmName, btnConnect, btnSettings });
 
-            // ── 組合側邊欄（全部絕對定位，右側 1px border 用 Dock.Right）──
-            var border = new Panel { Dock = DockStyle.Right, Width = 1, BackColor = Theme.Border };
+            // ── 組合側邊欄（右側微藍邊，與主內容區分隔）
+            var border = new Panel { Dock = DockStyle.Right, Width = 2, BackColor = Theme.SidebarEdge };
 
             _sidebar.Controls.AddRange(new Control[]
                 { border, logoPanel, rechargePanel, _navPanel, bottomPanel });

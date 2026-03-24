@@ -10,9 +10,9 @@
     <AssemblyName>SQ_Email_Tools_TW</AssemblyName>
     <RootNamespace>SQ_Email_Tools</RootNamespace>
     <!-- 與 GM 網頁版 UI 改版對齊；右鍵 EXE → 內容 可見相同版號 -->
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.2.1</Version>
+    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <FileVersion>1.2.1.0</FileVersion>
     <Product>蘇打石器 GM 管理系統</Product>
     <Description>私服後台管理工具（與 gm.sodasa.org 網頁版配套）</Description>
     <Company>SODASA</Company>
