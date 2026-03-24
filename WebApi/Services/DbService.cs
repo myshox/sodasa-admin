@@ -1149,13 +1149,14 @@ public class DbService
             string nm   = string.IsNullOrWhiteSpace(c.Name) ? $"道具#{c.ItemId}" : c.Name;
             string b1   = string.IsNullOrWhiteSpace(tf) ? nm : tf;
             string b2   = string.IsNullOrWhiteSpace(cf) ? nm : cf;
+            string b3   = !string.IsNullOrWhiteSpace(c.Name) ? c.Name.Trim() : (c.Buff3 ?? "").Trim();
             return new {
                 c.ItemId,
                 MailType = c.Type > 0 ? c.Type : 1,
                 Qty      = Math.Max(1, c.Qty),
                 Buff1    = b1.Length > 200 ? b1[..200] : b1,
                 Buff2    = b2.Length > 200 ? b2[..200] : b2,
-                Buff3    = c.Buff3 ?? "",
+                Buff3    = b3,
             };
         }).ToList();
 
@@ -2165,7 +2166,9 @@ public class DbService
             cmd.Parameters.AddWithValue(b1Name,  buff1);
             cmd.Parameters.AddWithValue(b2Name,  buff2);
             cmd.Parameters.AddWithValue(datName, item.ItemId);
-            cmd.Parameters.AddWithValue(b3Name,  item.Buff3 ?? "");
+            // buff3：與 EXE SendForm 一致（Buff3=道具名稱）；有 Name 時不用前端傳來的描述當 buff3
+            string b3Game = !string.IsNullOrWhiteSpace(item.Name) ? item.Name.Trim() : (item.Buff3 ?? "").Trim();
+            cmd.Parameters.AddWithValue(b3Name,  b3Game);
             for (int q = 0; q < Math.Max(1, item.Qty); q++)
                 valueParts.Add($"({tpName},@cdkey,{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,{b3Name})");
             pIdx++;
