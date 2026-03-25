@@ -166,7 +166,6 @@ function SingleSendTab() {
   const [sp] = useSearchParams()
   const [playerQ, setPlayerQ] = useState(sp.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(sp.get('account') || '')
-  const [selectedName, setSelectedName] = useState(decodeURIComponent(sp.get('name') || sp.get('account') || ''))
   const [recipients, setRecipients] = useState<{account: string; name: string}[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
@@ -192,7 +191,7 @@ function SingleSendTab() {
     const acc = sp.get('account')
     if (acc) {
       const name = sp.get('name') ? decodeURIComponent(sp.get('name')!) : acc
-      setSelectedAccount(acc); setPlayerQ(acc); setSelectedName(name)
+      setSelectedAccount(acc); setPlayerQ(acc)
       setRecipients([{ account: acc, name }])
     }
   }, [sp])
@@ -237,17 +236,20 @@ function SingleSendTab() {
       <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
         <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
-          <div className={isMobile ? 'batchops-step1-row' : undefined} style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : undefined }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <PlayerAutocomplete value={playerQ} onChange={setPlayerQ}
-                onSelect={p => { setSelectedAccount(p.account); setSelectedName(p.onlineName || p.account); setPlayerQ(p.onlineName || p.account) }}
-                placeholder="搜尋帳號或角色名稱" />
-            </div>
-            <button onClick={() => { if (selectedAccount) { addRecipient(selectedAccount, selectedName); setPlayerQ(''); setSelectedAccount(''); setSelectedName('') } }}
-              disabled={!selectedAccount}
-              style={{ padding: '6px 14px', background: 'var(--accent-blue)', color: '#fff', borderRadius: 6, fontSize: 13, fontWeight: 600, opacity: selectedAccount ? 1 : 0.4 }}>
-              ＋ 加入名單
-            </button>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
+            搜尋後可<strong style={{ color: 'var(--accent-blue)' }}>勾選多個</strong>，點「確認選取」加入；多筆結果時可用「全選」。僅 1 筆時點該列即可加入。
+          </p>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <PlayerAutocomplete
+              value={playerQ}
+              onChange={setPlayerQ}
+              onSelectMulti={players => {
+                for (const p of players) addRecipient(p.account, p.onlineName || p.account)
+                setPlayerQ('')
+                setSelectedAccount('')
+              }}
+              placeholder="搜尋帳號或角色名稱"
+            />
           </div>
           {recipients.length > 0 && (
             <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -261,7 +263,7 @@ function SingleSendTab() {
                     <span style={{ flex: 1, color: 'var(--text-primary)', fontWeight: 500 }}>{r.name}</span>
                     <span style={{ color: 'var(--text-muted)' }}>{r.account}</span>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <button disabled={historyLoading} onClick={() => { setSelectedAccount(r.account); setSelectedName(r.name); loadHistory(); }} style={{ fontSize: 10, padding: '1px 6px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)' }}>📜</button>
+                      <button disabled={historyLoading} onClick={() => { setSelectedAccount(r.account); loadHistory(); }} style={{ fontSize: 10, padding: '1px 6px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)' }}>📜</button>
                       <button disabled={rawLoading} onClick={() => { setSelectedAccount(r.account); loadRaw(); }} style={{ fontSize: 10, padding: '1px 6px', background: 'rgba(255,159,10,.1)', border: '1px solid var(--accent-orange)', borderRadius: 3, cursor: 'pointer', color: 'var(--accent-orange)' }}>🔬</button>
                       <button onClick={() => removeRecipient(r.account)} style={{ fontSize: 11, color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>✕</button>
                     </div>

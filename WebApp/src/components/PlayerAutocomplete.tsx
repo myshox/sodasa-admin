@@ -5,7 +5,8 @@ import type { PlayerRow } from '../api'
 interface Props {
   value: string
   onChange: (v: string) => void
-  onSelect: (p: PlayerRow) => void
+  /** 單選模式必傳；若已傳 onSelectMulti 可省略 */
+  onSelect?: (p: PlayerRow) => void
   /** 若提供此 callback，則啟用複選模式，確認後回傳所有選定的玩家 */
   onSelectMulti?: (players: PlayerRow[]) => void
   placeholder?: string
@@ -38,7 +39,7 @@ export default function PlayerAutocomplete({
       } catch { setSuggestions([]); setOpen(false) }
     }, 280)
     return () => { clearTimeout(timer.current) }
-  }, [value])
+  }, [value, multiMode])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -50,7 +51,7 @@ export default function PlayerAutocomplete({
 
   const selectOne = (p: PlayerRow) => {
     onChange(p.onlineName || p.account)
-    onSelect(p)
+    onSelect?.(p)
     setOpen(false)
     setSuggestions([])
     setChecked(new Set())
@@ -71,8 +72,16 @@ export default function PlayerAutocomplete({
     const selected = suggestions.filter(p => checked.has(p.account))
     if (selected.length === 0) return
     onSelectMulti!(selected)
-    if (selected.length === 1) onChange(selected[0].onlineName || selected[0].account)
-    else onChange(`已選取 ${selected.length} 個角色`)
+    onChange('')
+    setOpen(false)
+    setSuggestions([])
+    setChecked(new Set())
+  }
+
+  /** 搜尋僅 1 筆時：一鍵加入，不需再勾選＋確認 */
+  const pickSingleInMulti = (p: PlayerRow) => {
+    onSelectMulti!([p])
+    onChange('')
     setOpen(false)
     setSuggestions([])
     setChecked(new Set())
@@ -84,8 +93,10 @@ export default function PlayerAutocomplete({
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)) }
     else if (e.key === 'Enter' && activeIdx >= 0) {
       e.preventDefault()
-      if (multiMode) toggleCheck(suggestions[activeIdx].account)
-      else selectOne(suggestions[activeIdx])
+      if (multiMode) {
+        if (suggestions.length === 1) pickSingleInMulti(suggestions[0])
+        else toggleCheck(suggestions[activeIdx].account)
+      } else selectOne(suggestions[activeIdx])
     }
     else if (e.key === 'Escape') setOpen(false)
   }
@@ -109,10 +120,10 @@ export default function PlayerAutocomplete({
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
           background: 'var(--bg-card)', border: '1px solid var(--border)',
           borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.4)',
-          maxHeight: 340, overflowY: 'auto', marginTop: 2
+          maxHeight: 340, overflowY: 'auto', marginTop: 2, touchAction: 'manipulation', WebkitOverflowScrolling: 'touch',
         }}>
-          {/* 多選工具列 */}
-          {multiMode && suggestions.length > 1 && (
+          {/* 多選工具列（≥1 筆即顯示；全選僅在 2 筆以上有意義） */}
+          {multiMode && suggestions.length > 0 && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '6px 10px', borderBottom: '1px solid var(--border)',
@@ -123,14 +134,16 @@ export default function PlayerAutocomplete({
                 {checkedCount > 0 && <span style={{ color: 'var(--accent-blue)', marginLeft: 6 }}>（已勾 {checkedCount}）</span>}
               </span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onMouseDown={e => { e.preventDefault(); allChecked ? clearAll() : selectAll() }}
-                  style={{
-                    fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
-                    background: allChecked ? 'rgba(74,158,255,.25)' : 'rgba(74,158,255,.12)',
-                    color: 'var(--accent-blue)', border: '1px solid rgba(74,158,255,.3)'
-                  }}>
-                  {allChecked ? '取消全選' : '全選'}
-                </button>
+                {suggestions.length > 1 && (
+                  <button type="button" onPointerDown={e => { e.preventDefault(); allChecked ? clearAll() : selectAll() }}
+                    style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                      background: allChecked ? 'rgba(74,158,255,.25)' : 'rgba(74,158,255,.12)',
+                      color: 'var(--accent-blue)', border: '1px solid rgba(74,158,255,.3)', touchAction: 'manipulation',
+                    }}>
+                    {allChecked ? '取消全選' : '全選'}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -140,18 +153,13 @@ export default function PlayerAutocomplete({
             const isChecked = checked.has(p.account)
             return (
               <div key={p.account}
-                onMouseDown={e => {
+                onPointerDown={e => {
+                  if (e.pointerType === 'mouse' && e.button !== 0) return
                   e.preventDefault()
                   if (!multiMode) { selectOne(p); return }
-                  // multiMode：若目前沒有任何勾選 → 直接點擊即立即加入（單選快捷）
-                  // 若已有勾選 → 切換此列的勾選狀態，讓使用者組合後確認
-                  if (checked.size === 0) {
-                    onSelectMulti!([p])
-                    onChange(p.onlineName || p.account)
-                    setOpen(false); setSuggestions([]); setChecked(new Set())
-                  } else {
-                    toggleCheck(p.account)
-                  }
+                  // 僅 1 筆結果：點列即加入（與 ItemSend / 道具給予一致）
+                  if (suggestions.length === 1) { pickSingleInMulti(p); return }
+                  toggleCheck(p.account)
                 }}
                 data-suggestion-item
                 style={{
@@ -161,17 +169,17 @@ export default function PlayerAutocomplete({
                     ? 'rgba(74,158,255,.18)'
                     : i === activeIdx ? 'rgba(74,158,255,.10)' : 'transparent',
                   borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
-                  transition: 'background .1s'
+                  transition: 'background .1s', touchAction: 'manipulation',
                 }}>
-                {/* 多選模式：勾選框（點勾選框時永遠 toggle，不受 checked.size 限制）*/}
-                {multiMode && (
+                {/* 多選模式：勾選框（點勾選框時永遠 toggle） */}
+                {multiMode && suggestions.length > 1 && (
                   <div
-                    onMouseDown={e => { e.stopPropagation(); e.preventDefault(); toggleCheck(p.account) }}
+                    onPointerDown={e => { e.stopPropagation(); e.preventDefault(); toggleCheck(p.account) }}
                     style={{
-                      width: 16, height: 16, border: `2px solid ${isChecked ? 'var(--accent-blue)' : 'var(--border)'}`,
+                      width: 18, height: 18, border: `2px solid ${isChecked ? 'var(--accent-blue)' : 'var(--border)'}`,
                       borderRadius: 4, background: isChecked ? 'var(--accent-blue)' : 'transparent',
                       flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 10, color: 'white', transition: 'all .1s', cursor: 'pointer'
+                      fontSize: 10, color: 'white', transition: 'all .1s', cursor: 'pointer', touchAction: 'manipulation',
                     }}>
                     {isChecked && '✓'}
                   </div>
@@ -195,25 +203,25 @@ export default function PlayerAutocomplete({
             )
           })}
 
-          {/* 多選確認按鈕 */}
-          {multiMode && (
+          {/* 多選確認（僅 ≥2 筆時需要；1 筆時點列即加入） */}
+          {multiMode && suggestions.length > 1 && (
             <div style={{
               padding: '8px 10px', borderTop: '1px solid var(--border)',
               background: 'rgba(0,0,0,.2)', display: 'flex', gap: 8, justifyContent: 'flex-end'
             }}>
-              <button onMouseDown={e => { e.preventDefault(); setOpen(false) }}
+              <button type="button" onPointerDown={e => { e.preventDefault(); setOpen(false) }}
                 style={{
                   fontSize: 12, padding: '5px 14px', borderRadius: 6, cursor: 'pointer',
                   background: 'transparent', color: 'var(--text-muted)',
-                  border: '1px solid var(--border)'
+                  border: '1px solid var(--border)', touchAction: 'manipulation',
                 }}>取消</button>
-              <button onMouseDown={e => { e.preventDefault(); confirmMulti() }}
+              <button type="button" onPointerDown={e => { e.preventDefault(); confirmMulti() }}
                 disabled={checkedCount === 0}
                 style={{
                   fontSize: 12, padding: '5px 16px', borderRadius: 6, cursor: checkedCount > 0 ? 'pointer' : 'not-allowed',
                   background: checkedCount > 0 ? 'var(--accent-blue)' : 'rgba(74,158,255,.2)',
                   color: checkedCount > 0 ? 'white' : 'var(--text-muted)',
-                  border: 'none', fontWeight: 600
+                  border: 'none', fontWeight: 600, touchAction: 'manipulation',
                 }}>
                 確認選取{checkedCount > 0 ? ` (${checkedCount})` : ''}
               </button>
