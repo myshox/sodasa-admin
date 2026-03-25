@@ -98,11 +98,14 @@ export default function ItemSearchPage() {
                     style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', background: isSel ? 'rgba(99,179,237,.15)' : 'transparent', borderLeft: isSel ? '3px solid var(--accent-blue)' : '3px solid transparent' }}
                     onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,.04)' }}
                     onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 10 }}>{item.isPet ? '🐾' : '📦'}</span>
-                      <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <span style={{ fontSize: 10, flexShrink: 0 }}>{item.isPet ? '🐾' : '📦'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.name}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>#{item.id}</div>
+                        {item.desc && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.desc}</div>}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>#{item.id}</div>
                   </div>
                 )
               })

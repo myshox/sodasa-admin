@@ -138,7 +138,7 @@ export default function ItemSendPage() {
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 左側：道具清單瀏覽器 */}
-        <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}>
           <ItemBrowser cart={cart} onAddToCart={addToCart} />
         </div>
 

@@ -107,7 +107,7 @@ export default function BatchPage() {
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 道具清單 */}
-        <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}>
           <ItemBrowser cart={cart} onAddToCart={addToCart} />
         </div>
 
@@ -256,7 +256,7 @@ export default function BatchPage() {
         </div>
 
         {/* 右側 - 購物車 */}
-        <div style={{ width: isMobile ? '100%' : 300, flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, minWidth: 0 }}>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 18 }}>
             <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 12 }}>🛒 購物車（{cart.length} 種道具）</h3>
             {cart.length === 0
@@ -264,14 +264,18 @@ export default function BatchPage() {
               : (
                 <>
                   {cart.map((c, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                      <span style={{ color: 'var(--accent-blue)', fontWeight: 600, flex: 1 }}>#{c.itemId}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>type:{c.type}</span>
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>#{c.itemId}</div>
+                        {c.name && <div style={{ color: 'var(--text-primary)', marginTop: 2, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{c.name}</div>}
+                        {c.buff3 && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{c.buff3}</div>}
+                        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>type {c.type}</div>
+                      </div>
                       <input type="number" value={c.qty} min={1} max={99}
                         onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))}
-                        style={{ width: 50, fontSize: 12, textAlign: 'center' }} />
-                      <button onClick={() => setCart(cart.filter((_, ii) => ii !== i))}
-                        style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        style={{ width: 52, flexShrink: 0, fontSize: 12, textAlign: 'center', boxSizing: 'border-box' }} />
+                      <button type="button" onClick={() => setCart(cart.filter((_, ii) => ii !== i))}
+                        style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>✕</button>
                     </div>
                   ))}
                   <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8, padding: 0 }}>清空</button>

@@ -232,7 +232,7 @@ function SingleSendTab() {
 
   return (
     <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-      <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
+      <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
       <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
         <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
@@ -300,12 +300,23 @@ function SingleSendTab() {
           <input value={content} onChange={e => setContent(e.target.value)} placeholder="GM 發放道具" style={{ width: '100%', marginTop: 2 }} />
         </Card>
       </div>
-      <div style={{ width: isMobile ? '100%' : 280, flexShrink: 0, position: 'relative', zIndex: 1 }}>
+      <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, position: 'relative', zIndex: 1, minWidth: 0 }}>
         <Card title={`🛒 購物車 (${cart.length} 種)`}>
           {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>購物車為空<br /><span style={{ fontSize: 11 }}>從左側清單點選道具加入</span></p>
-            : <><div className="batchops-cart-wrap"><table style={{ width: '100%', minWidth: isMobile ? 280 : undefined, fontSize: 12, borderCollapse: 'collapse', marginBottom: 10 }}>
-                <thead><tr style={{ borderBottom: '1px solid var(--border)' }}><th style={{ padding: '3px 4px', textAlign: 'left', color: 'var(--text-muted)' }}>道具</th><th style={{ padding: '3px 4px', color: 'var(--text-muted)', width: 30 }}>T</th><th style={{ padding: '3px 4px', color: 'var(--text-muted)', width: 55 }}>數量</th><th style={{ width: 20 }}></th></tr></thead>
-                <tbody>{cart.map((c, i) => <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}><td style={{ padding: '4px 4px' }}><span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>#{c.itemId}</span>{c.name && <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 4 }}>{c.name}</span>}</td><td style={{ padding: '4px 4px', color: 'var(--text-muted)' }}>{c.type}</td><td style={{ padding: '2px 4px' }}><input type="number" value={c.qty} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} min={1} max={999} style={{ width: 50, fontSize: 12 }} /></td><td><button onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button></td></tr>)}</tbody>
+            : <><div className="batchops-cart-wrap"><table style={{ width: '100%', tableLayout: 'fixed', fontSize: 12, borderCollapse: 'collapse', marginBottom: 10 }}>
+                <thead><tr style={{ borderBottom: '1px solid var(--border)' }}><th style={{ padding: '4px 4px', textAlign: 'left', color: 'var(--text-muted)', width: '58%' }}>道具</th><th style={{ padding: '4px 4px', color: 'var(--text-muted)', width: 36 }}>T</th><th style={{ padding: '4px 4px', color: 'var(--text-muted)', width: 64 }}>數量</th><th style={{ width: 28 }}></th></tr></thead>
+                <tbody>{cart.map((c, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)', verticalAlign: 'top' }}>
+                    <td style={{ padding: '6px 4px', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.35 }}>
+                      <div style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>#{c.itemId}</div>
+                      {c.name && <div style={{ color: 'var(--text-primary)', fontSize: 12, marginTop: 2 }}>{c.name}</div>}
+                      {c.buff3 && <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 3 }}>{c.buff3}</div>}
+                    </td>
+                    <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{c.type}</td>
+                    <td style={{ padding: '4px 4px' }}><input type="number" value={c.qty} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} min={1} max={999} style={{ width: 52, fontSize: 12, boxSizing: 'border-box' }} /></td>
+                    <td style={{ padding: '4px 2px' }}><button type="button" onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14 }}>✕</button></td>
+                  </tr>
+                ))}</tbody>
               </table></div>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8, padding: 0 }}>清空購物車</button></>}
           <button onClick={send} disabled={loading || recipients.length === 0 || cart.length === 0} style={{ width: '100%', minHeight: 48, background: (recipients.length === 0 || cart.length === 0) ? 'var(--bg-input)' : 'var(--accent-blue)', color: (recipients.length === 0 || cart.length === 0) ? 'var(--text-muted)' : '#fff', padding: '12px 0', fontSize: 14, fontWeight: 600, borderRadius: 8, border: '2px solid var(--border)', cursor: (recipients.length === 0 || cart.length === 0) ? 'not-allowed' : 'pointer' }}>
@@ -478,7 +489,7 @@ function BatchSendTab() {
 
   return (
     <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-      <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
+      <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
       <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         <Card title="STEP 1 — 目標玩家">
           <div className={isMobile ? 'batchops-target-row' : undefined} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
@@ -606,14 +617,20 @@ function BatchSendTab() {
           </div>
         )}
       </div>
-      <div style={{ width: isMobile ? '100%' : 260, flexShrink: 0, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ width: isMobile ? '100%' : 300, flexShrink: 0, position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
         <Card title={`🛒 購物車（${cart.length} 種）`}>
           {cart.length === 0 ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 16 }}>購物車為空</p>
-            : <><div className="batchops-cart-wrap">{cart.map((c, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                <span style={{ color: 'var(--accent-blue)', fontWeight: 600, flex: 1 }}>#{c.itemId}{c.name ? ` ${c.name}` : ''}</span>
-                <input type="number" value={c.qty} min={1} max={99} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} style={{ width: 50, fontSize: 12, textAlign: 'center' }} />
-                <button onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-              </div>)}</div>
+            : <><div className="batchops-cart-wrap">{cart.map((c, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: 'var(--accent-blue)', fontWeight: 700 }}>#{c.itemId}</div>
+                  {c.name && <div style={{ color: 'var(--text-primary)', marginTop: 2, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{c.name}</div>}
+                  {c.buff3 && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 3, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{c.buff3}</div>}
+                </div>
+                <input type="number" value={c.qty} min={1} max={99} onChange={e => setCart(cart.map((cc, ii) => ii === i ? { ...cc, qty: +e.target.value || 1 } : cc))} style={{ width: 52, flexShrink: 0, fontSize: 12, textAlign: 'center', boxSizing: 'border-box' }} />
+                <button type="button" onClick={() => setCart(cart.filter((_, ii) => ii !== i))} style={{ color: 'var(--accent-red)', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+              </div>
+            ))}</div>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8, padding: 0 }}>清空</button></>}
         </Card>
         {result && <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)', border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`, color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)' }}>{result}</div>}

@@ -173,20 +173,33 @@ export default function ItemBrowser({ onAddToCart }: Props) {
           style={{ width: '100%', fontSize: 13 }} />
       </div>
 
-      <div style={{ height: 320, overflowY: 'auto' }}>
+      <div className="item-browser-scroll" style={{ height: 360, overflowY: 'auto' }}>
         {current.length === 0
           ? <p style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>請上傳 Excel 檔案（上傳一次後自動儲存）</p>
           : paged.length === 0
             ? <p style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>無符合結果</p>
-            : paged.map(item => (
-              <div key={`${item.id}-${item.name}`} onClick={() => onAddToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name, buff3: item.desc })}
-                style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', gap: 8 }}>
-                <span style={{ color: 'var(--accent-blue)', fontWeight: 600, fontSize: 12, width: 50, flexShrink: 0 }}>#{item.id}</span>
-                <span style={{ flex: 1, fontSize: 13 }}>{item.name}</span>
-                {item.desc && <span style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.desc}</span>}
-                <span style={{ fontSize: 11, color: 'var(--accent-green)', flexShrink: 0 }}>＋</span>
+            : paged.map(item => {
+              const label = `${item.name}${item.desc ? ` — ${item.desc}` : ''}`
+              return (
+              <div
+                key={`${item.id}-${item.name}`}
+                title={label}
+                onClick={() => onAddToCart({ itemId: item.id, qty: 1, type: item.isPet ? 2 : 1, name: item.name, buff3: item.desc })}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', gap: 8,
+                }}
+              >
+                <span style={{ color: 'var(--accent-blue)', fontWeight: 600, fontSize: 12, width: 52, flexShrink: 0, lineHeight: 1.35 }}>#{item.id}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.name}</div>
+                  {item.desc
+                    ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.4, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.desc}</div>
+                    : null}
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--accent-green)', flexShrink: 0, paddingTop: 2 }} aria-hidden>＋</span>
               </div>
-            ))}
+              )
+            })}
       </div>
 
       {totalPages > 1 && (

@@ -62,15 +62,28 @@ export default function ItemAutocomplete({ mode = 'both', onSelect, placeholder,
         placeholder={total > 0 ? (placeholder || `🔍 搜尋道具/寵物名稱或編號… (${total} 筆)`) : `請先上傳 xlsx 清單`}
         style={{ width: '100%' }} autoComplete="off" />
       {open && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.5)', maxHeight: 320, overflowY: 'auto', marginTop: 2 }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.5)', maxHeight: 360, overflowY: 'auto', marginTop: 2, touchAction: 'manipulation' }}>
           {suggestions.map((item, i) => (
-            <div key={`${item.id}-${item.isPet}`} onMouseDown={() => select(item)} data-suggestion-item
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13, background: i === activeIdx ? 'rgba(74,158,255,.18)' : 'transparent', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none' }}>
-              <span>{item.isPet ? '🐾' : '📦'}</span>
-              <span style={{ color: 'var(--accent-blue)', fontWeight: 700, width: 52, flexShrink: 0, fontSize: 12 }}>#{item.id}</span>
-              <span style={{ flex: 1, fontWeight: 500 }}>{item.name}</span>
-              {item.desc && <span style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.desc}</span>}
-              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, flexShrink: 0, color: item.isPet ? 'var(--accent-green)' : 'var(--accent-blue)', background: item.isPet ? 'rgba(86,196,118,.15)' : 'rgba(74,158,255,.15)' }}>
+            <div
+              key={`${item.id}-${item.isPet}`}
+              onMouseDown={() => select(item)}
+              data-suggestion-item
+              title={`${item.name}${item.desc ? ` — ${item.desc}` : ''}`}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                background: i === activeIdx ? 'rgba(74,158,255,.18)' : 'transparent',
+                borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
+              }}
+            >
+              <span style={{ paddingTop: 2 }}>{item.isPet ? '🐾' : '📦'}</span>
+              <span style={{ color: 'var(--accent-blue)', fontWeight: 700, width: 52, flexShrink: 0, fontSize: 12, lineHeight: 1.35 }}>#{item.id}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.name}</div>
+                {item.desc
+                  ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.35, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{item.desc}</div>
+                  : null}
+              </div>
+              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 10, flexShrink: 0, color: item.isPet ? 'var(--accent-green)' : 'var(--accent-blue)', background: item.isPet ? 'rgba(86,196,118,.15)' : 'rgba(74,158,255,.15)' }}>
                 {item.isPet ? '寵物' : '道具'}
               </span>
             </div>

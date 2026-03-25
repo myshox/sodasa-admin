@@ -485,6 +485,11 @@ a[href] { position: relative; z-index: 1; }
   overflow-wrap: break-word;
 }
 
+/* 道具瀏覽器列表：長名稱／說明可換行顯示（避免 … 截斷） */
+.item-browser-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    全站頁面骨架 · 首頁 · 登入（與 Layout 主內容區搭配）
    ═══════════════════════════════════════════════════════════════ */
