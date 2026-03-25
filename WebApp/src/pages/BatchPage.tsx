@@ -165,13 +165,32 @@ export default function BatchPage() {
                     </div>
                     <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                       {searchList.map(p => (
-                        <div key={p.account} onClick={() => toggleSelect(p.account)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent', fontSize: 12 }}>
-                          <input type="checkbox" checked={selected.has(p.account)} onChange={() => {}} style={{ pointerEvents: 'none' }} />
+                        <label
+                          key={p.account}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '6px 10px',
+                            borderBottom: '1px solid var(--border)',
+                            cursor: 'pointer',
+                            background: selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent',
+                            fontSize: 12,
+                            userSelect: 'none',
+                            touchAction: 'manipulation',
+                            WebkitTapHighlightColor: 'transparent',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected.has(p.account)}
+                            onChange={() => toggleSelect(p.account)}
+                            style={{ width: 18, height: 18, flexShrink: 0, accentColor: 'var(--accent-blue)' }}
+                          />
                           <span style={{ fontSize: 11 }}>{p.isOnline ? '🟢' : '⚫'}</span>
                           <span style={{ fontWeight: 600, flex: 1 }}>{p.onlineName || p.account}</span>
                           <span style={{ color: 'var(--text-muted)' }}>{p.account}</span>
-                        </div>
+                        </label>
                       ))}
                     </div>
                   </div>

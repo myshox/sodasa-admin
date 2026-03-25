@@ -507,13 +507,34 @@ function BatchSendTab() {
                 {searchList.map(p => {
                   const isExcluded = excluded.some(e => e.account === p.account)
                   return (
-                    <div key={p.account} onClick={() => !isExcluded && toggleSelect(p.account)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderBottom: '1px solid var(--border)', cursor: isExcluded ? 'not-allowed' : 'pointer', background: isExcluded ? 'rgba(245,101,101,.05)' : selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent', fontSize: 12, opacity: isExcluded ? 0.5 : 1 }}>
-                      <input type="checkbox" checked={selected.has(p.account) && !isExcluded} onChange={() => {}} style={{ pointerEvents: 'none' }} />
+                    <label
+                      key={p.account}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '6px 10px',
+                        borderBottom: '1px solid var(--border)',
+                        cursor: isExcluded ? 'not-allowed' : 'pointer',
+                        background: isExcluded ? 'rgba(245,101,101,.05)' : selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent',
+                        fontSize: 12,
+                        opacity: isExcluded ? 0.5 : 1,
+                        userSelect: 'none',
+                        touchAction: 'manipulation',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(p.account) && !isExcluded}
+                        disabled={isExcluded}
+                        onChange={() => { if (!isExcluded) toggleSelect(p.account) }}
+                        style={{ width: 18, height: 18, flexShrink: 0, cursor: isExcluded ? 'not-allowed' : 'pointer', accentColor: 'var(--accent-blue)' }}
+                      />
                       <span style={{ fontSize: 11 }}>{p.isOnline ? '🟢' : '⚫'}</span>
                       <span style={{ fontWeight: 600, flex: 1 }}>{p.onlineName || p.account}</span>
                       {isExcluded && <span style={{ fontSize: 10, color: 'var(--accent-red)', background: 'rgba(245,101,101,.15)', padding: '1px 6px', borderRadius: 10 }}>已排除</span>}
-                    </div>
+                    </label>
                   )
                 })}
               </div>
@@ -665,11 +686,32 @@ function BatchGoldTab() {
           </div>
         </div>
         <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-          {playerList.map(p => <div key={p.account} onClick={() => toggle(p.account)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent' }}>
-            <input type="checkbox" checked={selected.has(p.account)} readOnly />
-            <span style={{ fontWeight: 500 }}>{p.onlineName}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.account}</span>
-          </div>)}
+          {playerList.map(p => (
+            <label
+              key={p.account}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 16px',
+                borderBottom: '1px solid var(--border)',
+                cursor: 'pointer',
+                background: selected.has(p.account) ? 'rgba(74,158,255,.1)' : 'transparent',
+                userSelect: 'none',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(p.account)}
+                onChange={() => toggle(p.account)}
+                style={{ width: 18, height: 18, flexShrink: 0, accentColor: 'var(--accent-blue)' }}
+              />
+              <span style={{ fontWeight: 500 }}>{p.onlineName}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{p.account}</span>
+            </label>
+          ))}
         </div>
       </div>}
       {result && <p style={{ color: result.startsWith('✓') ? 'var(--accent-green)' : 'var(--accent-red)', marginBottom: 12, fontSize: 13 }}>{result}</p>}
