@@ -209,8 +209,7 @@ namespace SQ_Email_Tools
             _itemDgv.MultiSelect           = false;
             _itemDgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             _itemDgv.AllowUserToResizeRows = false;
-            _itemDgv.ColumnHeadersHeight   = 28;
-            _itemDgv.RowTemplate.Height    = 24;
+            // 勿覆寫 Theme 列高（見 SendForm 註解）
 
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
@@ -221,7 +220,7 @@ namespace SQ_Email_Tools
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colName", HeaderText = "道具名稱",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 100,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 140,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
             });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
@@ -233,7 +232,7 @@ namespace SQ_Email_Tools
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "colDesc", HeaderText = "說明",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 80,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 120,
                 SortMode = DataGridViewColumnSortMode.NotSortable,
             });
 

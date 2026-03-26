@@ -10,7 +10,7 @@ namespace SQ_Email_Tools
     // ══════════════════════════════════════════════════════════════════
     public class BentoCard : Panel
     {
-        private int   _radius = 14;
+        private int   _radius = 16;
         private Color _cardBg = Color.FromArgb(16, 20, 36);
 
         public int   CornerRadius { get => _radius; set { _radius = value; Invalidate(); RebuildRegion(); } }
@@ -23,7 +23,7 @@ namespace SQ_Email_Tools
                      ControlStyles.OptimizedDoubleBuffer |
                      ControlStyles.ResizeRedraw, true);
             BackColor = Color.Transparent;
-            Padding   = new Padding(14);
+            Padding   = new Padding(16);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -88,7 +88,7 @@ namespace SQ_Email_Tools
             _accentBar = new Panel
             {
                 Dock      = DockStyle.Top,
-                Height    = 4,
+                Height    = 5,
                 BackColor = accent
             };
             Controls.Add(_accentBar);
@@ -100,9 +100,9 @@ namespace SQ_Email_Tools
                 RowCount    = 4,
                 ColumnCount = 1,
                 BackColor   = Color.Transparent,
-                Padding     = new Padding(16, 12, 16, 12)
+                Padding     = new Padding(18, 14, 18, 14)
             };
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f));  // icon
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 24f));  // icon
             tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));  // value
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 18f));  // title
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 16f));  // sub
@@ -132,7 +132,7 @@ namespace SQ_Email_Tools
             {
                 Text      = title,
                 ForeColor = Color.FromArgb(100, 118, 160),
-                Font      = new Font(Theme.FontFamily, 9.5f),
+                Font      = new Font(Theme.FontFamily, 10f),
                 Dock      = DockStyle.Fill,
                 TextAlign = ContentAlignment.BottomLeft,
                 BackColor = Color.Transparent

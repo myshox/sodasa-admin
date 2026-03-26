@@ -51,16 +51,16 @@ namespace SQ_Email_Tools
         public static readonly Color TextMuted     = Color.FromArgb(140, 152, 175); // 輔助（中灰，深底仍可讀）
 
         // ── 字體 ────────────────────────────────────────────────
-        public static readonly Font FontTitle      = new Font(_ff, 15f,  FontStyle.Bold);
+        public static readonly Font FontTitle      = new Font(_ff, 15.5f,  FontStyle.Bold);
         public static readonly Font FontHeader     = new Font(_ff, 11f,  FontStyle.Bold);
-        public static readonly Font FontBody       = new Font(_ff, 10.5f);
-        public static readonly Font FontSmall      = new Font(_ff,  9.5f);
+        public static readonly Font FontBody       = new Font(_ff, 11f);
+        public static readonly Font FontSmall      = new Font(_ff, 10f);
         public static readonly Font FontMono       = new Font("Consolas", 10f);
         // 側邊欄 & 頁面標題共享字體（節省 GDI Font handle）
-        public static readonly Font FontNav        = new Font(_ff, 10f);
-        public static readonly Font FontNavBold    = new Font(_ff, 10f, FontStyle.Bold);
-        public static readonly Font FontSection    = new Font(_ff, 8.5f, FontStyle.Bold);
-        public static readonly Font FontLogo       = new Font(_ff, 12f, FontStyle.Bold);
+        public static readonly Font FontNav        = new Font(_ff, 10.5f);
+        public static readonly Font FontNavBold    = new Font(_ff, 10.5f, FontStyle.Bold);
+        public static readonly Font FontSection    = new Font(_ff, 9f, FontStyle.Bold);
+        public static readonly Font FontLogo       = new Font(_ff, 12.5f, FontStyle.Bold);
         public static readonly Font FontPageTitle  = new Font(_ff, 14f, FontStyle.Bold);
         // CellFormatting & 迴圈中的共享字體（頻繁呼叫，必須共享避免 GDI 洩漏）
         public static readonly Font FontCell9Bold  = new Font(_ff,  9f, FontStyle.Bold);
@@ -91,7 +91,7 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>Soft UI 風格按鈕：淺灰底 + 淺邊框模擬凸起</summary>
-        public static Button MakeButton(string text, Color bg, Color fg, int w = 110, int h = 34)
+        public static Button MakeButton(string text, Color bg, Color fg, int w = 110, int h = 38)
         {
             var btn = new Button
             {
@@ -113,11 +113,11 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>Apple 風格主要按鈕（藍底白字，圓角感）</summary>
-        public static Button MakePrimaryButton(string text, int w = 110, int h = 32)
+        public static Button MakePrimaryButton(string text, int w = 110, int h = 38)
             => MakeButton(text, AccentBlue, Color.White, w, h);
 
         /// <summary>次要按鈕（Soft UI 灰底）</summary>
-        public static Button MakeSecondaryButton(string text, int w = 110, int h = 32)
+        public static Button MakeSecondaryButton(string text, int w = 110, int h = 38)
             => MakeButton(text, BgLight, TextPrimary, w, h);
 
         public static TextBox MakeTextBox(int w = 200)
@@ -244,7 +244,8 @@ namespace SQ_Email_Tools
             dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 37,  99, 180);
             dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
-            dgv.DefaultCellStyle.Padding            = new Padding(8, 0, 8, 0);
+            // 足夠垂直內距，避免列高不足時中文字被壓扁、看似橫向擠在一起
+            dgv.DefaultCellStyle.Padding            = new Padding(10, 6, 10, 6);
 
             // 交錯列
             dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
@@ -256,9 +257,9 @@ namespace SQ_Email_Tools
             dgv.ColumnHeadersDefaultCellStyle.BackColor = BgDark;
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextSecondary;
             dgv.ColumnHeadersDefaultCellStyle.Font      = FontSmall;
-            dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 0, 8, 0);
-            dgv.ColumnHeadersHeight                     = 38;
-            dgv.RowTemplate.Height                      = 36;
+            dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(8, 4, 8, 4);
+            dgv.ColumnHeadersHeight                     = 40;
+            dgv.RowTemplate.Height                      = 42;
 
             EnableSmoothPaint(dgv);
         }
@@ -306,7 +307,7 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>Soft UI 次要按鈕（取消/清除類）</summary>
-        public static Button MakeGhostButton(string text, int w = 80, int h = 32)
+        public static Button MakeGhostButton(string text, int w = 88, int h = 36)
         {
             var btn = new Button
             {
@@ -326,7 +327,7 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>危險按鈕（刪除/封號類）</summary>
-        public static Button MakeDangerButton(string text, int w = 110, int h = 32)
+        public static Button MakeDangerButton(string text, int w = 110, int h = 36)
             => MakeButton(text, AccentRed, Color.White, w, h);
 
         // ── 數值感知排序（供各歷史表單使用）────────────────────────

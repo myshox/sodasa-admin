@@ -22,7 +22,6 @@ export default function DbBrowserPage() {
   const [tblLoading, setTblLoading] = useState(false)
   const [error, setError]       = useState('')
 
-  // 載入表清單
   useEffect(() => {
     setTblLoading(true)
     api.get('/sql/tables')
@@ -31,7 +30,6 @@ export default function DbBrowserPage() {
       .finally(() => setTblLoading(false))
   }, [])
 
-  // 載入表資料
   const loadData = useCallback(async (tbl: string, kw: string, pg: number, ps: number) => {
     if (!tbl) return
     setLoading(true); setError('')
@@ -74,153 +72,167 @@ export default function DbBrowserPage() {
   const totalPages = result ? Math.ceil(result.total / pageSize) : 1
 
   return (
-    <div className="gm-page-fill-row" style={{ overflow: 'hidden' }}>
+    <div className="gm-page-stack">
+      <header className="gm-page-header">
+        <h1 className="gm-page-title">
+          <span className="gm-page-icon" aria-hidden>🗄</span>
+          資料庫瀏覽
+        </h1>
+        <p className="gm-page-subtitle">左側選表、右側檢視資料；支援欄位關鍵字搜尋與分頁（唯讀）。</p>
+      </header>
 
-      {/* ── 左側表列表 ── */}
-      <div style={{
-        width: 200, minWidth: 160, background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', flexShrink: 0
-      }}>
-        <div style={{ padding: '10px 10px 6px', fontWeight: 700, fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
-          📋 資料表 {tblLoading ? '載入中…' : `(${tables.length})`}
-        </div>
-        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
-          <input
-            placeholder="篩選表名…"
-            value={tableSearch}
-            onChange={e => setTableSearch(e.target.value)}
-            style={{ width: '100%', padding: '4px 8px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 5, fontSize: 12, color: 'var(--text-primary)', boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {filteredTables.map(t => (
-            <div
-              key={t} onClick={() => selectTable(t)}
-              style={{
-                padding: '7px 12px', cursor: 'pointer', fontSize: 12,
-                background: selected === t ? 'var(--accent-blue)' : 'transparent',
-                color: selected === t ? '#fff' : 'var(--text-primary)',
-                borderBottom: '1px solid rgba(255,255,255,.04)'
-              }}
-            >
-              {t}
-            </div>
-          ))}
-          {!tblLoading && filteredTables.length === 0 && (
-            <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>無符合結果</div>
-          )}
-        </div>
-      </div>
-
-      {/* ── 右側資料區 ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-        {/* 標題 */}
-        <div style={{ padding: '10px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
-            {selected ? `📋 ${selected}` : '← 請選擇左側資料表'}
-          </span>
-          {result && (
-            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-              共 {result.total.toLocaleString()} 筆 · 欄位：{result.columns.slice(0, 8).join(' | ')}{result.columns.length > 8 ? ' …' : ''}
-            </span>
-          )}
-        </div>
-
-        {/* 搜尋列 */}
-        {selected && (
-          <div style={{ padding: '8px 16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <div
+        className="db-browser-root gm-panel"
+        style={{
+          height: 'clamp(380px, 72vh, 880px)',
+          padding: 0,
+          overflow: 'hidden',
+          marginBottom: 0,
+        }}
+      >
+        <aside className="db-browser-sidebar">
+          <div className="db-browser-sidebar-header">
+            資料表 {tblLoading ? '載入中…' : `（${tables.length}）`}
+          </div>
+          <div className="db-browser-sidebar-search">
             <input
-              placeholder="搜尋任意欄位…"
-              value={inputSearch}
-              onChange={e => setInputSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              style={{ padding: '5px 10px', width: 220, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 5, color: 'var(--text-primary)', fontSize: 13 }}
+              type="search"
+              placeholder="篩選表名…"
+              value={tableSearch}
+              onChange={e => setTableSearch(e.target.value)}
+              autoComplete="off"
             />
-            <button onClick={handleSearch} disabled={loading} style={{ padding: '5px 14px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 13 }}>
-              {loading ? '…' : '搜尋'}
-            </button>
-            {search && (
-              <button onClick={() => { setInputSearch(''); setSearch(''); setPage(1); loadData(selected, '', 1, pageSize) }}
-                style={{ padding: '5px 10px', background: 'var(--bg-sidebar)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', fontSize: 13 }}>
-                清除
-              </button>
-            )}
-            <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 8 }}>每頁：</span>
-            {[20, 50, 100, 200].map(ps => (
-              <button key={ps} onClick={() => handlePageSizeChange(ps)}
-                style={{ padding: '4px 10px', background: pageSize === ps ? 'var(--accent-blue)' : 'var(--bg-sidebar)', color: pageSize === ps ? '#fff' : 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 5, cursor: 'pointer', fontSize: 12 }}>
-                {ps}
+          </div>
+          <div className="db-browser-table-list" role="listbox" aria-label="資料表清單">
+            {filteredTables.map(t => (
+              <button
+                key={t}
+                type="button"
+                className="db-browser-tbl-btn"
+                data-active={selected === t ? 'true' : undefined}
+                onClick={() => selectTable(t)}
+              >
+                {t}
               </button>
             ))}
+            {!tblLoading && filteredTables.length === 0 && (
+              <div style={{ padding: 14, color: 'var(--text-muted)', fontSize: 13 }}>無符合結果</div>
+            )}
           </div>
-        )}
+        </aside>
 
-        {/* 錯誤訊息 */}
-        {error && (
-          <div style={{ margin: '12px 16px', padding: 10, background: 'rgba(245,101,101,.1)', border: '1px solid var(--accent-red)', borderRadius: 6, color: 'var(--accent-red)', fontSize: 13 }}>
-            {error}
+        <div className="db-browser-main">
+          <div className="db-browser-toolbar">
+            <span className="db-browser-toolbar-title">
+              {selected ? `📋 ${selected}` : '← 請選擇左側資料表'}
+            </span>
+            {result && (
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500 }}>
+                共 {result.total.toLocaleString()} 筆 · 欄位：{result.columns.slice(0, 8).join(' | ')}{result.columns.length > 8 ? ' …' : ''}
+              </span>
+            )}
           </div>
-        )}
 
-        {/* 資料表格 */}
-        {!selected && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 15 }}>
-            請從左側選擇一張資料表來瀏覽
-          </div>
-        )}
+          {selected && (
+            <div className="db-browser-search-row">
+              <input
+                type="text"
+                placeholder="搜尋任意欄位…"
+                value={inputSearch}
+                onChange={e => setInputSearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
+              <button type="button" className="primary" onClick={handleSearch} disabled={loading}>
+                {loading ? '…' : '搜尋'}
+              </button>
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setInputSearch(''); setSearch(''); setPage(1); loadData(selected, '', 1, pageSize) }}
+                >
+                  清除
+                </button>
+              )}
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, marginLeft: 4 }}>每頁</span>
+              <div className="db-browser-page-btns">
+                {[20, 50, 100, 200].map(ps => (
+                  <button
+                    key={ps}
+                    type="button"
+                    className={pageSize === ps ? 'primary' : undefined}
+                    style={pageSize === ps ? undefined : { opacity: 0.9 }}
+                    onClick={() => handlePageSizeChange(ps)}
+                  >
+                    {ps}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {loading && (
-          <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>載入中…</div>
-        )}
+          {error && (
+            <div className="ui-error" style={{ margin: '12px 16px' }} role="alert">
+              {error}
+            </div>
+          )}
 
-        {!loading && result && result.columns.length > 0 && (
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-              <colgroup>
-                {result.columns.map(c => <col key={c} style={{ minWidth: 80, maxWidth: 220 }} />)}
-              </colgroup>
-              <thead>
-                <tr style={{ background: 'var(--bg-sidebar)', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {result.columns.map(c => (
-                    <th key={c} style={{ padding: '7px 10px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: 12, borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.map((row, i) => (
-                  <tr key={i} style={{ background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)' }}>
-                    {result.columns.map(col => (
-                      <td key={col} title={row[col] != null ? String(row[col]) : ''} style={{ padding: '6px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220, color: row[col] == null ? 'var(--text-muted)' : 'var(--text-primary)' }}>
-                        {row[col] != null ? String(row[col]) : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>NULL</span>}
-                      </td>
+          {!selected && (
+            <div className="db-browser-empty">請從左側選擇一張資料表來瀏覽</div>
+          )}
+
+          {loading && (
+            <div className="db-browser-loading">載入中…</div>
+          )}
+
+          {!loading && result && result.columns.length > 0 && (
+            <div className="gm-native-table-wrap" style={{ flex: 1, margin: '0 8px 8px', borderRadius: 'var(--radius-sm)' }}>
+              <table className="gm-native-table">
+                <colgroup>
+                  {result.columns.map(c => <col key={c} style={{ minWidth: 80, maxWidth: 220 }} />)}
+                </colgroup>
+                <thead>
+                  <tr>
+                    {result.columns.map(c => (
+                      <th key={c} title={c}>{c}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {result.rows.map((row, i) => (
+                    <tr key={i}>
+                      {result.columns.map(col => (
+                        <td
+                          key={col}
+                          title={row[col] != null ? String(row[col]) : ''}
+                          style={{ color: row[col] == null ? 'var(--text-muted)' : undefined }}
+                        >
+                          {row[col] != null ? String(row[col]) : <span style={{ fontStyle: 'italic' }}>NULL</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {/* 翻頁列 */}
-        {result && result.total > 0 && (
-          <div style={{ padding: '8px 16px', background: 'var(--bg-card)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button disabled={page <= 1} onClick={() => handlePageChange(page - 1)}
-              style={{ padding: '5px 12px', background: page <= 1 ? 'var(--bg-sidebar)' : 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 5, cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1 }}>
-              ◀ 上一頁
-            </button>
-            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>第 {page} / {Math.max(1, totalPages)} 頁</span>
-            <button disabled={page >= totalPages} onClick={() => handlePageChange(page + 1)}
-              style={{ padding: '5px 12px', background: page >= totalPages ? 'var(--bg-sidebar)' : 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 5, cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.5 : 1 }}>
-              下一頁 ▶
-            </button>
-            <span style={{ marginLeft: 16, color: 'var(--text-muted)', fontSize: 12 }}>
-              共 {result.total.toLocaleString()} 筆 · 第 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.total)} 筆
-            </span>
-          </div>
-        )}
+          {result && result.total > 0 && (
+            <div className="db-browser-footer">
+              <button type="button" className="primary" disabled={page <= 1} onClick={() => handlePageChange(page - 1)}>
+                ◀ 上一頁
+              </button>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>
+                第 {page} / {Math.max(1, totalPages)} 頁
+              </span>
+              <button type="button" className="primary" disabled={page >= totalPages} onClick={() => handlePageChange(page + 1)}>
+                下一頁 ▶
+              </button>
+              <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontSize: 12 }}>
+                共 {result.total.toLocaleString()} 筆 · 第 {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.total)} 筆
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

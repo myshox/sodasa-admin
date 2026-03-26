@@ -51,8 +51,8 @@ namespace SQ_Email_Tools
         private void InitUI()
         {
             Text          = $"蘇打石器 GM 管理系統  v{AppVersion.DisplayShort}";
-            Size          = new Size(1360, 800);
-            MinimumSize   = new Size(1100, 640);
+            Size          = new Size(1400, 820);
+            MinimumSize   = new Size(1120, 660);
             BackColor     = Theme.BgPage;
             ForeColor     = Theme.TextPrimary;
             Font          = Theme.FontBody;
@@ -79,7 +79,7 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         private void BuildSidebar()
         {
-            const int SW = 216;
+            const int SW = 236;
             _sidebar = new Panel
             {
                 Dock      = DockStyle.Left,
@@ -140,7 +140,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "   💳  充值管理",
                 Location  = new Point(6, 6),
-                Size      = new Size(NAV_W - 12, 38),
+                Size      = new Size(NAV_W - 12, 40),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Theme.AccentGreen,
                 ForeColor = Color.White,
@@ -564,7 +564,7 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(18, y)
             });
-            y += 20;
+            y += 22;
         }
 
         private void AddSideGap(ref int y)
@@ -580,7 +580,7 @@ namespace SQ_Email_Tools
 
         private Button MakeNavBtn(string icon, string text, ref int y, bool isDefault = false)
         {
-            const int BH = 38;
+            const int BH = 44;
             var bgNorm = Theme.BgSidebar;
             var bgAct  = Theme.AccentBlue;
             var fgNorm = Theme.TextSecondary;
@@ -592,7 +592,7 @@ namespace SQ_Email_Tools
             {
                 Text      = $"   {icon}  {text}",
                 Location  = new Point(0, y),
-                Size      = new Size(196, BH),
+                Size      = new Size(_sidebar.Width - 9, BH),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = isDefault ? bgAct : bgNorm,
                 ForeColor = isDefault ? fgAct : fgNorm,
@@ -606,11 +606,14 @@ namespace SQ_Email_Tools
             btn.FlatAppearance.MouseOverBackColor = bgHov;
             btn.FlatAppearance.MouseDownBackColor = bgAct;
             btn.MouseWheel += SidebarMouseWheel;
-            // 用左側 border 模擬 indicator（不另加 Panel，避免 z-order 攔截點擊）
+            // 左側青→藍漸層指示（與網頁版一致）
             btn.Paint += (s, pe) =>
             {
-                if (btn.Tag is bool active && active)
-                    pe.Graphics.FillRectangle(new SolidBrush(Theme.AccentBlue), 0, 0, 3, btn.Height);
+                if (btn.Tag is not bool active || !active) return;
+                var r = new Rectangle(0, 0, 4, btn.Height);
+                pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var br = new LinearGradientBrush(r, Theme.AccentCyan, Theme.AccentBlue, 90f))
+                    pe.Graphics.FillRectangle(br, r);
             };
 
             if (isDefault)
@@ -629,7 +632,7 @@ namespace SQ_Email_Tools
             var btn = new Button
             {
                 Text      = text,
-                Size      = new Size(192, 22),
+                Size      = new Size(200, 30),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 ForeColor = Theme.TextSecondary,
@@ -2802,8 +2805,7 @@ namespace SQ_Email_Tools
             _itemDgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_itemDgv);
             _itemDgv.ReadOnly              = true;
-            _itemDgv.RowTemplate.Height    = 26;
-            _itemDgv.ColumnHeadersHeight   = 28;
+            // 與 Theme.StyleDataGridView 列高一致，避免道具清單字被壓扁
             _itemDgv.AllowUserToResizeRows = false;
             _itemDgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             _itemDgv.MultiSelect           = false;

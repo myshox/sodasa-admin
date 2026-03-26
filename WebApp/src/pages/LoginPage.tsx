@@ -63,7 +63,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="login-form-stack">
           <label className="ui-label" htmlFor="gm-login-user">{S.loginUser}</label>
           <input
             id="gm-login-user"
@@ -78,7 +78,7 @@ export default function LoginPage() {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="login-form-stack">
           <label className="ui-label" htmlFor="gm-login-pass">{S.loginPass}</label>
           <div style={{ position: 'relative' }}>
             <input

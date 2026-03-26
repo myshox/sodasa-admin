@@ -99,7 +99,8 @@ export default function Layout() {
 
   const navLinkStyle = (isActive: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 10,
-    padding: isMobile ? '12px 14px' : '8px 12px',
+    padding: isMobile ? '14px 14px' : '10px 14px',
+    minHeight: isMobile ? 48 : 42,
     borderRadius: 12, marginBottom: 4, fontSize: 14,
     background: isActive ? 'var(--neu-bg)' : 'transparent',
     color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
@@ -228,7 +229,7 @@ export default function Layout() {
           aria-label="主選單導覽"
           aria-hidden={!drawerOpen}
           style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 'min(300px, calc(100vw - 40px))',
+          position: 'fixed', top: 0, left: 0, bottom: 0, width: 'min(320px, calc(100vw - 28px))',
           paddingTop: 'env(safe-area-inset-top)',
           background: 'var(--bg-sidebar)',
           display: 'flex', flexDirection: 'column',
@@ -322,7 +323,7 @@ export default function Layout() {
         跳到主要內容
       </a>
       <aside style={{
-        width: 240,
+        width: 260,
         background: 'linear-gradient(180deg, var(--bg-sidebar) 0%, rgba(207, 216, 232, 0.98) 100%)',
         display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
         boxShadow: '6px 0 20px rgba(15, 23, 42, 0.07), 0 0 0 1px rgba(59, 130, 246, 0.06)',
