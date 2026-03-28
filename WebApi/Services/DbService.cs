@@ -1508,7 +1508,10 @@ public class DbService
 
             if (table == "vipshop" || table == "fameshop")
             {
-                var sql1 = $@"SELECT itemid, itemname, SUM(itemnum) AS total_qty, COUNT(*) AS order_count, SUM(oldpoint - newpoint) AS total_cost, MAX(time) AS last_time FROM `{table}` GROUP BY itemid, itemname ORDER BY total_qty DESC LIMIT {topN}";
+                // `time` 為 MySQL 保留字，未加反引號時在部分版本會導致查詢失敗（畫面空白、後端 catch 吞錯）
+                var sql1 = $@"SELECT itemid, itemname, SUM(itemnum) AS total_qty, COUNT(*) AS order_count,
+                    SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost, MAX(`time`) AS last_time
+                    FROM `{table}` GROUP BY itemid, itemname ORDER BY total_qty DESC LIMIT {topN}";
                 await using (var cmd = new MySqlCommand(sql1, db))
                 await using (var r = await cmd.ExecuteReaderAsync())
                 {
@@ -1516,7 +1519,8 @@ public class DbService
                     while (await r.ReadAsync())
                         items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = r["itemname"]?.ToString() ?? "", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]), TotalCost = r["total_cost"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_cost"]), LastTime = r["last_time"]?.ToString() ?? "" });
                 }
-                var sql2 = $@"SELECT cdkey, name, SUM(itemnum) AS total_qty, SUM(oldpoint - newpoint) AS total_cost FROM `{table}` GROUP BY cdkey, name ORDER BY total_cost DESC LIMIT {topN}";
+                var sql2 = $@"SELECT cdkey, name, SUM(itemnum) AS total_qty,
+                    SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost FROM `{table}` GROUP BY cdkey, name ORDER BY total_cost DESC LIMIT {topN}";
                 await using (var cmd2 = new MySqlCommand(sql2, db))
                 await using (var r2 = await cmd2.ExecuteReaderAsync())
                 {
@@ -1535,7 +1539,10 @@ public class DbService
                     items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = $"道具 #{r["itemid"]}", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]) });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[GetShopTopItemsAsync/{table}] {ex.Message}");
+        }
         return (items, spenders);
     }
 

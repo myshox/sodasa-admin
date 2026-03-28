@@ -2249,8 +2249,8 @@ namespace SQ_Email_Tools
                     SELECT itemid, itemname,
                            SUM(itemnum) AS total_qty,
                            COUNT(*) AS order_count,
-                           SUM(oldpoint - newpoint) AS total_cost,
-                           MAX(time) AS last_time
+                           SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost,
+                           MAX(`time`) AS last_time
                     FROM `{table}`
                     GROUP BY itemid, itemname
                     ORDER BY total_qty DESC
@@ -2276,7 +2276,7 @@ namespace SQ_Email_Tools
                 string sql2 = $@"
                     SELECT cdkey, name,
                            SUM(itemnum) AS total_qty,
-                           SUM(oldpoint - newpoint) AS total_cost
+                           SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost
                     FROM `{table}`
                     GROUP BY cdkey, name
                     ORDER BY total_cost DESC

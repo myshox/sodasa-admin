@@ -13,10 +13,26 @@ export default function ShopStatsPage() {
   const [tab, setTab] = useState('vipshop')
   const [data, setData] = useState<{ items: any[]; spenders: any[] } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
-    api.get(`/shop/${tab}`).then(r => { setData(r.data); setLoading(false) }).catch(() => setLoading(false))
+    setError(null)
+    api
+      .get(`/shop/${tab}`)
+      .then(r => {
+        setData(r.data)
+        setLoading(false)
+      })
+      .catch((e: unknown) => {
+        const msg =
+          (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          (e as { message?: string })?.message ||
+          '無法載入商城統計，請稍後再試或檢查後端連線。'
+        setError(msg)
+        setData(null)
+        setLoading(false)
+      })
   }, [tab])
 
   return (
@@ -33,7 +49,13 @@ export default function ShopStatsPage() {
             }}>{s.icon} {s.label}</button>
         ))}
       </div>
-      {loading ? <p style={{ color: 'var(--text-muted)' }}>載入中…</p> : data && (
+      {loading ? (
+        <p style={{ color: 'var(--text-muted)' }}>載入中…</p>
+      ) : error ? (
+        <div className="ui-error" role="alert">
+          {error}
+        </div>
+      ) : data ? (
         <>
           <h2 style={{ fontSize: 16, marginBottom: 12 }}>熱賣道具 Top 20</h2>
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: 24 }}>
@@ -62,6 +84,8 @@ export default function ShopStatsPage() {
             </div>
           </div>
         </>
+      ) : (
+        <p style={{ color: 'var(--text-muted)' }}>尚無資料</p>
       )}
     </div>
   )
