@@ -358,6 +358,15 @@ namespace SQ_Email_Tools
                 SwitchToHub(new DashboardForm());
             };
 
+            var btnShopStats = MakeNavBtn("🏪", "商城熱賣", ref y);
+            navTip.SetToolTip(btnShopStats, "金幣／聲望／石壁／戰點商店：熱賣道具 TOP、玩家消費排行（與網頁商城分析相同資料）");
+            btnShopStats.Click += (s, e) =>
+            {
+                SetActiveNav(btnShopStats);
+                if (!CheckConnected()) return;
+                SwitchToHub(new ShopStatsForm());
+            };
+
             var btnRechargeHist = MakeNavBtn("📜", "充值記錄", ref y);
             navTip.SetToolTip(btnRechargeHist, "查詢全服充值訂單記錄");
             btnRechargeHist.Click += (s, e) =>
