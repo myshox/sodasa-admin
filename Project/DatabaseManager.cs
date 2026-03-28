@@ -2223,9 +2223,10 @@ namespace SQ_Email_Tools
         /// 取得商城熱賣道具排行。
         /// table: "vipshop"=金幣商店, "fameshop"=聲望商店,
         ///        "csshopnum"=石壁商店, "csxsshopnum"=戰點商店（結構不同，自動判斷）
+        /// fromDate/toDate 皆為 null 時為全時段；否則依日期（含起訖日）篩選。
         /// </summary>
         public async Task<(List<ShopSaleRecord> items, List<ShopSpenderRecord> spenders)>
-            GetShopTopItemsAsync(string table, int topN = 20)
+            GetShopTopItemsAsync(string table, int topN = 20, DateTime? fromDate = null, DateTime? toDate = null)
         {
             var items    = new List<ShopSaleRecord>();
             var spenders = new List<ShopSpenderRecord>();
@@ -2240,24 +2241,39 @@ namespace SQ_Email_Tools
             } catch { return (items, spenders); }
             if (rowCount == 0) return (items, spenders);
 
+            bool useDate = fromDate.HasValue && toDate.HasValue;
+            DateTime d0 = useDate ? fromDate!.Value.Date : default;
+            DateTime d1 = useDate ? toDate!.Value.Date : default;
+            if (useDate && d0 > d1) { var x = d0; d0 = d1; d1 = x; }
+
+            string whereVipFame = useDate ? " WHERE DATE(`time`) BETWEEN @dfrom AND @dto " : "";
+            string whereCs      = useDate ? " WHERE DATE(`date`) BETWEEN @dfrom AND @dto " : "";
+
+            void AddDateParams(MySqlCommand cmd)
+            {
+                if (!useDate) return;
+                cmd.Parameters.AddWithValue("@dfrom", d0);
+                cmd.Parameters.AddWithValue("@dto", d1);
+            }
+
             // ── 按表格類型分別查詢 ────────────────────────────────
             if (table == "vipshop" || table == "fameshop")
             {
                 // 這兩張表結構相同: cdkey, name, itemid, itemname, itemnum, time, oldpoint, newpoint
-                // 熱賣商品
                 string sql1 = $@"
                     SELECT itemid, itemname,
                            SUM(itemnum) AS total_qty,
                            COUNT(*) AS order_count,
                            SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost,
                            MAX(`time`) AS last_time
-                    FROM `{table}`
+                    FROM `{table}` {whereVipFame}
                     GROUP BY itemid, itemname
                     ORDER BY total_qty DESC
                     LIMIT {topN}";
                 using (var cmd = new MySqlCommand(sql1, conn))
-                using (var r = await cmd.ExecuteReaderAsync())
                 {
+                    AddDateParams(cmd);
+                    using var r = await cmd.ExecuteReaderAsync();
                     int rank = 1;
                     while (await r.ReadAsync())
                         items.Add(new ShopSaleRecord
@@ -2272,18 +2288,18 @@ namespace SQ_Email_Tools
                         });
                 }
 
-                // 消費排行（玩家）
                 string sql2 = $@"
                     SELECT cdkey, name,
                            SUM(itemnum) AS total_qty,
                            SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost
-                    FROM `{table}`
+                    FROM `{table}` {whereVipFame}
                     GROUP BY cdkey, name
                     ORDER BY total_cost DESC
                     LIMIT {topN}";
                 using (var cmd2 = new MySqlCommand(sql2, conn))
-                using (var r2 = await cmd2.ExecuteReaderAsync())
                 {
+                    AddDateParams(cmd2);
+                    using var r2 = await cmd2.ExecuteReaderAsync();
                     int rank = 1;
                     while (await r2.ReadAsync())
                         spenders.Add(new ShopSpenderRecord
@@ -2302,22 +2318,25 @@ namespace SQ_Email_Tools
                 string sql1 = $@"
                     SELECT itemid,
                            SUM(buynum) AS total_qty,
-                           COUNT(*) AS order_count
-                    FROM `{table}`
+                           COUNT(*) AS order_count,
+                           MAX(`date`) AS last_time
+                    FROM `{table}` {whereCs}
                     GROUP BY itemid
                     ORDER BY total_qty DESC
                     LIMIT {topN}";
                 using var cmd = new MySqlCommand(sql1, conn);
+                AddDateParams(cmd);
                 using var r = await cmd.ExecuteReaderAsync();
                 int rank = 1;
                 while (await r.ReadAsync())
                     items.Add(new ShopSaleRecord
                     {
-                        Rank       = rank++,
-                        ItemId     = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]),
-                        ItemName   = $"道具 #{r["itemid"]}",
-                        TotalQty   = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]),
-                        OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"])
+                        Rank        = rank++,
+                        ItemId      = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]),
+                        ItemName    = $"道具 #{r["itemid"]}",
+                        TotalQty    = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]),
+                        OrderCount  = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]),
+                        LastBuyTime = r["last_time"]?.ToString() ?? ""
                     });
             }
 

@@ -1496,7 +1496,7 @@ public class DbService
     }
 
     // ── 商城熱賣（與 EXE 一致：vipshop/fameshop/csshopnum/csxsshopnum）────────
-    public async Task<(List<ShopItemDto> items, List<ShopSpenderDto> spenders)> GetShopTopItemsAsync(string table, int topN = 20)
+    public async Task<(List<ShopItemDto> items, List<ShopSpenderDto> spenders)> GetShopTopItemsAsync(string table, int topN = 20, DateTime? fromDate = null, DateTime? toDate = null)
     {
         var items = new List<ShopItemDto>(); var spenders = new List<ShopSpenderDto>();
         try
@@ -1506,24 +1506,41 @@ public class DbService
             try { await using var cc = new MySqlCommand($"SELECT COUNT(*) FROM `{table}`", db); rowCount = Convert.ToInt64(await cc.ExecuteScalarAsync()); } catch { return (items, spenders); }
             if (rowCount == 0) return (items, spenders);
 
+            bool useDate = fromDate.HasValue && toDate.HasValue;
+            DateTime d0 = useDate ? fromDate!.Value.Date : default;
+            DateTime d1 = useDate ? toDate!.Value.Date : default;
+            if (useDate && d0 > d1) { var x = d0; d0 = d1; d1 = x; }
+
+            string whereVipFame = useDate ? " WHERE DATE(`time`) BETWEEN @dfrom AND @dto " : "";
+            string whereCs = useDate ? " WHERE DATE(`date`) BETWEEN @dfrom AND @dto " : "";
+
+            void AddDateParams(MySqlCommand cmd)
+            {
+                if (!useDate) return;
+                cmd.Parameters.AddWithValue("@dfrom", d0);
+                cmd.Parameters.AddWithValue("@dto", d1);
+            }
+
             if (table == "vipshop" || table == "fameshop")
             {
                 // `time` 為 MySQL 保留字，未加反引號時在部分版本會導致查詢失敗（畫面空白、後端 catch 吞錯）
                 var sql1 = $@"SELECT itemid, itemname, SUM(itemnum) AS total_qty, COUNT(*) AS order_count,
                     SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost, MAX(`time`) AS last_time
-                    FROM `{table}` GROUP BY itemid, itemname ORDER BY total_qty DESC LIMIT {topN}";
+                    FROM `{table}` {whereVipFame} GROUP BY itemid, itemname ORDER BY total_qty DESC LIMIT {topN}";
                 await using (var cmd = new MySqlCommand(sql1, db))
-                await using (var r = await cmd.ExecuteReaderAsync())
                 {
+                    AddDateParams(cmd);
+                    await using var r = await cmd.ExecuteReaderAsync();
                     int rank = 1;
                     while (await r.ReadAsync())
                         items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = r["itemname"]?.ToString() ?? "", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]), TotalCost = r["total_cost"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_cost"]), LastTime = r["last_time"]?.ToString() ?? "" });
                 }
                 var sql2 = $@"SELECT cdkey, name, SUM(itemnum) AS total_qty,
-                    SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost FROM `{table}` GROUP BY cdkey, name ORDER BY total_cost DESC LIMIT {topN}";
+                    SUM(IFNULL(oldpoint,0) - IFNULL(newpoint,0)) AS total_cost FROM `{table}` {whereVipFame} GROUP BY cdkey, name ORDER BY total_cost DESC LIMIT {topN}";
                 await using (var cmd2 = new MySqlCommand(sql2, db))
-                await using (var r2 = await cmd2.ExecuteReaderAsync())
                 {
+                    AddDateParams(cmd2);
+                    await using var r2 = await cmd2.ExecuteReaderAsync();
                     int rank = 1;
                     while (await r2.ReadAsync())
                         spenders.Add(new ShopSpenderDto { Rank = rank++, Cdkey = r2["cdkey"]?.ToString() ?? "", Name = r2["name"]?.ToString() ?? "", TotalQty = r2["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r2["total_qty"]), TotalCost = r2["total_cost"] == DBNull.Value ? 0 : Convert.ToInt64(r2["total_cost"]) });
@@ -1531,12 +1548,13 @@ public class DbService
             }
             else if (table == "csshopnum" || table == "csxsshopnum")
             {
-                var sql1 = $@"SELECT itemid, SUM(buynum) AS total_qty, COUNT(*) AS order_count FROM `{table}` GROUP BY itemid ORDER BY total_qty DESC LIMIT {topN}";
+                var sql1 = $@"SELECT itemid, SUM(buynum) AS total_qty, COUNT(*) AS order_count, MAX(`date`) AS last_time FROM `{table}` {whereCs} GROUP BY itemid ORDER BY total_qty DESC LIMIT {topN}";
                 await using var cmd = new MySqlCommand(sql1, db);
+                AddDateParams(cmd);
                 await using var r = await cmd.ExecuteReaderAsync();
                 int rank = 1;
                 while (await r.ReadAsync())
-                    items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = $"道具 #{r["itemid"]}", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]) });
+                    items.Add(new ShopItemDto { Rank = rank++, ItemId = r["itemid"] == DBNull.Value ? 0 : Convert.ToInt32(r["itemid"]), ItemName = $"道具 #{r["itemid"]}", TotalQty = r["total_qty"] == DBNull.Value ? 0 : Convert.ToInt64(r["total_qty"]), OrderCount = r["order_count"] == DBNull.Value ? 0 : Convert.ToInt64(r["order_count"]), LastTime = r["last_time"]?.ToString() ?? "" });
             }
         }
         catch (Exception ex)

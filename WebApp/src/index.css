@@ -628,6 +628,188 @@ a[href] { position: relative; z-index: 1; }
   margin-bottom: 14px;
 }
 
+/* ── 商城分析 ShopStatsPage ─────────────────────────────────── */
+.shop-stats-page__hero {
+  margin-bottom: 20px;
+}
+.shop-stats-page__hero h1 {
+  margin-bottom: 8px;
+}
+.shop-stats-page__sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 52rem;
+}
+.shop-stats-page__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.shop-stats-page__shops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.shop-stats-page__shop-btn {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.shop-stats-page__shop-btn:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  color: var(--text-primary);
+}
+.shop-stats-page__shop-btn--on {
+  background: linear-gradient(145deg, rgba(245, 158, 11, 0.95), rgba(234, 88, 12, 0.9));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.25);
+}
+.shop-stats-page__dates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--neu-shadow-inset-sm, inset 0 1px 0 rgba(255, 255, 255, 0.04));
+}
+.shop-stats-page__dates-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.shop-stats-page__select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
+  font-size: 13px;
+  min-width: 140px;
+}
+.shop-stats-page__input-date {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.shop-stats-page__dash {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.shop-stats-page__range-hint {
+  font-size: 12px;
+  color: var(--accent-cyan, #22d3ee);
+  font-weight: 600;
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .shop-stats-page__range-hint {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+.shop-stats-page__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.shop-stats-page__card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+.shop-stats-page__card-title {
+  margin: 0;
+  padding: 14px 18px 10px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  border-left: 4px solid var(--accent-orange);
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.08), transparent);
+}
+.shop-stats-page__note {
+  margin: 0;
+  padding: 0 18px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+.shop-stats-page__table-wrap {
+  padding: 0 0 12px;
+}
+.shop-stats-page__thead {
+  display: grid;
+  gap: 0 12px;
+  align-items: center;
+  padding: 10px 18px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.shop-stats-page__thead--items {
+  grid-template-columns: 52px 72px minmax(100px, 1.2fr) 80px 64px 88px minmax(96px, 1fr);
+}
+.shop-stats-page__thead--spend {
+  grid-template-columns: 52px minmax(88px, 1fr) minmax(88px, 1fr) 80px 88px;
+}
+.shop-stats-page__row {
+  display: grid;
+  gap: 0 12px;
+  align-items: center;
+  padding: 11px 18px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.shop-stats-page__row:last-child {
+  border-bottom: none;
+}
+.shop-stats-page__row--items {
+  grid-template-columns: 52px 72px minmax(100px, 1.2fr) 80px 64px 88px minmax(96px, 1fr);
+}
+.shop-stats-page__row--spend {
+  grid-template-columns: 52px minmax(88px, 1fr) minmax(88px, 1fr) 80px 88px;
+}
+.shop-stats-page__rank {
+  font-weight: 800;
+  color: var(--accent-orange);
+  font-variant-numeric: tabular-nums;
+}
+.shop-stats-page__muted {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.shop-stats-page__empty {
+  margin: 0;
+  padding: 28px 18px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 /* 批量工具：底部留白給全域修復列 */
 .batchops-page.gm-page-stack {
   padding-bottom: 88px;
