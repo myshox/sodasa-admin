@@ -4933,6 +4933,37 @@ namespace SQ_Email_Tools
             return list;
         }
 
+        /// <summary>依登入 IP 彙總在線人數（csalogin.IP，僅非空 IP）</summary>
+        public async Task<List<OnlineIpEntry>> GetOnlineByLoginIpAsync(int topN = 40)
+        {
+            var list = new List<OnlineIpEntry>();
+            topN = Math.Clamp(topN, 1, 200);
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    $@"SELECT IFNULL(IP,'') AS ip,
+                              SUM(IF(Online=1,1,0)) AS onlineCount,
+                              COUNT(*) AS totalCount
+                       FROM csalogin
+                       WHERE IP IS NOT NULL AND TRIM(IP) <> ''
+                       GROUP BY IP
+                       ORDER BY onlineCount DESC, totalCount DESC
+                       LIMIT {topN}", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                    list.Add(new OnlineIpEntry
+                    {
+                        Ip          = r["ip"]?.ToString() ?? "",
+                        OnlineCount = r["onlineCount"] == DBNull.Value ? 0 : Convert.ToInt32(r["onlineCount"]),
+                        TotalCount  = r["totalCount"] == DBNull.Value ? 0 : Convert.ToInt32(r["totalCount"])
+                    });
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/OnlineByIp] " + ex.Message); }
+            return list;
+        }
+
         /// <summary>主帳號在線 / 離線統計（csaloginmaster）</summary>
         public async Task<MasterAccountStats> GetMasterAccountStatsAsync()
         {

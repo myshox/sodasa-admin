@@ -18,6 +18,11 @@ public class ServerStatusController : ControllerBase
     public async Task<IActionResult> ChannelOnline()
         => Ok(await _db.GetChannelOnlineCountAsync());
 
+    /// <summary>依登入 IP 彙總在線人數（Top N，預設 40）</summary>
+    [HttpGet("online-by-ip")]
+    public async Task<IActionResult> OnlineByIp([FromQuery] int top = 40)
+        => Ok(await _db.GetOnlineByLoginIpAsync(Math.Clamp(top, 1, 200)));
+
     [HttpGet("master-stats")]
     public async Task<IActionResult> MasterStats()
         => Ok(await _db.GetMasterAccountStatsAsync());

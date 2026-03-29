@@ -539,6 +539,14 @@ namespace SQ_Email_Tools
         public int    TotalCount  { get; set; }
     }
 
+    /// <summary>依目前登入 IP（csalogin.IP）彙總：在線人數與該 IP 下帳號總數</summary>
+    public class OnlineIpEntry
+    {
+        public string Ip          { get; set; } = "";
+        public int    OnlineCount { get; set; }
+        public int    TotalCount  { get; set; }
+    }
+
     public class MasterAccountStats
     {
         public int TotalMasters   { get; set; }

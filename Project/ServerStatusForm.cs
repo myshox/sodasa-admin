@@ -12,6 +12,7 @@ namespace SQ_Email_Tools
     {
         private Label _lblMasterTotal, _lblMasterOnline, _lblMasterOffline;
         private FlowLayoutPanel _channelFlow;
+        private DataGridView    _ipDgv;
         private DataGridView    _regDgv;
         private Label           _lblStatus;
         private Button          _btnRefresh;
@@ -45,19 +46,20 @@ namespace SQ_Email_Tools
             Font        = Theme.FontBody;
             MinimumSize = new Size(860, 560);
 
-            // ── 根 TableLayoutPanel（4 列）────────────────────────────
+            // ── 根 TableLayoutPanel（5 列）────────────────────────────
             var root = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                RowCount = 4, ColumnCount = 1,
+                RowCount = 5, ColumnCount = 1,
                 BackColor = Color.Transparent,
                 Padding   = new Padding(16, 10, 16, 10),
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None
             };
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));   // 0: 工具列
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108f));  // 1: 主帳號 3 卡
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 148f));  // 2: 分流在線
-            root.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));  // 3: 最新註冊
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 138f));  // 2: 分流在線
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 168f));  // 3: 登入 IP 在線
+            root.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));  // 4: 最新註冊
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
             // ────────────────────────────────────────────────────────
@@ -159,7 +161,52 @@ namespace SQ_Email_Tools
             root.Controls.Add(chWrap, 0, 2);
 
             // ────────────────────────────────────────────────────────
-            // Row 3：最新註冊帳號
+            // Row 3：登入 IP 在線人數
+            // ────────────────────────────────────────────────────────
+            var ipWrap = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                RowCount = 2, ColumnCount = 1,
+                BackColor = Color.Transparent,
+                Margin    = new Padding(0, 0, 0, 8)
+            };
+            ipWrap.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f));
+            ipWrap.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            ipWrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            ipWrap.Controls.Add(new Label
+            {
+                Text = "登入 IP 在線人數（依目前登入 IP 彙總，含在線／該 IP 帳號總數）",
+                ForeColor = Theme.TextSecondary,
+                Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft
+            }, 0, 0);
+            _ipDgv = new DataGridView { Dock = DockStyle.Fill };
+            Theme.StyleDataGridView(_ipDgv);
+            Theme.EnableSmoothPaint(_ipDgv);
+            _ipDgv.ReadOnly            = true;
+            _ipDgv.RowTemplate.Height  = 28;
+            _ipDgv.ColumnHeadersHeight = 30;
+            _ipDgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            _ipDgv.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "ip", HeaderText = "登入 IP", FillWeight = 120,
+                DefaultCellStyle = { Font = Theme.FontMono }
+            });
+            _ipDgv.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "on", HeaderText = "在線", FillWeight = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight, ForeColor = Color.FromArgb(22, 183, 120) }
+            });
+            _ipDgv.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = "tot", HeaderText = "帳號數", FillWeight = 45,
+                DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight }
+            });
+            ipWrap.Controls.Add(_ipDgv, 0, 1);
+            root.Controls.Add(ipWrap, 0, 3);
+
+            // ────────────────────────────────────────────────────────
+            // Row 4：最新註冊帳號
             // ────────────────────────────────────────────────────────
             var regWrap = new TableLayoutPanel
             {
@@ -226,7 +273,7 @@ namespace SQ_Email_Tools
                 AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
             });
             regWrap.Controls.Add(_regDgv, 0, 1);
-            root.Controls.Add(regWrap, 0, 3);
+            root.Controls.Add(regWrap, 0, 4);
 
             Controls.Add(root);
         }
@@ -296,6 +343,7 @@ namespace SQ_Email_Tools
                 await Task.WhenAll(
                     DatabaseManager.Instance.GetMasterAccountStatsAsync().ContinueWith(t => { if (!t.IsFaulted) UpdateMasterCards(t.Result); }),
                     DatabaseManager.Instance.GetChannelOnlineCountAsync().ContinueWith(t => { if (!t.IsFaulted) UpdateChannelPanel(t.Result); }),
+                    DatabaseManager.Instance.GetOnlineByLoginIpAsync(40).ContinueWith(t => { if (!t.IsFaulted) UpdateIpTable(t.Result); }),
                     DatabaseManager.Instance.GetRecentRegistrationsAsync(_regLimit).ContinueWith(t => { if (!t.IsFaulted) UpdateRegTable(t.Result); })
                 );
                 SetStatus($"最後更新 {DateTime.Now:HH:mm:ss}（每 30 秒自動更新）");
@@ -394,6 +442,22 @@ namespace SQ_Email_Tools
 
                     _channelFlow.Controls.Add(card);
                 }
+            }
+            if (InvokeRequired) Invoke(new Action(Update)); else Update();
+        }
+
+        private void UpdateIpTable(List<OnlineIpEntry> rows)
+        {
+            void Update()
+            {
+                _ipDgv.Rows.Clear();
+                if (rows.Count == 0)
+                {
+                    _ipDgv.Rows.Add("(無登入 IP 資料)", "—", "—");
+                    return;
+                }
+                foreach (var x in rows)
+                    _ipDgv.Rows.Add(x.Ip, x.OnlineCount.ToString("N0"), x.TotalCount.ToString("N0"));
             }
             if (InvokeRequired) Invoke(new Action(Update)); else Update();
         }

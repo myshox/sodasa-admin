@@ -2892,6 +2892,35 @@ public class DbService
         }
     }
 
+    /// <summary>依登入 IP 彙總在線人數（與 EXE 一致）</summary>
+    public async Task<List<object>> GetOnlineByLoginIpAsync(int topN = 40)
+    {
+        var list = new List<object>();
+        topN = Math.Clamp(topN, 1, 200);
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                $@"SELECT IFNULL(IP,'') AS ip,
+                          SUM(IF(Online=1,1,0)) AS onlineCount,
+                          COUNT(*) AS totalCount
+                   FROM csalogin
+                   WHERE IP IS NOT NULL AND TRIM(IP) <> ''
+                   GROUP BY IP
+                   ORDER BY onlineCount DESC, totalCount DESC
+                   LIMIT {topN}", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new {
+                    ip          = r.GetString("ip"),
+                    onlineCount = Convert.ToInt32(r["onlineCount"]),
+                    totalCount  = Convert.ToInt32(r["totalCount"])
+                });
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[GetOnlineByLoginIp] " + ex.Message); }
+        return list;
+    }
+
     public async Task<List<object>> GetChannelOnlineCountAsync()
     {
         var list = new List<object>();

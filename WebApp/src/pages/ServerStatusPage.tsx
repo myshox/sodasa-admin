@@ -13,6 +13,11 @@ interface ChannelEntry {
   onlineCount: number
   totalCount: number
 }
+interface OnlineIpRow {
+  ip: string
+  onlineCount: number
+  totalCount: number
+}
 interface RegAccount {
   account: string
   charName: string
@@ -122,6 +127,7 @@ const ChannelCard = ({
 export default function ServerStatusPage() {
   const [masterStats, setMasterStats]   = useState<MasterStats | null>(null)
   const [channels, setChannels]         = useState<ChannelEntry[]>([])
+  const [onlineByIp, setOnlineByIp]     = useState<OnlineIpRow[]>([])
   const [accounts, setAccounts]         = useState<RegAccount[]>([])
   const [limit, setLimit]               = useState(30)
   const [loading, setLoading]           = useState(false)
@@ -147,13 +153,15 @@ export default function ServerStatusPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const [ms, ch, ac] = await Promise.all([
+      const [ms, ch, ip, ac] = await Promise.all([
         api.get('/server-status/master-stats'),
         api.get('/server-status/channel-online'),
+        api.get('/server-status/online-by-ip', { params: { top: 40 } }),
         api.get(`/server-status/recent-registrations?limit=${limit}`),
       ])
       setMasterStats(ms.data)
       setChannels(ch.data)
+      setOnlineByIp(Array.isArray(ip.data) ? ip.data : [])
       setAccounts(ac.data)
       setLastUpdate(new Date().toLocaleTimeString('zh-TW'))
     } finally {
@@ -273,6 +281,49 @@ export default function ServerStatusPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* ── 登入 IP 在線人數 ── */}
+      <section>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' }}>
+          登入 IP 在線人數
+        </div>
+        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+          依目前登入 IP（csalogin.IP）彙總：在線人數與該 IP 底下帳號總數；Top 40，與「各分流」並列參考。
+        </p>
+        <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 280 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--bg-dark)', position: 'sticky', top: 0, zIndex: 1 }}>
+                {['登入 IP', '在線', '帳號數'].map(h => (
+                  <th key={h} style={{
+                    padding: '10px 14px', textAlign: h === '登入 IP' ? 'left' : 'right',
+                    color: 'var(--text-secondary)', fontWeight: 700,
+                    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {onlineByIp.map((row, i) => (
+                <tr key={row.ip + i} style={{
+                  background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-mid)',
+                }}>
+                  <td style={{ padding: '8px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{row.ip}</td>
+                  <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: '#16b97a' }}>{row.onlineCount.toLocaleString()}</td>
+                  <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-secondary)' }}>{row.totalCount.toLocaleString()}</td>
+                </tr>
+              ))}
+              {onlineByIp.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    無資料
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* ── 最新註冊帳號 ── */}
