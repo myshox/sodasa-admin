@@ -4964,6 +4964,33 @@ namespace SQ_Email_Tools
             return list;
         }
 
+        /// <summary>全服在線總人數與登入 IP 維度彙總（供 IP 區塊標題列）</summary>
+        public async Task<OnlineLoginIpSummary> GetOnlineLoginIpSummaryAsync()
+        {
+            var s = new OnlineLoginIpSummary();
+            try
+            {
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    @"SELECT
+                        (SELECT COUNT(*) FROM csalogin WHERE Online=1) AS totalOnline,
+                        (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE Online=1 AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
+                        (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE IP IS NOT NULL AND TRIM(IP) <> '') AS ipAll,
+                        (SELECT COUNT(*) FROM csalogin WHERE Online=1 AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    s.TotalOnline           = r["totalOnline"] == DBNull.Value ? 0 : Convert.ToInt32(r["totalOnline"]);
+                    s.DistinctIpWithOnline  = r["ipWithOnline"] == DBNull.Value ? 0 : Convert.ToInt32(r["ipWithOnline"]);
+                    s.DistinctIpAll         = r["ipAll"] == DBNull.Value ? 0 : Convert.ToInt32(r["ipAll"]);
+                    s.OnlineWithoutLoginIp  = r["onlineNoIp"] == DBNull.Value ? 0 : Convert.ToInt32(r["onlineNoIp"]);
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[DB/OnlineIpSummary] " + ex.Message); }
+            return s;
+        }
+
         /// <summary>主帳號在線 / 離線統計（csaloginmaster）</summary>
         public async Task<MasterAccountStats> GetMasterAccountStatsAsync()
         {

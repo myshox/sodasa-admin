@@ -2921,6 +2921,32 @@ public class DbService
         return list;
     }
 
+    public async Task<object> GetOnlineLoginIpSummaryAsync()
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT
+                    (SELECT COUNT(*) FROM csalogin WHERE Online=1) AS totalOnline,
+                    (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE Online=1 AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
+                    (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE IP IS NOT NULL AND TRIM(IP) <> '') AS ipAll,
+                    (SELECT COUNT(*) FROM csalogin WHERE Online=1 AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                return new {
+                    totalOnline           = Convert.ToInt32(r["totalOnline"]),
+                    distinctIpWithOnline  = Convert.ToInt32(r["ipWithOnline"]),
+                    distinctIpAll         = Convert.ToInt32(r["ipAll"]),
+                    onlineWithoutLoginIp  = Convert.ToInt32(r["onlineNoIp"])
+                };
+            }
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine("[GetOnlineLoginIpSummary] " + ex.Message); }
+        return new { totalOnline = 0, distinctIpWithOnline = 0, distinctIpAll = 0, onlineWithoutLoginIp = 0 };
+    }
+
     public async Task<List<object>> GetChannelOnlineCountAsync()
     {
         var list = new List<object>();

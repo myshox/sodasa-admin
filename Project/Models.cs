@@ -547,6 +547,19 @@ namespace SQ_Email_Tools
         public int    TotalCount  { get; set; }
     }
 
+    /// <summary>登入 IP 區塊頂部：全服在線總人數與 IP 維度統計</summary>
+    public class OnlineLoginIpSummary
+    {
+        /// <summary>全服在線角色數（csalogin Online=1）</summary>
+        public int TotalOnline { get; set; }
+        /// <summary>至少有一人在線的相異登入 IP 數</summary>
+        public int DistinctIpWithOnline { get; set; }
+        /// <summary>有填登入 IP 的相異 IP 數（含全離線）</summary>
+        public int DistinctIpAll { get; set; }
+        /// <summary>在線但登入 IP 為空（無法列入 IP 表）</summary>
+        public int OnlineWithoutLoginIp { get; set; }
+    }
+
     public class MasterAccountStats
     {
         public int TotalMasters   { get; set; }

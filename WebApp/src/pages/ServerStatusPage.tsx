@@ -18,6 +18,12 @@ interface OnlineIpRow {
   onlineCount: number
   totalCount: number
 }
+interface OnlineIpSummary {
+  totalOnline: number
+  distinctIpWithOnline: number
+  distinctIpAll: number
+  onlineWithoutLoginIp: number
+}
 interface RegAccount {
   account: string
   charName: string
@@ -128,6 +134,7 @@ export default function ServerStatusPage() {
   const [masterStats, setMasterStats]   = useState<MasterStats | null>(null)
   const [channels, setChannels]         = useState<ChannelEntry[]>([])
   const [onlineByIp, setOnlineByIp]     = useState<OnlineIpRow[]>([])
+  const [ipSummary, setIpSummary]         = useState<OnlineIpSummary | null>(null)
   const [accounts, setAccounts]         = useState<RegAccount[]>([])
   const [limit, setLimit]               = useState(30)
   const [loading, setLoading]           = useState(false)
@@ -153,14 +160,16 @@ export default function ServerStatusPage() {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const [ms, ch, ip, ac] = await Promise.all([
+      const [ms, ch, ipSum, ip, ac] = await Promise.all([
         api.get('/server-status/master-stats'),
         api.get('/server-status/channel-online'),
+        api.get('/server-status/online-ip-summary'),
         api.get('/server-status/online-by-ip', { params: { top: 40 } }),
         api.get(`/server-status/recent-registrations?limit=${limit}`),
       ])
       setMasterStats(ms.data)
       setChannels(ch.data)
+      setIpSummary(ipSum.data as OnlineIpSummary)
       setOnlineByIp(Array.isArray(ip.data) ? ip.data : [])
       setAccounts(ac.data)
       setLastUpdate(new Date().toLocaleTimeString('zh-TW'))
@@ -288,9 +297,29 @@ export default function ServerStatusPage() {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' }}>
           登入 IP 在線人數
         </div>
-        <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
-          依目前登入 IP（csalogin.IP）彙總：在線人數與該 IP 底下帳號總數；Top 40，與「各分流」並列參考。
+        <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+          依目前登入 IP（csalogin.IP）彙總；下表為 Top 40。全服總人數與 IP 維度如下（與各分流加總在線應一致）。
         </p>
+        {ipSummary && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12,
+            padding: '12px 14px', borderRadius: 10,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#16b97a' }}>
+              全服在線人數：{ipSummary.totalOnline.toLocaleString()} 人
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              有在線的登入 IP：{ipSummary.distinctIpWithOnline.toLocaleString()} 個
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              有登入 IP 的相異 IP：{ipSummary.distinctIpAll.toLocaleString()} 個
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              在線但無登入 IP：{ipSummary.onlineWithoutLoginIp.toLocaleString()} 人
+            </span>
+          </div>
+        )}
         <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 280 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>

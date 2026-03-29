@@ -12,6 +12,7 @@ namespace SQ_Email_Tools
     {
         private Label _lblMasterTotal, _lblMasterOnline, _lblMasterOffline;
         private FlowLayoutPanel _channelFlow;
+        private Label             _lblIpSummary;
         private DataGridView    _ipDgv;
         private DataGridView    _regDgv;
         private Label           _lblStatus;
@@ -58,7 +59,7 @@ namespace SQ_Email_Tools
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));   // 0: 工具列
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108f));  // 1: 主帳號 3 卡
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 138f));  // 2: 分流在線
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 168f));  // 3: 登入 IP 在線
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 212f));  // 3: 登入 IP 在線（含總人數列）
             root.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));  // 4: 最新註冊
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
@@ -166,11 +167,12 @@ namespace SQ_Email_Tools
             var ipWrap = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                RowCount = 2, ColumnCount = 1,
+                RowCount = 3, ColumnCount = 1,
                 BackColor = Color.Transparent,
                 Margin    = new Padding(0, 0, 0, 8)
             };
             ipWrap.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f));
+            ipWrap.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
             ipWrap.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             ipWrap.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             ipWrap.Controls.Add(new Label
@@ -180,6 +182,15 @@ namespace SQ_Email_Tools
                 Font = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold),
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft
             }, 0, 0);
+            _lblIpSummary = new Label
+            {
+                Text      = "全服在線人數：— ／ 有在線的登入 IP：— ／ 有登入 IP 紀錄的相異 IP：— ／ 在線但無登入 IP：— ／ 下表 Top 40",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            ipWrap.Controls.Add(_lblIpSummary, 0, 1);
             _ipDgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_ipDgv);
             Theme.EnableSmoothPaint(_ipDgv);
@@ -202,7 +213,7 @@ namespace SQ_Email_Tools
                 Name = "tot", HeaderText = "帳號數", FillWeight = 45,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight }
             });
-            ipWrap.Controls.Add(_ipDgv, 0, 1);
+            ipWrap.Controls.Add(_ipDgv, 0, 2);
             root.Controls.Add(ipWrap, 0, 3);
 
             // ────────────────────────────────────────────────────────
@@ -343,6 +354,7 @@ namespace SQ_Email_Tools
                 await Task.WhenAll(
                     DatabaseManager.Instance.GetMasterAccountStatsAsync().ContinueWith(t => { if (!t.IsFaulted) UpdateMasterCards(t.Result); }),
                     DatabaseManager.Instance.GetChannelOnlineCountAsync().ContinueWith(t => { if (!t.IsFaulted) UpdateChannelPanel(t.Result); }),
+                    DatabaseManager.Instance.GetOnlineLoginIpSummaryAsync().ContinueWith(t => { if (!t.IsFaulted) UpdateIpSummary(t.Result); }),
                     DatabaseManager.Instance.GetOnlineByLoginIpAsync(40).ContinueWith(t => { if (!t.IsFaulted) UpdateIpTable(t.Result); }),
                     DatabaseManager.Instance.GetRecentRegistrationsAsync(_regLimit).ContinueWith(t => { if (!t.IsFaulted) UpdateRegTable(t.Result); })
                 );
@@ -444,6 +456,16 @@ namespace SQ_Email_Tools
                 }
             }
             if (InvokeRequired) Invoke(new Action(Update)); else Update();
+        }
+
+        private void UpdateIpSummary(OnlineLoginIpSummary s)
+        {
+            void Set()
+            {
+                _lblIpSummary.Text =
+                    $"全服在線人數：{s.TotalOnline:N0} 人　｜　有在線的登入 IP：{s.DistinctIpWithOnline:N0} 個　｜　有登入 IP 的相異 IP：{s.DistinctIpAll:N0} 個　｜　在線但無登入 IP：{s.OnlineWithoutLoginIp:N0} 人　｜　下表為 Top 40";
+            }
+            if (InvokeRequired) Invoke(new Action(Set)); else Set();
         }
 
         private void UpdateIpTable(List<OnlineIpEntry> rows)

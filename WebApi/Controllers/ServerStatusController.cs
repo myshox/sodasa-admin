@@ -23,6 +23,11 @@ public class ServerStatusController : ControllerBase
     public async Task<IActionResult> OnlineByIp([FromQuery] int top = 40)
         => Ok(await _db.GetOnlineByLoginIpAsync(Math.Clamp(top, 1, 200)));
 
+    /// <summary>全服在線總人數與登入 IP 維度彙總</summary>
+    [HttpGet("online-ip-summary")]
+    public async Task<IActionResult> OnlineIpSummary()
+        => Ok(await _db.GetOnlineLoginIpSummaryAsync());
+
     [HttpGet("master-stats")]
     public async Task<IActionResult> MasterStats()
         => Ok(await _db.GetMasterAccountStatsAsync());
