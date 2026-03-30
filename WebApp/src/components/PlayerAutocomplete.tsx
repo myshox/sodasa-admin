@@ -42,11 +42,15 @@ export default function PlayerAutocomplete({
   }, [value, multiMode])
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handler = (e: Event) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('pointerdown', handler)
+    }
   }, [])
 
   const selectOne = (p: PlayerRow) => {
@@ -107,6 +111,7 @@ export default function PlayerAutocomplete({
   return (
     <div ref={wrapRef} style={{ position: 'relative', ...style }}>
       <input
+        className="gm-search-input"
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true) }}
         onKeyDown={handleKey}
@@ -114,6 +119,7 @@ export default function PlayerAutocomplete({
         placeholder={placeholder || '主帳號 / 角色名 / UID…'}
         style={{ width: '100%' }}
         autoComplete="off"
+        enterKeyHint="search"
       />
       {open && suggestions.length > 0 && (
         <div style={{
@@ -164,7 +170,8 @@ export default function PlayerAutocomplete({
                 data-suggestion-item
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                  padding: '12px 14px', cursor: 'pointer', fontSize: 14,
+                  minHeight: 48,
                   background: isChecked
                     ? 'rgba(74,158,255,.18)'
                     : i === activeIdx ? 'rgba(74,158,255,.10)' : 'transparent',

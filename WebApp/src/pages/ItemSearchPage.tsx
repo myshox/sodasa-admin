@@ -83,8 +83,14 @@ export default function ItemSearchPage() {
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
             物品清單（{filteredItems.length}/{items.length}）
           </div>
-          <input value={listFilter} onChange={e => setListFilter(e.target.value)}
-            placeholder="搜尋名稱或編號…" style={{ width: '100%', fontSize: 12, padding: '5px 8px', boxSizing: 'border-box' }} />
+          <input
+            value={listFilter}
+            onChange={e => setListFilter(e.target.value)}
+            placeholder="搜尋名稱或編號…"
+            className="gm-search-input gm-search-input--compact"
+            style={{ width: '100%', boxSizing: 'border-box' }}
+            enterKeyHint="search"
+          />
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {items.length === 0

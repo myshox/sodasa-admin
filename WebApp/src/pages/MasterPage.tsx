@@ -127,13 +127,22 @@ export default function MasterPage() {
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20 }}>👑 {S.navMaster}</h1>
 
       {/* 搜尋列 */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, maxWidth: 480 }}>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder="輸入主帳號名稱…" style={{ flex: 1 }} />
-        <button onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff' }}>
-          {loading ? S.searching : `🔍 ${S.searchBtn}`}
-        </button>
+      <div className="gm-search-bar">
+        <div className="gm-search-bar__grow">
+          <input
+            className="gm-search-input"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            placeholder="輸入主帳號名稱…"
+            enterKeyHint="search"
+          />
+        </div>
+        <div className="gm-search-bar__actions">
+          <button type="button" onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 22px', borderRadius: 10, fontWeight: 700 }}>
+            {loading ? S.searching : `🔍 ${S.searchBtn}`}
+          </button>
+        </div>
       </div>
 
       {err && <p style={{ color: 'var(--accent-red)', marginBottom: 16 }}>{err}</p>}

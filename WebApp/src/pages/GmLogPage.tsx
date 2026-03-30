@@ -48,18 +48,34 @@ export default function GmLogPage() {
       </div>
 
       {/* 篩選 */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="gm-search-bar gm-search-bar--tight" style={{ alignItems: 'center' }}>
         <select value={date} onChange={e => { setDate(e.target.value); load(0, q, e.target.value) }}
-          style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 6 }}>
+          style={{
+            padding: '10px 14px', minHeight: 44, background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8,
+            flex: '0 1 auto', maxWidth: '100%',
+          }}>
           <option value="">全部日期</option>
           {dates.map(d => <option key={d} value={d}>{d}（今日: {d}）</option>)}
         </select>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && load(0)}
-          placeholder="搜尋操作/對象/詳情/GM" style={{ flex: 1, maxWidth: 300 }} />
-        <button onClick={() => load(0)} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>🔍 搜尋</button>
-        {(q || date) && <button onClick={() => { setQ(''); setDate(''); load(0, '', '') }} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', fontSize: 12 }}>清除</button>}
-        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>共 {total} 筆</span>
+        <div className="gm-search-bar__grow" style={{ minWidth: 'min(100%, 200px)' }}>
+          <input
+            className="gm-search-input"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && load(0)}
+            placeholder="搜尋操作／對象／詳情／GM"
+            enterKeyHint="search"
+          />
+        </div>
+        <div className="gm-search-bar__actions">
+          <button type="button" onClick={() => load(0)} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 18px', borderRadius: 10, fontWeight: 700 }}>🔍 搜尋</button>
+          {(q || date) && (
+            <button type="button" onClick={() => { setQ(''); setDate(''); load(0, '', '') }} style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: 10 }}>
+              清除
+            </button>
+          )}
+        </div>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13, flex: '1 1 100%', paddingTop: 4 }}>共 {total} 筆</span>
       </div>
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto' }}>

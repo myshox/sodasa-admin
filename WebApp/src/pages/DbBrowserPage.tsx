@@ -97,10 +97,12 @@ export default function DbBrowserPage() {
           <div className="db-browser-sidebar-search">
             <input
               type="search"
+              className="gm-search-input gm-search-input--compact"
               placeholder="篩選表名…"
               value={tableSearch}
               onChange={e => setTableSearch(e.target.value)}
               autoComplete="off"
+              enterKeyHint="search"
             />
           </div>
           <div className="db-browser-table-list" role="listbox" aria-label="資料表清單">
@@ -137,10 +139,12 @@ export default function DbBrowserPage() {
             <div className="db-browser-search-row">
               <input
                 type="text"
+                className="gm-search-input"
                 placeholder="搜尋任意欄位…"
                 value={inputSearch}
                 onChange={e => setInputSearch(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                enterKeyHint="search"
               />
               <button type="button" className="primary" onClick={handleSearch} disabled={loading}>
                 {loading ? '…' : '搜尋'}

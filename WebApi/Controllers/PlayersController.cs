@@ -18,8 +18,10 @@ public class PlayersController : ControllerBase
         return Ok(await _db.SearchPlayersAsync(q, limit));
     }
 
+    /// <summary>在線玩家。recent=true 時納入 30 分鐘內有 LoginTime 的角色（與批量 target=online_recent 一致）。</summary>
     [HttpGet("online")]
-    public async Task<IActionResult> Online() => Ok(await _db.GetOnlineAsync());
+    public async Task<IActionResult> Online([FromQuery] bool recent = false)
+        => Ok(await _db.GetOnlineAsync(recent));
 
     [HttpGet("list")]
     public async Task<IActionResult> List([FromQuery] int limit = 500)

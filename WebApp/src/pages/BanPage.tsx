@@ -178,14 +178,20 @@ export default function BanPage() {
 
       {/* 封號清單 */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 10 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{S.banAll}（{list.length} 人）</span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input value={listQ} onChange={e => setListQ(e.target.value)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--border)', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600, fontSize: 14, flex: '1 1 auto', minWidth: 0 }}>{S.banAll}（{list.length} 人）</span>
+          <div className="gm-search-bar__actions" style={{ flex: '1 1 260px', justifyContent: 'flex-end', minWidth: 0, maxWidth: '100%' }}>
+            <input
+              className="gm-search-input"
+              value={listQ}
+              onChange={e => setListQ(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && load(listQ)}
-              placeholder="搜尋帳號/角色名" style={{ width: 180 }} />
-            <button onClick={() => load(listQ)} style={{ background: 'var(--accent-blue)', color: '#fff', fontSize: 12, padding: '5px 12px' }}>🔍</button>
-            <button onClick={() => { setListQ(''); load('') }} style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)', border: '1px solid var(--border)', fontSize: 12 }}>全部</button>
+              placeholder="搜尋帳號／角色名"
+              style={{ flex: '1 1 160px', minWidth: 120 }}
+              enterKeyHint="search"
+            />
+            <button type="button" onClick={() => load(listQ)} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 16px', borderRadius: 10, fontWeight: 700 }}>🔍</button>
+            <button type="button" onClick={() => { setListQ(''); load('') }} style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: 10 }}>全部</button>
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>

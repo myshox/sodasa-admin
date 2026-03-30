@@ -628,18 +628,25 @@ export default function RechargePage() {
       {/* ── 充值記錄 ── */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? 14 : 20, marginTop: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>📋 充值記錄（訂單查詢）</div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <input value={histQ} onChange={e => setHistQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && loadHistory()}
-            placeholder="角色名稱、帳號或商品（空=全部）"
-            style={{ flex: 1, minWidth: 0, fontSize: 13, ...(isMobile ? { width: '100%', flexBasis: '100%' } : { maxWidth: 400 }) }} />
-          <div style={{ display: 'flex', gap: 8, ...(isMobile ? { width: '100%' } : {}) }}>
-            <button onClick={loadHistory} disabled={histLoading}
-              style={{ flex: isMobile ? 1 : 'none', padding: '10px 20px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+        <div className="gm-search-bar gm-search-bar--tight" style={{ marginBottom: 14 }}>
+          <div className="gm-search-bar__grow">
+            <input
+              className="gm-search-input"
+              value={histQ}
+              onChange={e => setHistQ(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loadHistory()}
+              placeholder="角色名稱、帳號或商品（空＝全部）"
+              enterKeyHint="search"
+            />
+          </div>
+          <div className="gm-search-bar__actions" style={{ ...(isMobile ? { width: '100%' } : {}) }}>
+            <button type="button" onClick={loadHistory} disabled={histLoading}
+              style={{ flex: isMobile ? 1 : 'none', padding: '10px 20px', background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
               {histLoading ? '查詢中…' : `🔍 ${S.searchBtn}`}
             </button>
             {info && (
-              <button onClick={() => { setHistQ(info.account); setTimeout(loadHistory, 50) }}
-                style={{ flex: isMobile ? 1 : 'none', padding: '10px 14px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
+              <button type="button" onClick={() => { setHistQ(info.account); setTimeout(loadHistory, 50) }}
+                style={{ flex: isMobile ? 1 : 'none', padding: '10px 16px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 14, cursor: 'pointer', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}>
                 此玩家
               </button>
             )}

@@ -61,6 +61,13 @@ public class BanRequest
 public class SetAdminStatusRequest   { public bool   Enabled     { get; set; } }
 public class ResetAdminPasswordRequest { public string NewPassword { get; set; } = ""; }
 
+/// <summary>依 csalogin.ServerId 統計在線人數（加總應等於 OnlinePlayers）。</summary>
+public class OnlineByServerRow
+{
+    public int ServerId { get; set; }
+    public int Count    { get; set; }
+}
+
 public class DashboardStats
 {
     public int  TotalPlayers   { get; set; }
@@ -69,6 +76,8 @@ public class DashboardStats
     public int  NewToday       { get; set; }
     public long TotalGold      { get; set; }
     public long TotalCrystal   { get; set; }
+    /// <summary>各分流在線（Online=1）筆數，未重複扣減。</summary>
+    public List<OnlineByServerRow> OnlineByServer { get; set; } = new();
 }
 
 // 交易記錄（tradelog）
@@ -121,7 +130,7 @@ public class AdminUserDto
 
 public class BatchGoldRequest
 {
-    public string Target     { get; set; } = "online"; // all | online | custom
+    public string Target     { get; set; } = "online"; // all | online | online_recent | custom
     public string CustomList { get; set; } = "";
     public string AccountIds { get; set; } = "";       // 勾選的帳號，逗號分隔（batch 時用）
     public long   Amount     { get; set; }             // 正數=加，負數=扣
@@ -160,7 +169,7 @@ public class SendCartRequest
 
 public class BatchSendCartRequest
 {
-    public string     Target      { get; set; } = "online"; // all | online | custom
+    public string     Target      { get; set; } = "online"; // all | online | online_recent | custom
     public string     CustomList  { get; set; } = "";
     public List<CartItem> Cart    { get; set; } = new();
     public string     Title       { get; set; } = "";

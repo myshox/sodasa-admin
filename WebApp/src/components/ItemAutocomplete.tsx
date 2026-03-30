@@ -23,11 +23,15 @@ export default function ItemAutocomplete({ mode = 'both', onSelect, placeholder,
   }, [])
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handler = (e: Event) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('pointerdown', handler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('pointerdown', handler)
+    }
   }, [])
 
   const search = (v: string) => {
@@ -57,20 +61,28 @@ export default function ItemAutocomplete({ mode = 'both', onSelect, placeholder,
 
   return (
     <div ref={wrapRef} style={{ position: 'relative', ...style }}>
-      <input value={q} onChange={e => search(e.target.value)} onKeyDown={handleKey}
+      <input
+        className="gm-search-input"
+        value={q} onChange={e => search(e.target.value)} onKeyDown={handleKey}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={total > 0 ? (placeholder || `🔍 搜尋道具/寵物名稱或編號… (${total} 筆)`) : `請先上傳 xlsx 清單`}
-        style={{ width: '100%' }} autoComplete="off" />
+        style={{ width: '100%' }} autoComplete="off" enterKeyHint="search"
+      />
       {open && suggestions.length > 0 && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.5)', maxHeight: 360, overflowY: 'auto', marginTop: 2, touchAction: 'manipulation' }}>
           {suggestions.map((item, i) => (
             <div
               key={`${item.id}-${item.isPet}`}
-              onMouseDown={() => select(item)}
+              onPointerDown={e => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return
+                e.preventDefault()
+                select(item)
+              }}
               data-suggestion-item
               title={`${item.name}${item.desc ? ` — ${item.desc}` : ''}`}
               style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                display: 'flex', alignItems: 'flex-start', gap: 8, padding: '12px 14px', cursor: 'pointer', fontSize: 14,
+                minHeight: 48,
                 background: i === activeIdx ? 'rgba(74,158,255,.18)' : 'transparent',
                 borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none',
               }}

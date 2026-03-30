@@ -56,6 +56,42 @@ const navGroups: NavGroup[] = [
 const HOME_NAV     = { to: '/',         icon: '🏠', label: '首頁',   title: '統計面板・伺服器概覽・常用快捷入口' }
 const RECHARGE_NAV = { to: '/recharge', icon: '💳', label: '充值管理', title: '手動補單・累積儲值進度・匯率試算・充值記錄' }
 
+function navClass({ isActive }: { isActive: boolean }) {
+  return `gm-nav-link ${isActive ? 'gm-nav-link--active' : ''}`.trim()
+}
+function navClassRecharge({ isActive }: { isActive: boolean }) {
+  return `gm-nav-link gm-nav-link--recharge ${isActive ? 'gm-nav-link--active' : ''}`.trim()
+}
+
+/** 側欄／抽屜共用導覽連結 */
+function SidebarNavLinks() {
+  return (
+    <>
+      <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <NavLink to={HOME_NAV.to} end title={HOME_NAV.title} className={navClass}>
+          <span className="gm-nav-link__icon" aria-hidden>{HOME_NAV.icon}</span>
+          <span>{HOME_NAV.label}</span>
+        </NavLink>
+        <NavLink to={RECHARGE_NAV.to} title={RECHARGE_NAV.title} className={navClassRecharge}>
+          <span className="gm-nav-link__icon" aria-hidden>{RECHARGE_NAV.icon}</span>
+          <span>{RECHARGE_NAV.label}</span>
+        </NavLink>
+      </div>
+      {navGroups.map(g => (
+        <div key={g.label} style={{ marginBottom: 10 }}>
+          <div className="gm-sidebar__nav-group-label">{g.label}</div>
+          {g.items.map(n => (
+            <NavLink key={n.to} to={n.to} end={n.to === '/'} title={n.title} className={navClass}>
+              <span className="gm-nav-link__icon" aria-hidden>{n.icon}</span>
+              <span>{n.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      ))}
+    </>
+  )
+}
+
 export default function Layout() {
   const nav = useNavigate()
   const location = useLocation()
@@ -97,72 +133,22 @@ export default function Layout() {
 
   const pageTitle = getRouteTitle(location.pathname)
 
-  const navLinkStyle = (isActive: boolean): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: isMobile ? '14px 14px' : '10px 14px',
-    minHeight: isMobile ? 48 : 42,
-    borderRadius: 12, marginBottom: 4, fontSize: 14,
-    background: isActive ? 'var(--neu-bg)' : 'transparent',
-    color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-    fontWeight: isActive ? 700 : 500,
-    textDecoration: 'none',
-    boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
-    border: isActive ? '1px solid rgba(59, 130, 246, 0.2)' : '1px solid transparent',
-    transition: 'box-shadow .15s, color .15s, border-color .15s',
-  })
-
   const SidebarContent = () => (
     <>
-      {/* Logo */}
-      <div style={{ padding: '18px 16px 14px', flexShrink: 0, boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
-        <div style={{ fontSize: 22, marginBottom: 2 }}>🍅</div>
-        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{S.appName}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{S.appSub}</div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tech-cyan)', marginTop: 8, letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.85 }}>
-          GM Console
-        </div>
+      <div className="gm-sidebar__brand">
+        <div style={{ fontSize: 24, marginBottom: 4, lineHeight: 1 }} aria-hidden>🍅</div>
+        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>{S.appName}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{S.appSub}</div>
+        <span className="gm-sidebar__brand-badge">GM Console</span>
       </div>
 
-      {/* Nav */}
-      <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-        {/* 首頁 + 充值 — 置頂醒目 */}
-        <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <NavLink to={HOME_NAV.to} end title={HOME_NAV.title} style={({ isActive }) => ({
-            ...navLinkStyle(isActive),
-          })}>
-            <span style={{ fontSize: 16, width: 20, textAlign: 'center', flexShrink: 0 }}>{HOME_NAV.icon}</span>
-            <span>{HOME_NAV.label}</span>
-          </NavLink>
-          <NavLink to={RECHARGE_NAV.to} title={RECHARGE_NAV.title} style={({ isActive }) => ({
-            ...navLinkStyle(isActive),
-            color: isActive ? 'var(--accent-green)' : 'var(--text-secondary)',
-            fontWeight: 700,
-            boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : '4px 4px 8px #bebebe, -4px -4px 8px #ffffff',
-          })}>
-            <span style={{ fontSize: 18, width: 20, textAlign: 'center', flexShrink: 0 }}>{RECHARGE_NAV.icon}</span>
-            <span>{RECHARGE_NAV.label}</span>
-          </NavLink>
-        </div>
-
-        {navGroups.map(g => (
-          <div key={g.label} style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '4px 10px 4px', letterSpacing: 1, textTransform: 'uppercase' }}>
-              {g.label}
-            </div>
-            {g.items.map(n => (
-              <NavLink key={n.to} to={n.to} end={n.to === '/'} title={n.title} style={({ isActive }) => navLinkStyle(isActive)}>
-                <span style={{ width: 20, textAlign: 'center', fontSize: 16, flexShrink: 0 }}>{n.icon}</span>
-                <span>{n.label}</span>
-              </NavLink>
-            ))}
-          </div>
-        ))}
+      <nav className="gm-sidebar__nav" aria-label="主要導覽">
+        <SidebarNavLinks />
       </nav>
 
-      {/* 使用者 */}
-      <div style={{ padding: '14px 16px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>👤 {user}</span>
-        <button onClick={logout} className="danger" style={{ fontSize: 12, padding: '8px 14px', borderRadius: 10 }}>
+      <div className="gm-sidebar__footer">
+        <span style={{ color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={user}>👤 {user}</span>
+        <button type="button" onClick={logout} className="danger" style={{ fontSize: 12, padding: '8px 14px', borderRadius: 10, flexShrink: 0 }}>
           {S.navLogout}
         </button>
       </div>
@@ -226,78 +212,37 @@ export default function Layout() {
           id="gm-drawer-nav"
           ref={drawerRef}
           data-drawer-nav
+          className="gm-sidebar gm-sidebar--drawer"
           aria-label="主選單導覽"
           aria-hidden={!drawerOpen}
           style={{
-          position: 'fixed', top: 0, left: 0, bottom: 0, width: 'min(320px, calc(100vw - 28px))',
+          position: 'fixed', top: 0, left: 0, bottom: 0,
           paddingTop: 'env(safe-area-inset-top)',
-          background: 'var(--bg-sidebar)',
           display: 'flex', flexDirection: 'column',
           zIndex: 300,
           transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform .25s cubic-bezier(.4,0,.2,1)',
-          boxShadow: drawerOpen ? '8px 0 24px rgba(0,0,0,.12), -2px 0 8px rgba(255,255,255,.4)' : 'none',
+          boxShadow: drawerOpen ? '8px 0 28px rgba(15, 23, 42, 0.12)' : 'none',
           pointerEvents: drawerOpen ? undefined : 'none',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', boxShadow: 'inset 0 -2px 4px rgba(0,0,0,.04)' }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>🍅 {S.appName}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'rgba(255,255,255,0.35)' }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>🍅 {S.appName}</div>
             <button
               type="button"
               onClick={() => setDrawerOpen(false)}
               aria-label="關閉選單"
-              style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: 'inset 2px 2px 4px #bebebe, inset -2px -2px 4px #ffffff', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
+              style={{ minWidth: 48, minHeight: 48, width: 48, height: 48, background: 'var(--neu-bg)', boxShadow: 'var(--neu-shadow-raised-sm)', borderRadius: 12, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, border: '1px solid var(--border)' }}>
               ✕
             </button>
           </div>
 
-          <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-            {/* 首頁 + 充值 */}
-            <div style={{ margin: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <NavLink to={HOME_NAV.to} end style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '13px 14px', borderRadius: 12, fontSize: 15, fontWeight: isActive ? 700 : 500, textDecoration: 'none',
-                background: isActive ? 'var(--neu-bg)' : 'transparent',
-                color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
-              })}>
-                <span style={{ fontSize: 20 }}>{HOME_NAV.icon}</span>
-                {HOME_NAV.label}
-              </NavLink>
-              <NavLink to={RECHARGE_NAV.to} style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '13px 14px', borderRadius: 12, fontSize: 15, fontWeight: 700, textDecoration: 'none',
-                background: 'var(--neu-bg)',
-                color: isActive ? 'var(--accent-green)' : 'var(--text-secondary)',
-                boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : '4px 4px 8px #bebebe, -4px -4px 8px #ffffff',
-              })}>
-                <span style={{ fontSize: 20 }}>{RECHARGE_NAV.icon}</span>
-                {RECHARGE_NAV.label}
-              </NavLink>
-            </div>
-
-            {navGroups.map(g => (
-              <div key={g.label} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', padding: '4px 12px 6px', letterSpacing: 1, textTransform: 'uppercase' }}>{g.label}</div>
-                {g.items.map(n => (
-                  <NavLink key={n.to} to={n.to} end={n.to === '/'} style={({ isActive }) => ({
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '13px 14px', borderRadius: 12, marginBottom: 4, fontSize: 15,
-                    background: isActive ? 'var(--neu-bg)' : 'transparent',
-                    color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 700 : 400, textDecoration: 'none',
-                    boxShadow: isActive ? 'inset 3px 3px 6px #bebebe, inset -3px -3px 6px #ffffff' : 'none',
-                  })}>
-                    <span style={{ fontSize: 18 }}>{n.icon}</span>
-                    {n.label}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
+          <nav className="gm-sidebar__nav" aria-label="主要導覽">
+            <SidebarNavLinks />
           </nav>
 
-          <div style={{ padding: '14px 16px', boxShadow: 'inset 0 2px 4px rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>👤 {user}</span>
-            <button onClick={logout} className="danger" style={{ fontSize: 13, padding: '8px 14px', borderRadius: 10 }}>
+          <div className="gm-sidebar__footer">
+            <span style={{ color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600 }}>👤 {user}</span>
+            <button type="button" onClick={logout} className="danger" style={{ fontSize: 13, padding: '8px 14px', borderRadius: 10 }}>
               {S.navLogout}
             </button>
           </div>
@@ -322,15 +267,10 @@ export default function Layout() {
       <a href="#main-content" className="skip-link">
         跳到主要內容
       </a>
-      <aside style={{
-        width: 260,
-        background: 'linear-gradient(180deg, var(--bg-sidebar) 0%, rgba(207, 216, 232, 0.98) 100%)',
-        display: 'flex', flexDirection: 'column', flexShrink: 0, overflowY: 'auto',
-        boxShadow: '6px 0 20px rgba(15, 23, 42, 0.07), 0 0 0 1px rgba(59, 130, 246, 0.06)',
-      }}>
+      <aside className="gm-sidebar">
         <SidebarContent />
       </aside>
-      <main id="main-content" tabIndex={-1} className="app-main-scroll app-main-desktop" style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
+      <main id="main-content" tabIndex={-1} className="app-main-scroll app-main-desktop gm-main" style={{ flex: 1, overflow: 'auto' }}>
         <Outlet />
       </main>
     </div>

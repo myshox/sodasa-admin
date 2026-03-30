@@ -36,9 +36,15 @@ export interface MailHistoryItem {
   mailId: number; itemId: number; itemName: string
   quantity: number; sendTime: string; isRead: boolean
 }
+export interface OnlineByServerRow {
+  serverId: number
+  count: number
+}
 export interface DashboardStats {
   totalPlayers: number; onlinePlayers: number; bannedPlayers: number
   newToday: number; totalGold: number; totalCrystal: number
+  /** 各分流 Online=1 筆數，加總應等於 onlinePlayers */
+  onlineByServer?: OnlineByServerRow[]
 }
 
 /** 同IP帳號一筆 */

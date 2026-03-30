@@ -305,25 +305,33 @@ export default function PlayersPage() {
     <div className="gm-page-inner">
       <h1>👥 {S.pagePlayerMgr}</h1>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder="即時過濾：輸入帳號 / 角色名 / 主帳號…"
-          style={{ flex: 1, maxWidth: 420 }} />
-        <button onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff' }}>
-          {loading ? S.searching : `🔍 搜尋`}
-        </button>
-        <button onClick={reload} disabled={loading}
-          style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '8px 14px' }}>
-          🔄 重新整理
-        </button>
-        {totalCount > 0 && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            共 {totalCount} 筆
-            {q.trim() && players.length !== totalCount && ` → 篩選 ${players.length} 筆`}
-          </span>
-        )}
+      <div className="gm-search-bar">
+        <div className="gm-search-bar__grow">
+          <input
+            className="gm-search-input"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            placeholder="即時過濾：輸入帳號 / 角色名 / 主帳號…"
+            enterKeyHint="search"
+          />
+        </div>
+        <div className="gm-search-bar__actions">
+          <button type="button" onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>
+            {loading ? S.searching : `🔍 搜尋`}
+          </button>
+          <button type="button" onClick={reload} disabled={loading}
+            style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '10px 18px', borderRadius: 10 }}>
+            🔄 重新整理
+          </button>
+        </div>
       </div>
+      {totalCount > 0 && (
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: -6, marginBottom: 16, lineHeight: 1.5 }}>
+          共 {totalCount} 筆
+          {q.trim() && players.length !== totalCount && ` → 篩選 ${players.length} 筆`}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {/* 玩家列表 - 表格格式 */}

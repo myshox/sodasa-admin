@@ -10,19 +10,20 @@ export default function OnlinePage() {
   const [loading, setLoading] = useState(true)
   const [apiErr, setApiErr] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [includeRecentLogin, setIncludeRecentLogin] = useState(false)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = async () => {
     setApiErr(false)
     try {
-      const r = await api.get('/players/online')
+      const r = await api.get('/players/online', { params: { recent: includeRecentLogin } })
       setPlayers(r.data)
     } catch {
       setApiErr(true)
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [includeRecentLogin])
 
   useEffect(() => {
     if (autoRefresh) {
@@ -31,14 +32,18 @@ export default function OnlinePage() {
       if (timerRef.current) clearInterval(timerRef.current)
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [autoRefresh])
+  }, [autoRefresh, includeRecentLogin])
 
   return (
     <div className="gm-page-inner">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700 }}>🟢 {S.pageOnline}</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{S.onlineCount(players.length)}</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }} title="額外列出 30 分內有 LoginTime 者；非真實連線，僅補漏">
+            <input type="checkbox" checked={includeRecentLogin} onChange={e => setIncludeRecentLogin(e.target.checked)} />
+            含近期登入（推測）
+          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
             自動更新(30s)
@@ -48,6 +53,10 @@ export default function OnlinePage() {
           </button>
         </div>
       </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 16px', maxWidth: 720 }}>
+        此頁所列＝資料庫 <code style={{ fontSize: 11 }}>csalogin.Online=1</code>（須由遊戲伺服器寫入）。
+        GM 無法直接讀取客戶端連線；若與遊戲內實際在線不符，請請程式端檢查登入／斷線時是否更新 <code style={{ fontSize: 11 }}>Online</code>。
+      </p>
 
       {apiErr && (
         <div style={{ background: 'rgba(245,101,101,.1)', border: '1px solid var(--accent-red)', borderRadius: 8, padding: '10px 16px', marginBottom: 16, color: 'var(--accent-red)', fontSize: 13 }}>

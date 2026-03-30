@@ -90,14 +90,21 @@ const StatCard = ({
   icon, label, value, color, sub,
 }: { icon: string; label: string; value: string | number; color: string; sub?: string }) => (
   <div style={{
+    display: 'flex', flexDirection: 'row', alignItems: 'stretch', gap: 18,
     background: 'var(--bg-card)', border: '1px solid var(--border)',
-    borderRadius: 12, padding: '20px 24px', flex: 1, minWidth: 160,
-    borderTop: `3px solid ${color}`,
+    borderRadius: 14, padding: '22px 26px', flex: '1 1 200px', minWidth: 200, maxWidth: '100%',
+    borderTop: `4px solid ${color}`,
+    boxShadow: 'var(--neu-shadow-raised-sm)',
   }}>
-    <div style={{ fontSize: 28, marginBottom: 6 }}>{icon}</div>
-    <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>{label}</div>
-    {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+    <div style={{
+      fontSize: 40, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      width: 56, flexShrink: 0,
+    }} aria-hidden>{icon}</div>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.02em' }}>{label}</div>
+      <div className="tabular-nums" style={{ fontSize: 30, fontWeight: 800, color, lineHeight: 1.12 }}>{value}</div>
+      {sub && <div className="tabular-nums" style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{sub}</div>}
+    </div>
   </div>
 )
 
@@ -110,21 +117,30 @@ const ChannelCard = ({
   return (
     <div style={{
       background: 'var(--bg-card)', border: '1px solid var(--border)',
-      borderRadius: 10, padding: '14px 16px', minWidth: 130, flex: '1 1 130px',
+      borderRadius: 12, padding: '18px 20px', minWidth: 148, flex: '1 1 160px',
+      boxShadow: 'var(--neu-shadow-raised-sm)',
+      display: 'flex', flexDirection: 'column', gap: 10,
     }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>{name}</div>
-      {/* 長條 */}
-      <div style={{ height: 6, background: 'var(--bg-mid)', borderRadius: 3, marginBottom: 8 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-secondary)', lineHeight: 1.3 }}>{name}</div>
+      <div style={{
+        height: 10, background: 'var(--bg-mid)', borderRadius: 5, overflow: 'hidden',
+        boxShadow: 'var(--neu-shadow-inset-sm)',
+      }}>
         <div style={{
-          height: '100%', borderRadius: 3,
+          height: '100%', borderRadius: 5,
           width: `${pct}%`,
           background: entry.onlineCount > 0 ? '#16b97a' : 'var(--border)',
           transition: 'width .4s',
-          minWidth: entry.onlineCount > 0 ? 4 : 0,
+          minWidth: entry.onlineCount > 0 ? 6 : 0,
         }} />
       </div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: '#16b97a' }}>{entry.onlineCount.toLocaleString()}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>在線 / 總計 {entry.totalCount.toLocaleString()}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+        <span className="tabular-nums" style={{ fontSize: 22, fontWeight: 800, color: '#16b97a' }}>{entry.onlineCount.toLocaleString()}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>在線</span>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 'auto', paddingTop: 2 }}>
+        總計 <span className="tabular-nums" style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{entry.totalCount.toLocaleString()}</span>
+      </div>
     </div>
   )
 }
@@ -236,13 +252,16 @@ export default function ServerStatusPage() {
   }
 
   return (
-    <div className="gm-page-stack" style={{ display: 'flex', flexDirection: 'column', gap: 24, minHeight: 0 }}>
+    <div className="gm-page-stack server-status-page">
       {/* ── 標題列 ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>🖥 伺服器狀態</h1>
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap',
+        gap: 16, paddingBottom: 4, borderBottom: '1px solid rgba(148, 163, 184, 0.35)', marginBottom: 4,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.03em' }}>🖥 伺服器狀態</h1>
           {lastUpdate && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
               最後更新 {lastUpdate}（每 30 秒自動刷新）
             </div>
           )}
@@ -250,10 +269,12 @@ export default function ServerStatusPage() {
         <button
           onClick={refresh} disabled={loading}
           style={{
-            padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer',
+            padding: '12px 24px', borderRadius: 10, border: 'none', cursor: 'pointer',
             background: loading ? 'var(--bg-mid)' : '#1e4ba0',
             color: '#fff', fontWeight: 700, fontSize: 14,
             opacity: loading ? 0.6 : 1,
+            flexShrink: 0,
+            boxShadow: loading ? undefined : '4px 4px 12px rgba(30, 75, 160, 0.28)',
           }}
         >
           {loading ? '更新中…' : '🔄 重新整理'}
@@ -261,11 +282,9 @@ export default function ServerStatusPage() {
       </div>
 
       {/* ── 主帳號統計 ── */}
-      <section>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>
-          主帳號統計
-        </div>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+      <section className="server-status-section">
+        <div className="server-status-section-title">主帳號統計</div>
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
           <StatCard icon="👑" label="主帳號總數"  color="#3b82f6"
             value={masterStats ? masterStats.totalMasters.toLocaleString() : '—'} />
           <StatCard icon="🟢" label="目前在線"    color="#16b97a"
@@ -277,14 +296,12 @@ export default function ServerStatusPage() {
       </section>
 
       {/* ── 各分流在線 ── */}
-      <section>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>
-          各分流在線人數
-        </div>
+      <section className="server-status-section">
+        <div className="server-status-section-title">各分流在線人數</div>
         {channels.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>（無分流資料）</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '8px 4px' }}>（無分流資料）</div>
         ) : (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {channels.map(ch => (
               <ChannelCard key={ch.serverId} entry={ch} maxOnline={maxOnline} />
             ))}
@@ -293,42 +310,39 @@ export default function ServerStatusPage() {
       </section>
 
       {/* ── 登入 IP 在線人數 ── */}
-      <section>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 6, textTransform: 'uppercase' }}>
-          登入 IP 在線人數
-        </div>
-        <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+      <section className="server-status-section">
+        <div className="server-status-section-title">登入 IP 在線人數</div>
+        <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.55, maxWidth: '62rem' }}>
           依目前登入 IP（csalogin.IP）彙總；下表為 Top 40。全服總人數與 IP 維度如下（與各分流加總在線應一致）。
         </p>
         {ipSummary && (
           <div style={{
-            display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12,
-            padding: '12px 14px', borderRadius: 10,
+            display: 'flex', flexWrap: 'wrap', gap: 12, rowGap: 10, marginBottom: 12,
+            padding: '16px 20px', borderRadius: 12,
             background: 'var(--bg-card)', border: '1px solid var(--border)',
+            boxShadow: 'var(--neu-shadow-raised-sm)',
           }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#16b97a' }}>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#16b97a' }}>
               全服在線人數：{ipSummary.totalOnline.toLocaleString()} 人
             </span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               有在線的登入 IP：{ipSummary.distinctIpWithOnline.toLocaleString()} 個
             </span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               有登入 IP 的相異 IP：{ipSummary.distinctIpAll.toLocaleString()} 個
             </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               在線但無登入 IP：{ipSummary.onlineWithoutLoginIp.toLocaleString()} 人
             </span>
           </div>
         )}
-        <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 280 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="server-status-table-wrap server-status-table-wrap--tall">
+          <table className="server-status-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--bg-dark)', position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 {['登入 IP', '在線', '帳號數'].map(h => (
                   <th key={h} style={{
-                    padding: '10px 14px', textAlign: h === '登入 IP' ? 'left' : 'right',
-                    color: 'var(--text-secondary)', fontWeight: 700,
-                    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+                    textAlign: h === '登入 IP' ? 'left' : 'right',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -338,14 +352,14 @@ export default function ServerStatusPage() {
                 <tr key={row.ip + i} style={{
                   background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-mid)',
                 }}>
-                  <td style={{ padding: '8px 14px', fontFamily: 'ui-monospace, monospace', fontSize: 12 }}>{row.ip}</td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 800, color: '#16b97a' }}>{row.onlineCount.toLocaleString()}</td>
-                  <td style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-secondary)' }}>{row.totalCount.toLocaleString()}</td>
+                  <td style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>{row.ip}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 800, color: '#16b97a' }}>{row.onlineCount.toLocaleString()}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{row.totalCount.toLocaleString()}</td>
                 </tr>
               ))}
               {onlineByIp.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={3} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={3} style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
                     無資料
                   </td>
                 </tr>
@@ -356,18 +370,19 @@ export default function ServerStatusPage() {
       </section>
 
       {/* ── 最新註冊帳號 ── */}
-      <section style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase' }}>
-            最新註冊帳號
-          </div>
+      <section
+        className="server-status-section"
+        style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: '1 1 auto', minHeight: 380 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div className="server-status-section-title" style={{ marginBottom: 0 }}>最新註冊帳號</div>
           <select
             value={limit}
             onChange={e => setLimit(Number(e.target.value))}
             style={{
               background: 'var(--bg-input)', color: 'var(--text-primary)',
-              border: '1px solid var(--border)', borderRadius: 6,
-              padding: '4px 10px', fontSize: 13,
+              border: '1px solid var(--border)', borderRadius: 8,
+              padding: '8px 14px', fontSize: 14, minWidth: 140,
             }}
           >
             <option value={20}>最新 20 筆</option>
@@ -377,16 +392,12 @@ export default function ServerStatusPage() {
           </select>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div className="server-status-table-wrap server-status-table-wrap--fill" style={{ flex: 1, overflow: 'auto', WebkitOverflowScrolling: 'touch' as const }}>
+          <table className="server-status-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'var(--bg-dark)', position: 'sticky', top: 0, zIndex: 1 }}>
+              <tr style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 {['狀態', '帳號', '角色名', '主帳號', '分流', '註冊時間', '註冊 IP'].map(h => (
-                  <th key={h} style={{
-                    padding: '10px 14px', textAlign: 'left',
-                    color: 'var(--text-secondary)', fontWeight: 700,
-                    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
-                  }}>{h}</th>
+                  <th key={h} style={{ textAlign: 'left' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -396,27 +407,27 @@ export default function ServerStatusPage() {
                   background: i % 2 === 0 ? 'var(--bg-card)' : 'var(--bg-mid)',
                   transition: 'background .1s',
                 }}>
-                  <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
+                  <td style={{ whiteSpace: 'nowrap' }}>
                     <span style={{
-                      display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                      fontSize: 11, fontWeight: 700,
+                      display: 'inline-block', padding: '4px 10px', borderRadius: 6,
+                      fontSize: 12, fontWeight: 700,
                       background: a.isOnline ? 'rgba(22,185,122,.15)' : 'rgba(100,110,140,.15)',
                       color: a.isOnline ? '#16b97a' : 'var(--text-muted)',
                     }}>
                       {a.isOnline ? '🟢 在線' : '⚫ 離線'}
                     </span>
                   </td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-primary)', fontWeight: 600 }}>{a.account}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-secondary)' }}>{a.charName || '—'}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-secondary)' }}>{a.masterName || '—'}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-muted)' }}>{a.serverName || '—'}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{a.regTime || '—'}</td>
-                  <td style={{ padding: '9px 14px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 12 }}>{a.regIP || '—'}</td>
+                  <td style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{a.account}</td>
+                  <td style={{ color: 'var(--text-secondary)' }}>{a.charName || '—'}</td>
+                  <td style={{ color: 'var(--text-secondary)' }}>{a.masterName || '—'}</td>
+                  <td style={{ color: 'var(--text-muted)' }}>{a.serverName || '—'}</td>
+                  <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{a.regTime || '—'}</td>
+                  <td style={{ color: 'var(--text-muted)', fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>{a.regIP || '—'}</td>
                 </tr>
               ))}
               {accounts.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <td colSpan={7} style={{ padding: 36, textAlign: 'center', color: 'var(--text-muted)' }}>
                     無資料
                   </td>
                 </tr>
@@ -427,17 +438,17 @@ export default function ServerStatusPage() {
       </section>
 
       {/* ── 重複 IP 偵測 ── */}
-      <section>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 14, textTransform: 'uppercase' }}>
+      <section className="server-status-section" style={{ paddingTop: 8 }}>
+        <div className="server-status-section-title" style={{ letterSpacing: '0.06em' }}>
           🔍 重複 IP 偵測
         </div>
 
         {/* ─ 自動掃描 ─ */}
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '22px 24px', marginBottom: 18, boxShadow: 'var(--neu-shadow-raised-sm)' }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-primary)' }}>
             🤖 全服自動掃描
           </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>最少帳號數：</span>
             {[2, 3, 5, 10].map(n => (
               <button key={n} onClick={() => setMinGroup(n)}
@@ -650,7 +661,7 @@ export default function ServerStatusPage() {
 
         {/* ── IP 原始主人查詢結果 ── */}
         {(ipOwnerLoading || ipOwnerResult) && (
-          <div style={{ background: 'var(--bg-card)', border: `1px solid ${ipOwnerResult?.found ? 'var(--accent-blue)' : 'var(--accent-red)'}`, borderRadius: 12, padding: '16px 20px', marginTop: 4 }}>
+          <div style={{ background: 'var(--bg-card)', border: `1px solid ${ipOwnerResult?.found ? 'var(--accent-blue)' : 'var(--accent-red)'}`, borderRadius: 14, padding: '20px 24px', marginTop: 12, boxShadow: 'var(--neu-shadow-raised-sm)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>
                 🔎 IP 原始主人查詢

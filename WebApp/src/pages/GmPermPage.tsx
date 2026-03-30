@@ -34,10 +34,20 @@ export default function GmPermPage() {
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>🛡 {S.navGmPerm}</h1>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>NeiCe=1 為 GM 標記 | GroupId 預設 0=一般玩家</p>
       {msg && <p style={{ color: 'var(--accent-green)', marginBottom: 12 }}>{msg}</p>}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()}
-          placeholder="搜尋角色名稱或帳號（留空=顯示所有 GM 標記玩家）" style={{ flex: 1, maxWidth: 400 }} />
-        <button onClick={load} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 16px', borderRadius: 8 }}>查詢</button>
+      <div className="gm-search-bar">
+        <div className="gm-search-bar__grow">
+          <input
+            className="gm-search-input"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && load()}
+            placeholder="搜尋角色名稱或帳號（留空＝顯示所有 GM 標記玩家）"
+            enterKeyHint="search"
+          />
+        </div>
+        <div className="gm-search-bar__actions">
+          <button type="button" onClick={load} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 22px', borderRadius: 10, fontWeight: 700 }}>查詢</button>
+        </div>
       </div>
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>

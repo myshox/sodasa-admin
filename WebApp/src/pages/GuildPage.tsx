@@ -125,12 +125,13 @@ export default function GuildPage() {
         <span className="guild-topbar-title">家族管理</span>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="搜尋家族名稱..."
-          style={{ padding: '5px 10px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', width: 180 }}
+          placeholder="搜尋家族名稱…"
+          className="gm-search-input gm-search-input--toolbar"
+          enterKeyHint="search"
         />
         <button type="button" onClick={loadGuilds} disabled={loading}
           className="primary"
-          style={{ padding: '5px 14px', borderRadius: 6 }}>
+          style={{ padding: '10px 18px', borderRadius: 10, flexShrink: 0, touchAction: 'manipulation' }}>
           {loading ? '載入中...' : '重新載入'}
         </button>
         {msg && (

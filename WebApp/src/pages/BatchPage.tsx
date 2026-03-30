@@ -12,7 +12,7 @@ interface CartItem { itemId: number; qty: number; type: number; name?: string; b
 
 export default function BatchPage() {
   const isMobile = useIsMobile()
-  const [target,  setTarget]  = useState<'all'|'online'|'custom'|'search'>('online')
+  const [target,  setTarget]  = useState<'all'|'online'|'online_recent'|'custom'|'search'>('online')
   const [custom,  setCustom]  = useState('')
   const [title,   setTitle]   = useState('')
   const [content, setContent] = useState('')
@@ -25,14 +25,17 @@ export default function BatchPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [listLoading, setListLoading] = useState(false)
 
-  const loadSearchList = async () => {
-    if (target === 'all' || target === 'online') {
-      setListLoading(true)
-      try {
-        const r = await api.get(target === 'online' ? '/players/online' : '/players/list', { params: { limit: 500 } })
+  const loadSearchList = async (mode: 'all' | 'online' | 'online_recent') => {
+    setListLoading(true)
+    try {
+      if (mode === 'all') {
+        const r = await api.get('/players/list', { params: { limit: 500 } })
         setSearchList(r.data); setSelected(new Set())
-      } finally { setListLoading(false) }
-    }
+      } else {
+        const r = await api.get('/players/online', { params: { recent: mode === 'online_recent' } })
+        setSearchList(r.data); setSelected(new Set())
+      }
+    } finally { setListLoading(false) }
   }
 
   const toggleSelect = (acc: string) => {
@@ -78,8 +81,10 @@ export default function BatchPage() {
       customListStr = Array.from(selected).join('\n')
     }
 
-    const targetLabel = target === 'all' ? '全部玩家' : target === 'online' ? '在線玩家'
-      : target === 'search' ? `${selected.size} 位勾選玩家` : '自訂名單'
+    const targetLabel = target === 'all' ? '全部玩家'
+      : target === 'online' ? '在線（Online=1）'
+        : target === 'online_recent' ? '近期登入推測（非即時連線）'
+          : target === 'search' ? `${selected.size} 位勾選玩家` : '自訂名單'
 
     if (!window.confirm(`確認批量發送？\n目標：${targetLabel}\n道具：${cart.length} 種\n標題：${title || '(無)'}`)) return
 
@@ -118,10 +123,16 @@ export default function BatchPage() {
             <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 12 }}>{S.batchTarget}</h3>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <button style={btnStyle('all')}    onClick={() => { setTarget('all'); setSearchList([]); setSelected(new Set()) }}>{S.batchAll}</button>
-              <button style={btnStyle('online')} onClick={() => { setTarget('online'); setSearchList([]); setSelected(new Set()) }}>{S.batchOnline}</button>
+              <button style={btnStyle('online')} onClick={() => { setTarget('online'); setSearchList([]); setSelected(new Set()) }} title="csalogin.Online=1，由遊戲伺服器維護">🟢 在線（Online=1）</button>
+              <button style={btnStyle('online_recent')} onClick={() => { setTarget('online_recent'); setSearchList([]); setSelected(new Set()) }} title="依 LoginTime 推測，非真實連線">🟡 近期推測</button>
               <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>自訂帳號</button>
               <button style={btnStyle('search')} onClick={() => setTarget('search')}>🔍 搜尋勾選</button>
             </div>
+            {(target === 'online' || target === 'online_recent') && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+                真實在線須由遊戲伺服器寫入 <code style={{ fontSize: 10 }}>Online=1</code>；GM 只讀資料庫。「近期推測」不是即時連線名單。
+              </p>
+            )}
             {target === 'custom' && (
               <textarea value={custom} onChange={e => setCustom(e.target.value)}
                 placeholder={'一行一個帳號\naccount1\naccount2'}
@@ -141,17 +152,16 @@ export default function BatchPage() {
                     placeholder="搜尋玩家加入清單…"
                     style={{ flex: 1 }}
                   />
-                  <button onClick={loadSearchList} disabled={listLoading}
+                  <button type="button" onClick={() => loadSearchList('online')} disabled={listLoading}
                     style={{ ...btnStyle('online'), padding: '6px 12px', fontSize: 12 }}>
                     {listLoading ? '載入…' : '載入在線'}
                   </button>
-                  <button onClick={async () => {
-                    setListLoading(true)
-                    try {
-                      const r = await api.get('/players/list', { params: { limit: 500 } })
-                      setSearchList(r.data); setSelected(new Set())
-                    } finally { setListLoading(false) }
-                  }} disabled={listLoading}
+                  <button type="button" onClick={() => loadSearchList('online_recent')} disabled={listLoading}
+                    style={{ ...btnStyle('online_recent'), padding: '6px 12px', fontSize: 12 }}
+                    title="依 LoginTime，非真實連線">
+                    {listLoading ? '載入…' : '載入近期推測'}
+                  </button>
+                  <button type="button" onClick={() => loadSearchList('all')} disabled={listLoading}
                     style={{ ...btnStyle('all'), padding: '6px 12px', fontSize: 12 }}>
                     載入全部
                   </button>

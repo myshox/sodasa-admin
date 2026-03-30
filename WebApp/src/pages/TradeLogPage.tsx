@@ -37,13 +37,22 @@ export default function TradeLogPage() {
           ⚠️ {S.apiError}（Port 5050）
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <input value={q} onChange={e => setQ(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && search()}
-          placeholder="搜尋雙方帳號或角色名" style={{ flex: 1, maxWidth: 360 }} />
-        <button onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff' }}>
-          {loading ? S.searching : `🔍 ${S.searchBtn}`}
-        </button>
+      <div className="gm-search-bar">
+        <div className="gm-search-bar__grow">
+          <input
+            className="gm-search-input"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && search()}
+            placeholder="搜尋雙方帳號或角色名"
+            enterKeyHint="search"
+          />
+        </div>
+        <div className="gm-search-bar__actions">
+          <button type="button" onClick={search} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 22px', borderRadius: 10, fontWeight: 700 }}>
+            {loading ? S.searching : `🔍 ${S.searchBtn}`}
+          </button>
+        </div>
       </div>
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 80px 1fr 160px', padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>

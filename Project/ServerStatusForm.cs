@@ -53,13 +53,13 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill,
                 RowCount = 5, ColumnCount = 1,
                 BackColor = Color.Transparent,
-                Padding   = new Padding(16, 10, 16, 10),
+                Padding   = new Padding(Theme.UiPadLg, Theme.UiPadMd, Theme.UiPadLg, Theme.UiPadLg),
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));   // 0: 工具列
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108f));  // 1: 主帳號 3 卡
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 138f));  // 2: 分流在線
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 212f));  // 3: 登入 IP 在線（含總人數列）
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));   // 0: 工具列
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 118f));  // 1: 主帳號 3 卡
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 158f));  // 2: 分流在線
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 236f));  // 3: 登入 IP 在線（含總人數列）
             root.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));  // 4: 最新註冊
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
@@ -71,7 +71,7 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill,
                 ColumnCount = 2, RowCount = 1,
                 BackColor = Color.Transparent,
-                Margin    = new Padding(0, 0, 0, 6)
+                Margin    = new Padding(0, 0, 0, 8)
             };
             toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -82,9 +82,9 @@ namespace SQ_Email_Tools
             {
                 Text      = "伺服器即時狀態",
                 ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 14f, FontStyle.Bold),
+                Font      = new Font(Theme.FontFamily, 15f, FontStyle.Bold),
                 AutoSize  = true,
-                Location  = new Point(0, 4)
+                Location  = new Point(0, 6)
             };
             _lblStatus = new Label
             {
@@ -92,14 +92,14 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(0, 30)
+                Location  = new Point(0, 32)
             };
             titleBlock.Controls.Add(lblTitle);
             titleBlock.Controls.Add(_lblStatus);
 
-            _btnRefresh = Theme.MakeButton("🔄 重新整理", Color.FromArgb(30, 75, 160), Color.White, 110, 32);
+            _btnRefresh = Theme.MakeButton("🔄 重新整理", Color.FromArgb(30, 75, 160), Color.White, 124, 36);
             _btnRefresh.Dock   = DockStyle.Right;
-            _btnRefresh.Margin = new Padding(8, 6, 0, 0);
+            _btnRefresh.Margin = new Padding(12, 8, 0, 0);
             _btnRefresh.Click += async (s, e) => await RefreshAsync();
 
             toolbar.Controls.Add(titleBlock,   0, 0);
@@ -114,7 +114,7 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill,
                 ColumnCount = 3, RowCount = 1,
                 BackColor = Color.Transparent,
-                Margin    = new Padding(0, 0, 0, 8)
+                Margin    = new Padding(0, 0, 0, 10)
             };
             for (int i = 0; i < 3; i++)
                 masterGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3));
@@ -309,7 +309,7 @@ namespace SQ_Email_Tools
             var icoLbl = new Label
             {
                 Text      = icon,
-                Font      = new Font(Theme.FontFamily, 20f),
+                Font      = new Font(Theme.FontFamily, 22f),
                 ForeColor = accent,
                 Dock      = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
@@ -331,7 +331,7 @@ namespace SQ_Email_Tools
             {
                 Text      = "—",
                 ForeColor = accent,
-                Font      = new Font(Theme.FontFamily, 20f, FontStyle.Bold),
+                Font      = new Font(Theme.FontFamily, 22f, FontStyle.Bold),
                 Dock      = DockStyle.Fill,
                 TextAlign = ContentAlignment.TopLeft
             };
@@ -387,10 +387,10 @@ namespace SQ_Email_Tools
                     return;
                 }
                 int maxOnline = Math.Max(1, channels.Max(c => c.OnlineCount));
-                int panelH    = _channelFlow.ClientSize.Height > 10 ? _channelFlow.ClientSize.Height : 110;
-                int cardH     = panelH - 4;
-                int cardW     = Math.Max(120, Math.Min(180,
-                    (_channelFlow.ClientSize.Width - channels.Count * 8 - 4) / channels.Count));
+                int panelH    = _channelFlow.ClientSize.Height > 10 ? _channelFlow.ClientSize.Height : 124;
+                int cardH     = panelH - 6;
+                int cardW     = Math.Max(132, Math.Min(196,
+                    (_channelFlow.ClientSize.Width - channels.Count * 10 - 6) / channels.Count));
 
                 foreach (var ch in channels)
                 {
@@ -401,14 +401,14 @@ namespace SQ_Email_Tools
                     {
                         BackColor   = Theme.BgCard,
                         Size        = new Size(cardW, cardH),
-                        Margin      = new Padding(0, 0, 8, 0),
+                        Margin      = new Padding(0, 0, 10, 0),
                         RowCount    = 4,
                         ColumnCount = 1,
-                        Padding     = new Padding(10, 8, 10, 8)
+                        Padding     = new Padding(12, 10, 12, 10)
                     };
-                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 20f)); // 分流名
-                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 28f)); // 在線數字
-                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 12f)); // 進度條
+                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22f)); // 分流名
+                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f)); // 在線數字
+                    card.RowStyles.Add(new RowStyle(SizeType.Absolute, 14f)); // 進度條
                     card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f)); // 總計
                     card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 

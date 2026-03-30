@@ -47,6 +47,14 @@ export default function Dashboard() {
 
   const fmt = (n?: number) => n?.toLocaleString() ?? '—'
 
+  const onlineByServerSub = (() => {
+    const rows = stats?.onlineByServer
+    if (!rows?.length) return undefined
+    const sum = rows.reduce((a, x) => a + x.count, 0)
+    const parts = rows.map(x => `分流${x.serverId} ${x.count}人`)
+    return `${parts.join(' · ')} · 加總 ${sum.toLocaleString()}人（應與上方「目前在線」相同）`
+  })()
+
   const quickLinks: QuickLink[] = [
     { icon: '💳', label: '充值管理', desc: '手動補單、累積儲值進度', path: '/recharge', color: '#4ade80' },
     { icon: '👥', label: '玩家管理', desc: '搜尋玩家、改金幣水晶', path: '/players', color: '#60a5fa' },
@@ -63,7 +71,7 @@ export default function Dashboard() {
       <header className="dashboard-hero">
         <div className="dashboard-hero-inner">
           <h1 className="dashboard-title">GM 管理後台</h1>
-          <p className="dashboard-sub">蘇打石器 · 私服管理 · 快捷入口與即時概況</p>
+          <p className="dashboard-sub">蘇打石器 · 營運控制台 · 即時概況與常用捷徑</p>
           {stats != null && (
             <div className="dashboard-badge" aria-live="polite">
               <span aria-hidden>📊</span>
@@ -84,12 +92,16 @@ export default function Dashboard() {
         <div className="dashboard-section-label">即時概況</div>
         <div className="dashboard-stats">
           <UiStatCard icon="👥" label="總玩家數" value={fmt(stats?.totalPlayers)} accent="var(--accent-blue)" />
-          <UiStatCard icon="🟢" label="目前在線" value={fmt(stats?.onlinePlayers)} accent="var(--accent-green)" />
+          <UiStatCard icon="🟢" label="目前在線" value={fmt(stats?.onlinePlayers)} sub={onlineByServerSub} accent="var(--accent-green)" />
           <UiStatCard icon="🚫" label="已封號" value={fmt(stats?.bannedPlayers)} accent="var(--accent-red)" />
           <UiStatCard icon="🍳" label="今日新增" value={fmt(stats?.newToday)} accent="var(--accent-orange)" />
           <UiStatCard icon="💰" label="全服金幣" value={fmt(stats?.totalGold)} accent="#d97706" />
           <UiStatCard icon="💎" label="全服水晶" value={fmt(stats?.totalCrystal)} accent="#2563eb" />
         </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, margin: '12px 0 0', maxWidth: 720 }}>
+          「目前在線」為<strong>整張</strong> <code style={{ fontSize: 11 }}>csalogin</code> 中 <code style={{ fontSize: 11 }}>Online=1</code> 的<strong>總人數</strong>，不是單一分流、也不會因三條分流而除以三。
+          若遊戲內三條線都有玩家但這裡偏少，代表資料庫裡未全部寫成在線；若你有多台遊戲庫<strong>各用不同 MySQL</strong>，GM 只會連到<strong>其中一庫</strong>，也會看起來偏少。詳見「伺服器狀態」各分流表。
+        </p>
       </section>
 
       <section aria-label="常用功能">

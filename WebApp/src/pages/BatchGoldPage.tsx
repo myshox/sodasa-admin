@@ -2,7 +2,7 @@ import { useState } from 'react'
 import api from '../api'
 import { S } from '../strings'
 
-type Target = 'all' | 'online' | 'custom'
+type Target = 'all' | 'online' | 'online_recent' | 'custom'
 
 export default function BatchGoldPage() {
   const [target, setTarget] = useState<Target>('online')
@@ -16,10 +16,13 @@ export default function BatchGoldPage() {
 
   const loadPlayers = async () => {
     if (target === 'custom' && !customList.trim()) return
-    if (target === 'all' || target === 'online') {
+    if (target === 'all' || target === 'online' || target === 'online_recent') {
       setLoading(true)
       try {
-        const r = await api.get(target === 'online' ? '/players/online' : '/players/list', { params: target === 'all' ? { limit: 500 } : {} })
+        const r = await api.get(
+          target === 'all' ? '/players/list' : '/players/online',
+          { params: target === 'all' ? { limit: 500 } : { recent: target === 'online_recent' } },
+        )
         const rows = r.data as { account: string; onlineName?: string }[]
         setPlayerList(rows.map(p => ({ account: p.account, onlineName: p.onlineName || p.account })))
         setSelected(new Set())
@@ -59,7 +62,10 @@ export default function BatchGoldPage() {
     const ids = target === 'custom' ? customList.split(/[\n,]/).map(s => s.trim()).filter(Boolean) : Array.from(selected)
     if (ids.length === 0) { setResult('請先載入並勾選要操作的玩家'); return }
 
-    const targetLabel = target === 'all' ? '全服所有玩家' : target === 'online' ? '線上玩家' : `自訂 ${ids.length} 位玩家`
+    const targetLabel = target === 'all' ? '全服所有玩家'
+      : target === 'online' ? '在線（Online=1）'
+        : target === 'online_recent' ? '近期登入推測（非即時連線）'
+          : `自訂 ${ids.length} 位玩家`
     const opLabel = amount >= 0 ? `發放 ${amount.toLocaleString()} 金幣` : `扣除 ${Math.abs(amount).toLocaleString()} 金幣`
 
     // 超大金額（≥ 500 萬）額外警告
@@ -98,7 +104,11 @@ export default function BatchGoldPage() {
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="radio" checked={target === 'online'} onChange={() => setTarget('online')} />
-            <span>🟢 僅在線玩家</span>
+            <span>🟢 在線（Online=1）</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={target === 'online_recent'} onChange={() => setTarget('online_recent')} />
+            <span>🟡 近期登入推測</span>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="radio" checked={target === 'custom'} onChange={() => setTarget('custom')} />
@@ -111,9 +121,19 @@ export default function BatchGoldPage() {
             <button onClick={loadPlayers} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>載入清單</button>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input value={searchKw} onChange={e => setSearchKw(e.target.value)} placeholder="關鍵字搜尋（選填）" style={{ width: 200 }} />
-            <button onClick={loadPlayers} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>{loading ? '載入中…' : '載入清單'}</button>
+          <div className="gm-search-bar gm-search-bar--tight">
+            <div className="gm-search-bar__grow">
+              <input
+                className="gm-search-input"
+                value={searchKw}
+                onChange={e => setSearchKw(e.target.value)}
+                placeholder="關鍵字搜尋（選填）"
+                enterKeyHint="search"
+              />
+            </div>
+            <div className="gm-search-bar__actions">
+              <button type="button" onClick={loadPlayers} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>{loading ? '載入中…' : '載入清單'}</button>
+            </div>
           </div>
         )}
       </div>

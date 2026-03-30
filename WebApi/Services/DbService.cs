@@ -499,12 +499,54 @@ public class DbService
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
             ORDER BY c.Online DESC, c.LoginTime DESC LIMIT @lim",
+            // sql3：最小化 fallback，只查 csalogin（全服排序，含離線）
+            @"SELECT `Name` account, IFNULL(OnlineName,'') onlineName,
+               (Online=1) isOnline, IFNULL(ServerId,0) serverId,
+               IFNULL(DATE_FORMAT(created_at,'%Y-%m-%d %H:%i'),'') regTime,
+               IFNULL(DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+               IFNULL(IP,'') ip, 0 isBanned,
+               IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal,
+               0 petCount, IFNULL(PayTotal,0) payTotal, '' masterName
+        FROM csalogin ORDER BY Online DESC, LoginTime DESC LIMIT @lim",
             p => { p.AddWithValue("@lim", limit); });
 
+    /// <summary>
+    /// csalogin 篩選（批量發送與列表共用）。
+    /// 「真實在線」在技術上＝遊戲伺服器寫入的 Online=1；GM 僅讀 DB，無法讀 socket。
+    /// online_recent 僅依 LoginTime 推測，非即時連線。
+    /// </summary>
+    public static string CsaloginWhereForTarget(string target)
+    {
+        return target switch
+        {
+            "online" => "WHERE Online=1",
+            "online_recent" =>
+                "WHERE (Online=1 OR (LoginTime IS NOT NULL AND LoginTime > DATE_SUB(NOW(), INTERVAL 30 MINUTE)))",
+            _ => ""
+        };
+    }
+
     // ── 線上玩家 ─────────────────────────────────────────────
-    public async Task<List<PlayerRow>> GetOnlineAsync()
-        => await RunWithFallbackAsync(
-            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, 1 isOnline,
+    /// <param name="includeRecentLogin">true 時額外納入「30 分鐘內有 LoginTime」的角色（與 target=online_recent 批量一致）</param>
+    public async Task<List<PlayerRow>> GetOnlineAsync(bool includeRecentLogin = false)
+    {
+        string whereC = includeRecentLogin
+            ? "(c.Online=1 OR (c.LoginTime IS NOT NULL AND c.LoginTime > DATE_SUB(NOW(), INTERVAL 30 MINUTE)))"
+            : "c.Online=1";
+        string whereFlat = includeRecentLogin
+            ? "(Online=1 OR (LoginTime IS NOT NULL AND LoginTime > DATE_SUB(NOW(), INTERVAL 30 MINUTE)))"
+            : "Online=1";
+        string sql3 = $@"SELECT `Name` account, IFNULL(OnlineName,'') onlineName,
+               (Online=1) isOnline, IFNULL(ServerId,0) serverId,
+               IFNULL(DATE_FORMAT(created_at,'%Y-%m-%d %H:%i'),'') regTime,
+               IFNULL(DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
+               IFNULL(IP,'') ip, 0 isBanned,
+               IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal,
+               0 petCount, IFNULL(PayTotal,0) payTotal, '' masterName
+        FROM csalogin WHERE {whereFlat} ORDER BY IFNULL(ServerId,0), LoginTime DESC LIMIT @lim";
+
+        return await RunWithFallbackAsync(
+            $@"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, (c.Online=1) isOnline,
                    IFNULL(c.ServerId,0) serverId,
                    IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
@@ -514,8 +556,8 @@ public class DbService
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
             LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
-            WHERE c.Online=1 ORDER BY c.ServerId",
-            @"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, 1 isOnline,
+            WHERE {whereC} ORDER BY c.ServerId",
+            $@"SELECT c.`Name` account, IFNULL(c.OnlineName,'') onlineName, (c.Online=1) isOnline,
                    IFNULL(c.ServerId,0) serverId,
                    IFNULL(DATE_FORMAT(c.created_at,'%Y-%m-%d %H:%i'),'') regTime,
                    IFNULL(DATE_FORMAT(c.LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
@@ -524,23 +566,16 @@ public class DbService
                    0 petCount, IFNULL(c.PayTotal,0) payTotal, '' masterName
             FROM csalogin c
             LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
-            WHERE c.Online=1 ORDER BY c.ServerId",
+            WHERE {whereC} ORDER BY c.ServerId",
+            sql3,
             _ => { });
+    }
 
-    private async Task<List<PlayerRow>> RunWithFallbackAsync(string sql1, string sql2, Action<MySqlParameterCollection> paramFn)
+    private async Task<List<PlayerRow>> RunWithFallbackAsync(
+        string sql1, string sql2, string sql3, Action<MySqlParameterCollection> paramFn)
     {
         await using var db = Open(); await db.OpenAsync();
         var list = new List<PlayerRow>();
-
-        // sql3：最小化 fallback，只查 csalogin，不依賴任何可能缺失的資料表
-        const string sql3 = @"SELECT `Name` account, IFNULL(OnlineName,'') onlineName,
-               (Online=1) isOnline, IFNULL(ServerId,0) serverId,
-               IFNULL(DATE_FORMAT(created_at,'%Y-%m-%d %H:%i'),'') regTime,
-               IFNULL(DATE_FORMAT(LoginTime,'%Y-%m-%d %H:%i'),'') loginTime,
-               IFNULL(IP,'') ip, 0 isBanned,
-               IFNULL(VipPoint,0) gold, IFNULL(PetPoint,0) crystal,
-               0 petCount, IFNULL(PayTotal,0) payTotal, '' masterName
-        FROM csalogin ORDER BY Online DESC, LoginTime DESC LIMIT @lim";
 
         foreach (var sql in new[] { sql1, sql2, sql3 })
         {
@@ -578,6 +613,22 @@ public class DbService
         stats.NewToday      = (int)await Scalar("SELECT COUNT(*) FROM csalogin WHERE DATE(created_at)=CURDATE()");
         stats.TotalGold     = await Scalar("SELECT IFNULL(SUM(VipPoint),0) FROM csalogin");
         stats.TotalCrystal  = await Scalar("SELECT IFNULL(SUM(PetPoint),0) FROM csalogin");
+        try
+        {
+            await using var cmd = new MySqlCommand(
+                @"SELECT IFNULL(ServerId,0) AS sid, COUNT(*) AS cnt FROM csalogin WHERE Online=1
+                  GROUP BY IFNULL(ServerId,0) ORDER BY sid", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                stats.OnlineByServer.Add(new OnlineByServerRow
+                {
+                    ServerId = Convert.ToInt32(r["sid"]),
+                    Count    = Convert.ToInt32(r["cnt"])
+                });
+            }
+        }
+        catch { /* 表結構異常時略過 */ }
         return stats;
     }
 
@@ -1083,8 +1134,8 @@ public class DbService
         }
         else
         {
-            string whereClause = target == "online" ? "WHERE Online=1" : "";
-            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {whereClause}", db);
+            string whereClause = CsaloginWhereForTarget(target);
+            await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {whereClause}", db);
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
@@ -1122,11 +1173,13 @@ public class DbService
         }
         else
         {
-            string wh = target == "online" ? "WHERE Online=1" : "";
-            await using var cmd2 = new MySqlCommand($"SELECT `Name` FROM csalogin {wh}", db);
+            string wh = CsaloginWhereForTarget(target);
+            await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {wh}", db);
             await using var r2 = await cmd2.ExecuteReaderAsync();
             while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
         }
+        // 同一帳號多筆（或大小寫重複）只送一次
+        accounts = accounts.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // 套用排除名單
         if (excludeList != null && excludeList.Count > 0)
         {
@@ -1141,7 +1194,7 @@ public class DbService
         string cf   = content.Trim();
         int totalSent = 0, totalFail = 0;
         string lastError = "";
-        var sentAccounts = new List<string>();
+        var sentSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // 預先整理 cart 資料（buff3 使用道具描述，與 EXE 一致）
         var rows = cart.Where(c => c.ItemId > 0).Select(c =>
@@ -1160,7 +1213,8 @@ public class DbService
             };
         }).ToList();
 
-        // 每批帳號用一條大 INSERT（與 EXE BatchSendMailAsync 相同策略）
+        // 與 EXE DatabaseManager.BatchSendMailAsync 相同：每個購物車品項對每批帳號一條 INSERT（@ck0..@ck{n-1} + 共用模板參數）
+        // 避免「多帳號×多道具」單一巨型 INSERT 時參數組合在部分環境下異常、或語句過大。
         const int batchSize = 200;
         const string sqlTpl =
             "INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3) VALUES ";
@@ -1168,43 +1222,39 @@ public class DbService
         for (int bi = 0; bi < accounts.Count; bi += batchSize)
         {
             var batch = accounts.Skip(bi).Take(batchSize).ToList();
-            var valueParts = new List<string>();
-            await using var cmd = new MySqlCommand();
-            cmd.Connection = db;
-            cmd.Parameters.AddWithValue("@sendtime", nowInt);
-            cmd.Parameters.AddWithValue("@endtime",  endInt);
+            foreach (var row in rows)
+            {
+                var valueParts = new List<string>();
+                await using var cmd = new MySqlCommand();
+                cmd.Connection = db;
+                cmd.Parameters.AddWithValue("@sendtime", nowInt);
+                cmd.Parameters.AddWithValue("@endtime",  endInt);
+                cmd.Parameters.AddWithValue("@type",     row.MailType);
+                cmd.Parameters.AddWithValue("@buff1",    row.Buff1);
+                cmd.Parameters.AddWithValue("@buff2",    row.Buff2);
+                cmd.Parameters.AddWithValue("@data",     row.ItemId);
+                cmd.Parameters.AddWithValue("@buff3",    row.Buff3 ?? "");
 
-            int pIdx = 0;
-            foreach (var acc in batch)
-            {
-                string cpName = $"@ck{pIdx}";
-                cmd.Parameters.AddWithValue(cpName, acc);
-                foreach (var row in rows)
+                for (int j = 0; j < batch.Count; j++)
                 {
-                    string tpName  = $"@t{pIdx}";
-                    string b1Name  = $"@b1_{pIdx}";
-                    string b2Name  = $"@b2_{pIdx}";
-                    string datName = $"@d{pIdx}";
-                    string b3Name  = $"@b3_{pIdx}";
-                    cmd.Parameters.AddWithValue(tpName,  row.MailType);
-                    cmd.Parameters.AddWithValue(b1Name,  row.Buff1);
-                    cmd.Parameters.AddWithValue(b2Name,  row.Buff2);
-                    cmd.Parameters.AddWithValue(datName, row.ItemId);
-                    cmd.Parameters.AddWithValue(b3Name,  row.Buff3);
+                    string pName = $"@ck{j}";
+                    cmd.Parameters.AddWithValue(pName, batch[j]);
                     for (int q = 0; q < row.Qty; q++)
-                        valueParts.Add($"({tpName},{cpName},{b1Name},{b2Name},{datName},@sendtime,@endtime,0,0,{b3Name})");
-                    pIdx++;
+                        valueParts.Add($"(@type,{pName},@buff1,@buff2,@data,@sendtime,@endtime,0,0,@buff3)");
                 }
+
+                cmd.CommandText = sqlTpl + string.Join(",", valueParts);
+                try
+                {
+                    int inserted = await cmd.ExecuteNonQueryAsync();
+                    totalSent += inserted;
+                    foreach (var acc in batch) sentSet.Add(acc);
+                }
+                catch (Exception ex) { totalFail += batch.Count; lastError = ex.Message; }
             }
-            cmd.CommandText = sqlTpl + string.Join(",", valueParts);
-            try
-            {
-                int inserted = await cmd.ExecuteNonQueryAsync();
-                foreach (var acc in batch) sentAccounts.Add(acc);
-                totalSent += inserted;
-            }
-            catch (Exception ex) { totalFail += batch.Count; lastError = ex.Message; }
         }
+
+        var sentAccounts = sentSet.OrderBy(a => a, StringComparer.OrdinalIgnoreCase).ToList();
         return (totalSent, totalFail, sentAccounts, lastError);
     }
 
@@ -1375,8 +1425,8 @@ public class DbService
                 accounts = customList.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
             else
             {
-                string where = target == "online" ? "WHERE Online=1" : "";
-                await using var cmd = new MySqlCommand($"SELECT `Name` FROM csalogin {where}", db);
+                string where = CsaloginWhereForTarget(target);
+                await using var cmd = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {where}", db);
                 await using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync()) accounts.Add(r.GetString(0));
             }

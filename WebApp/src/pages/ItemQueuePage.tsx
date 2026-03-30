@@ -67,13 +67,22 @@ export default function ItemQueuePage() {
 
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 12 }}>STEP 1 — 選擇玩家</h3>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input value={playerQ} onChange={e => setPlayerQ(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && searchPlayer()}
-            placeholder="輸入帳號或角色名稱搜尋" style={{ flex: 1 }} />
-          <button onClick={searchPlayer} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '8px 16px' }}>
-            {loading ? S.searching : `🔍 ${S.searchBtn}`}
-          </button>
+        <div className="gm-search-bar gm-search-bar--tight">
+          <div className="gm-search-bar__grow">
+            <input
+              className="gm-search-input"
+              value={playerQ}
+              onChange={e => setPlayerQ(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && searchPlayer()}
+              placeholder="輸入帳號或角色名稱搜尋"
+              enterKeyHint="search"
+            />
+          </div>
+          <div className="gm-search-bar__actions">
+            <button type="button" onClick={searchPlayer} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '10px 20px', borderRadius: 10, fontWeight: 700 }}>
+              {loading ? S.searching : `🔍 ${S.searchBtn}`}
+            </button>
+          </div>
         </div>
         {searchResults.length > 0 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

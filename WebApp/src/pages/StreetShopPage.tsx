@@ -116,7 +116,11 @@ export default function StreetShopPage() {
             目前攤主（{filteredVendors.length}）
           </div>
           <input value={listFilter} onChange={e => setListFilter(e.target.value)}
-            placeholder="搜尋角色名..." style={{ width: '100%', fontSize: 12, padding: '5px 8px', boxSizing: 'border-box' }} />
+            placeholder="搜尋角色名…"
+            className="gm-search-input gm-search-input--compact"
+            style={{ width: '100%', boxSizing: 'border-box' }}
+            enterKeyHint="search"
+          />
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {vendorListLoad

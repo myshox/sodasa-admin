@@ -421,7 +421,7 @@ function SingleSendTab() {
 // ────────────────────────────────────────────────────────────
 function BatchSendTab() {
   const isMobile = useIsMobile()
-  const [target, setTarget] = useState<'all' | 'online' | 'custom' | 'search'>('online')
+  const [target, setTarget] = useState<'all' | 'online' | 'online_recent' | 'custom' | 'search'>('online')
   const [custom, setCustom] = useState('')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -463,7 +463,10 @@ function BatchSendTab() {
       targetStr = 'custom'; customListStr = finalSelected.join('\n')
     }
     const excludeList = excluded.map(e => e.account)
-    const label = target === 'all' ? '全部玩家' : target === 'online' ? '在線玩家' : target === 'search' ? `${selected.size} 位玩家` : '自訂名單'
+    const label = target === 'all' ? '全部玩家'
+      : target === 'online' ? '在線（資料庫 Online=1）'
+        : target === 'online_recent' ? '近期登入推測（30 分內 LoginTime，非即時連線）'
+          : target === 'search' ? `${selected.size} 位玩家` : '自訂名單'
     const excludeNote = excludeList.length > 0 ? `\n排除：${excludeList.length} 人` : ''
     if (!window.confirm(`確認批量發送？\n目標：${label}${excludeNote}\n道具：${cart.length} 種`)) return
     setLoading(true); setResult(''); setSentAccounts([]); setShowSent(false)
@@ -494,10 +497,19 @@ function BatchSendTab() {
         <Card title="STEP 1 — 目標玩家">
           <div className={isMobile ? 'batchops-target-row' : undefined} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
             <button style={btnStyle('all')} onClick={() => { setTarget('all'); setSearchList([]); setSelected(new Set()) }}>🌐 全部玩家</button>
-            <button style={btnStyle('online')} onClick={() => { setTarget('online'); setSearchList([]); setSelected(new Set()) }}>🟢 在線玩家</button>
+            <button style={btnStyle('online')} onClick={() => { setTarget('online'); setSearchList([]); setSelected(new Set()) }} title="僅含資料庫 csalogin.Online=1（遊戲伺服器寫入）">🟢 在線（Online=1）</button>
+            <button style={btnStyle('online_recent')} onClick={() => { setTarget('online_recent'); setSearchList([]); setSelected(new Set()) }} title="非即時連線，僅推測">🟡 近期登入推測</button>
             <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>📝 自訂帳號</button>
             <button style={btnStyle('search')} onClick={() => setTarget('search')}>🔍 搜尋勾選</button>
           </div>
+          {(target === 'online' || target === 'online_recent') && (
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--text-secondary)' }}>真實在遊戲裡連線</strong>的角色，必須由<strong>遊戲伺服器</strong>在連線／斷線時正確寫入 <code style={{ fontSize: 10 }}>csalogin.Online</code>。
+              GM 工具<strong>只讀 MySQL</strong>，無法直接偵測客戶端 socket，因此「在線」＝資料庫 <code style={{ fontSize: 10 }}>Online=1</code>。
+              若遊戲內明明在線但名單較少，請請程式端檢查登入／換線／斷線時是否都有更新該欄位。
+              「近期登入推測」僅依 <code style={{ fontSize: 10 }}>LoginTime</code> 補漏，<strong>不是</strong>真實連線名單，且可能含已登出。
+            </p>
+          )}
 
           {target === 'custom' && <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder={'一行一個帳號\naccount1\naccount2'} style={{ width: '100%', height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />}
 
@@ -507,6 +519,7 @@ function BatchSendTab() {
                 onSelect={(p: PlayerRow) => { setSearchList(prev => prev.find(x => x.account === p.account) ? prev : [...prev, p]); setSelected(prev => { const s = new Set(prev); s.add(p.account); return s }); setSearchQ('') }}
                 placeholder="搜尋玩家加入清單…" style={{ flex: 1 }} />
               <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online'); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online'), padding: '6px 10px', fontSize: 12 }}>{listLoading ? '載入…' : '載入在線'}</button>
+              <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online', { params: { recent: true } }); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online_recent'), padding: '6px 10px', fontSize: 12 }} title="依 LoginTime，非真實連線">{listLoading ? '載入…' : '載入近期推測'}</button>
               <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/list', { params: { limit: 500 } }); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('all'), padding: '6px 10px', fontSize: 12 }}>載入全部</button>
             </div>
             {searchList.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -646,7 +659,7 @@ function BatchSendTab() {
 // Tab 3 — 批量金幣
 // ────────────────────────────────────────────────────────────
 function BatchGoldTab() {
-  const [target, setTarget] = useState<'all' | 'online' | 'custom'>('online')
+  const [target, setTarget] = useState<'all' | 'online' | 'online_recent' | 'custom'>('online')
   const [customList, setCustomList] = useState('')
   const [searchKw, setSearchKw] = useState('')
   const [amount, setAmount] = useState(1000)
@@ -659,7 +672,10 @@ function BatchGoldTab() {
     if (target === 'custom') { const accounts = customList.split(/[\n,]/).map(s => s.trim()).filter(Boolean); setPlayerList(accounts.map(a => ({ account: a, onlineName: a }))); setSelected(new Set(accounts)); return }
     setLoading(true)
     try {
-      const r = await api.get(target === 'online' ? '/players/online' : '/players/list', { params: target === 'all' ? { limit: 500 } : {} })
+      const r = await api.get(
+        target === 'all' ? '/players/list' : '/players/online',
+        { params: target === 'all' ? { limit: 500 } : { recent: target === 'online_recent' } },
+      )
       setPlayerList((r.data as { account: string; onlineName?: string }[]).map(p => ({ account: p.account, onlineName: p.onlineName || p.account }))); setSelected(new Set())
     } catch { setResult('載入失敗') } finally { setLoading(false) }
   }
@@ -679,10 +695,10 @@ function BatchGoldTab() {
     <div style={{ maxWidth: 860 }}>
       <Card title="STEP 1 — 載入玩家範圍">
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
-          {(['all', 'online', 'custom'] as const).map(t => (
+          {(['all', 'online', 'online_recent', 'custom'] as const).map(t => (
             <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="radio" checked={target === t} onChange={() => setTarget(t)} />
-              <span>{{ all: '🌐 全服所有玩家', online: '🟢 僅在線玩家', custom: '📝 自訂清單' }[t]}</span>
+              <span>{{ all: '🌐 全服所有玩家', online: '🟢 在線（Online=1）', online_recent: '🟡 近期登入推測', custom: '📝 自訂清單' }[t]}</span>
             </label>
           ))}
         </div>
