@@ -206,7 +206,7 @@ namespace SQ_Email_Tools
             _itemDgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_itemDgv);
             _itemDgv.ReadOnly              = true;
-            _itemDgv.MultiSelect           = false;
+            _itemDgv.MultiSelect           = true;
             _itemDgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             _itemDgv.AllowUserToResizeRows = false;
             // 勿覆寫 Theme 列高（見 SendForm 註解）
@@ -317,7 +317,12 @@ namespace SQ_Email_Tools
             var btnClear = Theme.MakeButton("🗑 清空", Theme.AccentRed, Color.White, 62, 24);
             btnClear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClear.Font   = Theme.FontSmall;
-            btnClear.Click += (s, e) => { _cart.Clear(); RefreshCartDgv(); };
+            btnClear.Click += (s, e) =>
+            {
+                if (_cart.Count == 0) return;
+                if (!Theme.Confirm("確定要清空購物車嗎？", "確認", defaultButtonNo: true)) return;
+                _cart.Clear(); RefreshCartDgv();
+            };
             cartHdrPanel.Controls.Add(btnClear);
             cartHdrPanel.Resize += (s, e) => btnClear.Left = cartHdrPanel.ClientSize.Width - 4 - btnClear.Width;
             scroll.Controls.Add(cartHdrPanel);
@@ -334,7 +339,7 @@ namespace SQ_Email_Tools
                 SelectionMode         = DataGridViewSelectionMode.FullRowSelect,
                 RowTemplate           = { Height = 26 },
                 ColumnHeadersHeight   = 26,
-                MultiSelect           = false,
+                MultiSelect           = true,
                 BackgroundColor       = Theme.BgCard,
                 GridColor             = Theme.Border,
                 BorderStyle           = BorderStyle.None

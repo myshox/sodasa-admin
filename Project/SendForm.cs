@@ -298,7 +298,7 @@ namespace SQ_Email_Tools
             _itemDgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_itemDgv);
             _itemDgv.ReadOnly              = true;
-            _itemDgv.MultiSelect           = false;
+            _itemDgv.MultiSelect           = true;
             _itemDgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             _itemDgv.AllowUserToResizeRows = false;
             // 勿覆寫 Theme 列高：過矮會讓中文在儲存格內被壓扁、難以閱讀
@@ -427,7 +427,12 @@ namespace SQ_Email_Tools
             var btnClearCart = Theme.MakeButton("🗑 清空", Theme.AccentRed, Color.White, 62, 24);
             btnClearCart.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClearCart.Font   = Theme.FontSmall;
-            btnClearCart.Click += (s, e) => { _cart.Clear(); RefreshCartDgv(); };
+            btnClearCart.Click += (s, e) =>
+            {
+                if (_cart.Count == 0) return;
+                if (!Theme.Confirm("確定要清空購物車嗎？", "確認", defaultButtonNo: true)) return;
+                _cart.Clear(); RefreshCartDgv();
+            };
             cartHdrPanel.Controls.Add(btnClearCart);
             cartHdrPanel.Resize += (s, e) => btnClearCart.Left = cartHdrPanel.ClientSize.Width - 4 - btnClearCart.Width;
             scroll.Controls.Add(cartHdrPanel);
@@ -444,7 +449,7 @@ namespace SQ_Email_Tools
                 SelectionMode        = DataGridViewSelectionMode.FullRowSelect,
                 RowTemplate          = { Height = 26 },
                 ColumnHeadersHeight  = 26,
-                MultiSelect          = false,
+                MultiSelect          = true,
                 BackgroundColor      = Theme.BgCard,
                 GridColor            = Theme.Border,
                 BorderStyle          = BorderStyle.None

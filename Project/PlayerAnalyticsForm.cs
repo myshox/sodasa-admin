@@ -104,7 +104,7 @@ namespace SQ_Email_Tools
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(tabs.TabPages[e.Index].Text,
                     new Font(Theme.FontFamily, 9.5f, sel ? FontStyle.Bold : FontStyle.Regular),
-                    new SolidBrush(sel ? Color.FromArgb(100, 200, 255) : Theme.TextMuted), e.Bounds, sf);
+                    new SolidBrush(sel ? Color.FromArgb(100, 200, 255) : Theme.TextSecondary), e.Bounds, sf);
             };
 
             var tab1 = new TabPage("⏰  登入時段");

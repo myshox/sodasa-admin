@@ -97,7 +97,7 @@ namespace SQ_Email_Tools
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(tabs.TabPages[e.Index].Text,
                     new Font(Theme.FontFamily, 9.5f, sel ? FontStyle.Bold : FontStyle.Regular),
-                    new SolidBrush(sel ? Color.FromArgb(245, 108, 108) : Theme.TextMuted), e.Bounds, sf);
+                    new SolidBrush(sel ? Color.FromArgb(245, 108, 108) : Theme.TextSecondary), e.Bounds, sf);
             };
 
             var tab1 = new TabPage("🚨  高頻配對");

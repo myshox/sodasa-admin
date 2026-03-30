@@ -1825,7 +1825,7 @@ namespace SQ_Email_Tools
                 RowHeadersVisible     = false,
                 AllowUserToAddRows    = false,
                 AllowUserToDeleteRows = false,
-                MultiSelect           = false,
+                MultiSelect           = true,
                 SelectionMode         = DataGridViewSelectionMode.FullRowSelect,
                 AutoSizeColumnsMode   = DataGridViewAutoSizeColumnsMode.Fill,
                 ColumnHeadersDefaultCellStyle = { BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary }
@@ -1893,7 +1893,7 @@ namespace SQ_Email_Tools
                     _dgv.Rows[row].Tag = e.RecycleId;
                 }
                 _statusLbl.Text = entries.Count > 0
-                    ? $"共 {entries.Count} 筆已刪除角色（點選後可還原）"
+                    ? $"共 {entries.Count} 筆已刪除角色（可複選後還原）"
                     : "回收桶是空的。（舊版刪除的角色不在此列）";
                 _btnRestore.Enabled = false;
             }
@@ -1904,21 +1904,33 @@ namespace SQ_Email_Tools
         private async Task RestoreSelectedAsync()
         {
             if (_dgv.SelectedRows.Count == 0) return;
-            var row = _dgv.SelectedRows[0];
-            int rid  = (int)row.Tag;
-            string name = row.Cells["colName"].Value?.ToString() ?? "";
-
-            if (MessageBox.Show(
-                $"確定要還原角色「{name}」嗎？\n還原後角色會重新出現在玩家列表中。",
-                "確認還原", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            var rows = _dgv.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).ToList();
+            int n = rows.Count;
+            string msg = n == 1
+                ? $"確定要還原角色「{rows[0].Cells["colName"].Value}」嗎？\n還原後角色會重新出現在玩家列表中。"
+                : $"確定要還原選取的 {n} 筆角色嗎？\n還原後角色會重新出現在玩家列表中。";
+            if (!Theme.Confirm(msg, "確認還原", defaultButtonNo: true)) return;
 
             _btnRestore.Enabled = false;
-            var (ok, msg) = await DatabaseManager.Instance.RestoreFromRecycleAsync(rid);
-            MessageBox.Show(msg, ok ? "還原成功" : "還原失敗",
-                MessageBoxButtons.OK, ok ? MessageBoxIcon.Information : MessageBoxIcon.Error);
+            int okCount = 0, fail = 0;
+            string lastErr = "";
+            foreach (var row in rows)
+            {
+                int rid = (int)row.Tag;
+                var (ok, errMsg) = await DatabaseManager.Instance.RestoreFromRecycleAsync(rid);
+                if (ok) okCount++;
+                else { fail++; lastErr = errMsg; }
+            }
 
-            if (ok) await LoadAsync();
-            else _btnRestore.Enabled = true;
+            if (fail == 0)
+                MessageBox.Show($"已成功還原 {okCount} 筆角色。", "還原成功",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            else
+                MessageBox.Show(
+                    $"完成：成功 {okCount} 筆，失敗 {fail} 筆。\n最後錯誤：{lastErr}",
+                    "還原結果", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+            await LoadAsync();
         }
     }
 
@@ -2817,7 +2829,7 @@ namespace SQ_Email_Tools
             // 與 Theme.StyleDataGridView 列高一致，避免道具清單字被壓扁
             _itemDgv.AllowUserToResizeRows = false;
             _itemDgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
-            _itemDgv.MultiSelect           = false;
+            _itemDgv.MultiSelect           = true;
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cId",   HeaderText = "編號",   Width = 66,  SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cName", HeaderText = "道具名稱", Width = 160, SortMode = DataGridViewColumnSortMode.NotSortable });
             _itemDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cDesc", HeaderText = "說明",     AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, SortMode = DataGridViewColumnSortMode.NotSortable });
@@ -2879,7 +2891,12 @@ namespace SQ_Email_Tools
             var btnClear = Theme.MakeButton("🗑 清空", Theme.AccentRed, Color.White, 62, 24);
             btnClear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClear.Font   = Theme.FontSmall;
-            btnClear.Click += (s, e) => { _cart.Clear(); RefreshCartDgv(); };
+            btnClear.Click += (s, e) =>
+            {
+                if (_cart.Count == 0) return;
+                if (!Theme.Confirm("確定要清空購物車嗎？", "確認", defaultButtonNo: true)) return;
+                _cart.Clear(); RefreshCartDgv();
+            };
             cartHdrPanel.Controls.Add(btnClear);
             cartHdrPanel.Resize += (s, e) => btnClear.Left = cartHdrPanel.ClientSize.Width - 4 - btnClear.Width;
             scroll.Controls.Add(cartHdrPanel);
@@ -2896,7 +2913,7 @@ namespace SQ_Email_Tools
                 SelectionMode         = DataGridViewSelectionMode.FullRowSelect,
                 RowTemplate           = { Height = 26 },
                 ColumnHeadersHeight   = 26,
-                MultiSelect           = false,
+                MultiSelect           = true,
                 BackgroundColor       = Theme.BgCard,
                 GridColor             = Theme.Border,
                 BorderStyle           = BorderStyle.None

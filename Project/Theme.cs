@@ -45,10 +45,10 @@ namespace SQ_Email_Tools
         public static readonly Color AccentOrange  = Color.FromArgb(245, 158,  11);
         public static readonly Color AccentPurple  = Color.FromArgb(139,  92, 246);
 
-        // 文字（深底上確保高對比）
-        public static readonly Color TextPrimary   = Color.FromArgb(230, 235, 245); // 主要文字（近白）
-        public static readonly Color TextSecondary = Color.FromArgb(190, 198, 215); // 次要（淺灰）
-        public static readonly Color TextMuted     = Color.FromArgb(140, 152, 175); // 輔助（中灰，深底仍可讀）
+        // 文字（深底上確保高對比；Secondary/Muted 略提亮避免「看不到字」）
+        public static readonly Color TextPrimary   = Color.FromArgb(235, 240, 250);
+        public static readonly Color TextSecondary = Color.FromArgb(205, 212, 228);
+        public static readonly Color TextMuted     = Color.FromArgb(175, 185, 205);
 
         // ── 字體 ────────────────────────────────────────────────
         public static readonly Font FontTitle      = new Font(_ff, 15.5f,  FontStyle.Bold);
@@ -265,6 +265,44 @@ namespace SQ_Email_Tools
         }
 
         public static string FontFamily => _ff;
+
+        /// <summary>是／否確認；預設焦點在「否」降低誤觸（destructive 操作請用此）</summary>
+        public static bool Confirm(string message, string title = "確認", bool defaultButtonNo = true)
+        {
+            return MessageBox.Show(message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                defaultButtonNo ? MessageBoxDefaultButton.Button2 : MessageBoxDefaultButton.Button1) == DialogResult.Yes;
+        }
+
+        /// <summary>WinForms TabControl 預設標籤在深色底會變黑字；改為自繪可讀標籤。</summary>
+        public static void StyleTabControl(TabControl tc)
+        {
+            if (tc == null) return;
+            tc.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tc.ItemSize = new Size(Math.Max(96, tc.ItemSize.Width), 32);
+            tc.SizeMode = TabSizeMode.Fixed;
+            tc.BackColor = BgPage;
+            tc.ForeColor = TextPrimary;
+            tc.Padding = new Point(6, 4);
+
+            void OnDrawItem(object? sender, DrawItemEventArgs e)
+            {
+                if (e.Index < 0 || e.Index >= tc.TabPages.Count) return;
+                var r = e.Bounds;
+                bool sel = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                using (var br = new SolidBrush(sel ? Color.FromArgb(40, 75, 130) : BgMid))
+                    e.Graphics.FillRectangle(br, r);
+                using (var pen = new Pen(Border))
+                    e.Graphics.DrawRectangle(pen, r.X, r.Y, r.Width - 1, r.Height - 1);
+                var txt = tc.TabPages[e.Index].Text;
+                TextRenderer.DrawText(e.Graphics, txt, FontNav,
+                    Rectangle.Inflate(r, -6, -3),
+                    sel ? Color.White : TextPrimary,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+
+            tc.DrawItem -= OnDrawItem;
+            tc.DrawItem += OnDrawItem;
+        }
 
         // ── 原生控件深色樣式 ─────────────────────────────────────
 
@@ -722,7 +760,7 @@ namespace SQ_Email_Tools
                 AllowUserToAddRows    = false,
                 AllowUserToDeleteRows = false,
                 SelectionMode         = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect           = false,
+                MultiSelect           = true,
                 RowTemplate           = { Height = 26 },
                 ColumnHeadersHeight   = 28,
             };

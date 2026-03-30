@@ -56,6 +56,7 @@ namespace SQ_Email_Tools
             var mainTabs = new TabControl { Dock = DockStyle.Fill, Font = Theme.FontBody };
             mainTabs.TabPages.Add(BuildVendorTab());
             mainTabs.TabPages.Add(BuildItemReverseTab());
+            Theme.StyleTabControl(mainTabs);
 
             Controls.Add(mainTabs);
             Controls.Add(header);
@@ -244,6 +245,7 @@ namespace SQ_Email_Tools
             _dgvShopBuyers.Dock = DockStyle.Fill; p3.Controls.Add(_dgvShopBuyers);
 
             innerTabs.TabPages.AddRange(new[] { p1, p2, p3 });
+            Theme.StyleTabControl(innerTabs);
 
             page.Controls.Add(innerTabs);
             page.Controls.Add(toolBar);

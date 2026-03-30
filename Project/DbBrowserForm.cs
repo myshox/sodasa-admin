@@ -384,7 +384,7 @@ namespace SQ_Email_Tools
                 RowHeadersVisible = false,
                 AllowUserToResizeRows = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false,
+                MultiSelect = true,
                 ReadOnly = true,
                 AllowUserToAddRows = false,
                 ScrollBars = ScrollBars.Both,

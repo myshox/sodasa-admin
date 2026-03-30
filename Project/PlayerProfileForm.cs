@@ -2456,7 +2456,7 @@ namespace SQ_Email_Tools
             _dgv.ColumnHeadersHeight   = 28;
             _dgv.AllowUserToResizeRows = false;
             _dgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
-            _dgv.MultiSelect           = false;
+            _dgv.MultiSelect           = true;
             _dgv.CellDoubleClick      += (s, e) => { if (e.RowIndex >= 0) OpenEdit(e.RowIndex); };
 
             void Col(string name, string h, int w,

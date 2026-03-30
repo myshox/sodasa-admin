@@ -15,6 +15,7 @@ namespace SQ_Email_Tools
         private DateTimePicker _dtTo;
         private Button _btnApply;
         private bool _syncingPreset;
+        private readonly CheckBox[] _shopChecks = new CheckBox[4];
 
         // 各商城設定
         private static readonly (string Title, string Table, string Icon, string Unit, Color Accent)[] Shops =
@@ -44,12 +45,23 @@ namespace SQ_Email_Tools
             var toolbar = new Panel
             {
                 Dock      = DockStyle.Top,
-                Height    = 80,
+                Height    = 116,
                 BackColor = Theme.BgDark,
                 Padding   = new Padding(10, 6, 10, 6)
             };
 
-            var row1 = new Panel { Dock = DockStyle.Top, Height = 32, BackColor = Color.Transparent };
+            var tbl = new TableLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                ColumnCount   = 1,
+                RowCount      = 3,
+                BackColor     = Color.Transparent
+            };
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 32f));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 36f));
+
+            var row1 = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent };
             _lblStatus = new Label
             {
                 Text      = "載入中…",
@@ -64,6 +76,29 @@ namespace SQ_Email_Tools
             btnRefresh.Click += (s, e) => _ = LoadAllAsync();
             row1.Controls.Add(_lblStatus);
             row1.Controls.Add(btnRefresh);
+
+            var rowShop = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false,
+                BackColor     = Color.Transparent,
+                Padding       = new Padding(0, 2, 0, 0)
+            };
+            rowShop.Controls.Add(MakeMutedLabel("載入商城："));
+            for (int i = 0; i < Shops.Length; i++)
+            {
+                var (title, _, icon, _, _) = Shops[i];
+                _shopChecks[i] = new CheckBox
+                {
+                    Text   = $"{icon} {title}",
+                    AutoSize = true,
+                    Checked  = true,
+                    Margin   = new Padding(10, 4, 0, 0)
+                };
+                Theme.StyleCheckBox(_shopChecks[i]);
+                rowShop.Controls.Add(_shopChecks[i]);
+            }
 
             var row2 = new FlowLayoutPanel
             {
@@ -106,8 +141,10 @@ namespace SQ_Email_Tools
             _dtFrom.ValueChanged += DatePicker_ValueChanged;
             _dtTo.ValueChanged   += DatePicker_ValueChanged;
 
-            toolbar.Controls.Add(row2);
-            toolbar.Controls.Add(row1);
+            tbl.Controls.Add(row1, 0, 0);
+            tbl.Controls.Add(rowShop, 0, 1);
+            tbl.Controls.Add(row2, 0, 2);
+            toolbar.Controls.Add(tbl);
 
             _tabs = new TabControl
             {
@@ -115,6 +152,7 @@ namespace SQ_Email_Tools
                 Font      = new Font(Theme.FontFamily, 10f),
                 BackColor = Theme.BgPage
             };
+            Theme.StyleTabControl(_tabs);
 
             foreach (var (title, table, icon, unit, accent) in Shops)
             {
@@ -128,6 +166,25 @@ namespace SQ_Email_Tools
             Controls.Add(toolbar);
 
             UpdateDatePickersEnabled();
+        }
+
+        private void RunUi(Action a)
+        {
+            if (InvokeRequired) Invoke(a);
+            else a();
+        }
+
+        private static void ShowShopSkipped(TabPage tp, string title)
+        {
+            tp.Controls.Clear();
+            tp.Controls.Add(new Label
+            {
+                Text      = $"未勾選「{title}」\n請在上方勾選商城後按「重新整理」",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontHeader,
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            });
         }
 
         private static Label MakeMutedLabel(string t) =>
@@ -240,12 +297,29 @@ namespace SQ_Email_Tools
         private async Task LoadAllAsync()
         {
             var (from, to) = GetDateRangeForQuery();
+
+            int enabled = 0;
+            for (int i = 0; i < _shopChecks.Length; i++)
+                if (_shopChecks[i].Checked) enabled++;
+            if (enabled == 0)
+            {
+                MessageBox.Show("請至少勾選一個要載入的商城。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             _lblStatus.Text = "查詢中…";
             _lblStatus.ForeColor = Theme.TextMuted;
 
             var tasks = new List<Task>();
-            foreach (TabPage tp in _tabs.TabPages)
+            for (int i = 0; i < _tabs.TabPages.Count; i++)
             {
+                var tp = _tabs.TabPages[i];
+                if (!_shopChecks[i].Checked)
+                {
+                    var t = Shops[i].Title;
+                    RunUi(() => ShowShopSkipped(tp, t));
+                    continue;
+                }
                 var (table, unit, accent) = ((string, string, Color))tp.Tag;
                 tasks.Add(LoadTabAsync(tp, table, unit, accent, from, to));
             }

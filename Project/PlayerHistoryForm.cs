@@ -79,7 +79,6 @@ namespace SQ_Email_Tools
                 Dock = DockStyle.Fill,
                 Font = Theme.FontBody,
             };
-            _tabs.DrawMode = TabDrawMode.Normal;
 
             _dgvTrade   = MakeDgv(); SetupTradeCols();
             _dgvStreet  = MakeDgv(); SetupStreetCols();
@@ -94,6 +93,8 @@ namespace SQ_Email_Tools
             _tabs.TabPages.Add(MakeTabPage("⚡ 速度日誌",  _dgvSpeed));
             _tabs.TabPages.Add(MakeTabPage("💸 消費記錄",  _dgvCost));
             _tabs.TabPages.Add(MakeTabPage("🏦 倉庫",      _dgvStorage));
+
+            Theme.StyleTabControl(_tabs);
 
             // ── 組合 ────────────────────────────────────────────────
             Controls.Add(_tabs);
