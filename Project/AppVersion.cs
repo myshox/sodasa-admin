@@ -10,7 +10,7 @@ namespace SQ_Email_Tools
             get
             {
                 var v = Assembly.GetExecutingAssembly().GetName().Version;
-                if (v == null) return "1.4.0";
+                if (v == null) return "1.5.1";
                 return $"{v.Major}.{v.Minor}.{v.Build}";
             }
         }

@@ -51,12 +51,13 @@ namespace SQ_Email_Tools
         private void InitUI()
         {
             Text          = $"蘇打石器 GM 管理系統  v{AppVersion.DisplayShort}";
-            Size          = new Size(1400, 820);
-            MinimumSize   = new Size(1120, 660);
+            Size          = new Size(1600, 900);
+            MinimumSize   = new Size(1280, 720);
             BackColor     = Theme.BgPage;
             ForeColor     = Theme.TextPrimary;
             Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterScreen;
+            Theme.ApplyMainWindowChrome(this);
 
             BuildContentArea();
             BuildSidebar();
@@ -79,7 +80,7 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════════
         private void BuildSidebar()
         {
-            const int SW = 236;
+            const int SW = 272;
             _sidebar = new Panel
             {
                 Dock      = DockStyle.Left,
@@ -87,10 +88,10 @@ namespace SQ_Email_Tools
                 BackColor = Theme.BgSidebar
             };
 
-            const int LOGO_H     = 70;
-            const int RECHARGE_H = 50;
+            const int LOGO_H     = 80;
+            const int RECHARGE_H = 54;
             const int HEADER_H   = LOGO_H + RECHARGE_H;
-            const int BOTTOM_H   = 106;
+            const int BOTTOM_H   = 124;
             const int NAV_X      = 0;
             int       NAV_W      = SW - 1; // 右側 1px border
 
@@ -102,27 +103,27 @@ namespace SQ_Email_Tools
             };
             logoPanel.Controls.Add(new Label
             {
-                Text      = "🍅  蘇打石器 GM",
+                Text      = "蘇打石器 GM",
                 ForeColor = Theme.TextPrimary,
                 Font      = Theme.FontLogo,
                 AutoSize  = true,
-                Location  = new Point(16, 10)
+                Location  = new Point(20, 14)
             });
             logoPanel.Controls.Add(new Label
             {
-                Text      = "私服後台管理系統",
+                Text      = "後台控制台",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(18, 36)
+                Location  = new Point(20, 40)
             });
             logoPanel.Controls.Add(new Label
             {
-                Text      = $"v{AppVersion.DisplayShort}  ·  GM Console",
+                Text      = $"版本 {AppVersion.DisplayShort}",
                 ForeColor = Theme.AccentCyan,
                 Font      = Theme.FontTiny,
                 AutoSize  = true,
-                Location  = new Point(18, 52)
+                Location  = new Point(20, 58)
             });
             logoPanel.Controls.Add(new Panel
             {
@@ -138,9 +139,9 @@ namespace SQ_Email_Tools
             };
             _btnRecharge = new Button
             {
-                Text      = "   💳  充值管理",
-                Location  = new Point(6, 6),
-                Size      = new Size(NAV_W - 12, 40),
+                Text      = "  充值管理",
+                Location  = new Point(10, 8),
+                Size      = new Size(NAV_W - 20, 42),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Theme.AccentGreen,
                 ForeColor = Color.White,
@@ -477,7 +478,7 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.AccentOrange,
                 Font      = Theme.FontNavBold,
                 AutoSize  = true,
-                Location  = new Point(16, 14)
+                Location  = new Point(20, 16)
             };
             _lblDbText = new Label
             {
@@ -485,7 +486,7 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(32, 17)
+                Location  = new Point(38, 19)
             };
             _lblGmName = new Label
             {
@@ -493,20 +494,20 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 AutoSize  = true,
-                Location  = new Point(16, 36)
+                Location  = new Point(20, 40)
             };
 
-            var btnConnect  = MakeBottomBtn("🔗  連接資料庫");
-            var btnSettings = MakeBottomBtn("⚙  資料設定");
-            btnConnect.Location  = new Point(12, 58);
-            btnSettings.Location = new Point(12, 82);
+            var btnConnect  = MakeBottomBtn("連接資料庫");
+            var btnSettings = MakeBottomBtn("資料設定");
+            btnConnect.Location  = new Point(16, 56);
+            btnSettings.Location = new Point(16, 90); // 56 + 32 + 2
             btnConnect.Click  += BtnConnect_Click;
             btnSettings.Click += (s, e) => new SettingsDialog().ShowDialog(this);
 
             bottomPanel.Controls.AddRange(new Control[]
                 { _lblDbDot, _lblDbText, _lblGmName, btnConnect, btnSettings });
 
-            // ── 組合側邊欄（右側微藍邊，與主內容區分隔）
+            // ── 組合側邊欄（右側色帶與主內容區分隔）
             var border = new Panel { Dock = DockStyle.Right, Width = 2, BackColor = Theme.SidebarEdge };
 
             _sidebar.Controls.AddRange(new Control[]
@@ -567,21 +568,21 @@ namespace SQ_Email_Tools
         {
             _navContent.Controls.Add(new Label
             {
-                Text      = title.ToUpper(),
+                Text      = title,
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSection,
                 AutoSize  = true,
-                Location  = new Point(18, y)
+                Location  = new Point(20, y)
             });
-            y += 22;
+            y += 26;
         }
 
         private void AddSideGap(ref int y)
         {
             _navContent.Controls.Add(new Panel
             {
-                Location  = new Point(14, y + 3),
-                Size      = new Size(172, 1),
+                Location  = new Point(16, y + 4),
+                Size      = new Size(200, 1),
                 BackColor = Theme.Border
             });
             y += 14;
@@ -589,7 +590,7 @@ namespace SQ_Email_Tools
 
         private Button MakeNavBtn(string icon, string text, ref int y, bool isDefault = false)
         {
-            const int BH = 44;
+            const int BH = 50;
             var bgNorm = Theme.BgSidebar;
             var bgAct  = Theme.AccentBlue;
             var fgNorm = Theme.TextSecondary;
@@ -599,9 +600,9 @@ namespace SQ_Email_Tools
             // indicator 直接畫在按鈕左邊緣（Panel 不加入 Controls，改用按鈕自行繪製）
             var btn = new Button
             {
-                Text      = $"   {icon}  {text}",
+                Text      = $"  {icon}  {text}",
                 Location  = new Point(0, y),
-                Size      = new Size(_sidebar.Width - 9, BH),
+                Size      = new Size(_sidebar.Width - 12, BH),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = isDefault ? bgAct : bgNorm,
                 ForeColor = isDefault ? fgAct : fgNorm,
@@ -641,7 +642,7 @@ namespace SQ_Email_Tools
             var btn = new Button
             {
                 Text      = text,
-                Size      = new Size(200, 30),
+                Size      = new Size(220, 32),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 ForeColor = Theme.TextSecondary,
@@ -771,25 +772,41 @@ namespace SQ_Email_Tools
 
         private void BuildContentHeader()
         {
-            var hdr = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
-
-            hdr.Controls.Add(new Label
+            var hdr = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = Theme.BgDialogHeader };
+            hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+            var accent = new Panel { Dock = DockStyle.Left, Width = 5, BackColor = Theme.AccentLineSubtle };
+            var inner = new Panel
             {
-                Text      = "👥  玩家管理",
+                Dock      = DockStyle.Fill,
+                Padding   = new Padding(Theme.UiPadXl, 20, Theme.UiPadXl, 16),
+                BackColor = Theme.BgDialogHeader
+            };
+            inner.Controls.Add(new Label
+            {
+                Text      = "玩家管理",
                 ForeColor = Theme.TextPrimary,
                 Font      = Theme.FontPageTitle,
                 AutoSize  = true,
-                Location  = new Point(20, 14)
+                Location  = new Point(0, 0)
             });
-
-            hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+            inner.Controls.Add(new Label
+            {
+                Text      = "搜尋、檢視與操作伺服器玩家帳號",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontPageSubtitle,
+                AutoSize  = true,
+                Location  = new Point(0, 42)
+            });
+            hdr.Controls.Add(accent);
+            hdr.Controls.Add(inner);
 
             _playerContent.Controls.Add(hdr);
         }
 
         private void BuildSearchBar()
         {
-            var bar = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgCard };
+            var bar = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Theme.BgDark };
+            bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
             var tbl = new TableLayoutPanel
             {
@@ -798,11 +815,11 @@ namespace SQ_Email_Tools
             };
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));           // 0: 搜尋 Label
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));      // 1: 搜尋框
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88f));      // 2: 筆數下拉
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104f));     // 3: 查詢按鈕
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72f));      // 4: 清除按鈕
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));      // 2: 筆數下拉
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112f));     // 3: 查詢按鈕
+            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80f));      // 4: 清除按鈕
             tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-            tbl.Padding = new Padding(16, 0, 16, 0);
+            tbl.Padding = new Padding(Theme.UiPadLg, 0, Theme.UiPadLg, 0);
 
             tbl.Controls.Add(new Label
             {
@@ -816,13 +833,13 @@ namespace SQ_Email_Tools
 
             _searchBox = new TextBox
             {
-                BackColor       = Theme.BgPage,
+                BackColor       = Theme.BgLight,
                 ForeColor       = Theme.TextPrimary,
                 BorderStyle     = BorderStyle.FixedSingle,
                 Font            = Theme.FontBody,
                 Dock            = DockStyle.Fill,
-                Margin          = new Padding(0, 12, 10, 12),
-                PlaceholderText = "角色名稱 / 帳號 / 主帳號（空白=全部）"
+                Margin          = new Padding(0, 16, 12, 16),
+                PlaceholderText = "角色名稱、帳號或主帳號（空白 = 列出全部）"
             };
             _searchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) DoSearch(); };
             tbl.Controls.Add(_searchBox, 1, 0);
@@ -831,22 +848,22 @@ namespace SQ_Email_Tools
             _cmbLimit = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                BackColor = Theme.BgPage, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontSmall, Width = 80,
-                Dock = DockStyle.Fill, Margin = new Padding(0, 12, 6, 12)
+                Dock = DockStyle.Fill, Margin = new Padding(0, 16, 8, 16)
             };
             _cmbLimit.Items.AddRange(new object[] { "300 筆", "500 筆", "1000 筆", "不限" });
             _cmbLimit.SelectedIndex = 0;
             tbl.Controls.Add(_cmbLimit, 2, 0);
 
-            _btnQuery = Theme.MakePrimaryButton("🔍  查詢", 96, 30);
-            _btnQuery.Margin = new Padding(0, 11, 6, 11);
+            _btnQuery = Theme.MakePrimaryButton("查詢", 96, 36);
+            _btnQuery.Margin = new Padding(0, 16, 8, 16);
             _btnQuery.Dock   = DockStyle.Fill;
             _btnQuery.Click += (s, e) => DoSearch();
             tbl.Controls.Add(_btnQuery, 3, 0);
 
-            var btnClear = Theme.MakeSecondaryButton("清除", 62, 30);
-            btnClear.Margin = new Padding(0, 11, 0, 11);
+            var btnClear = Theme.MakeSecondaryButton("清除", 76, 36);
+            btnClear.Margin = new Padding(0, 16, 0, 16);
             btnClear.Dock   = DockStyle.Fill;
             btnClear.Click += (s, e) =>
             {
@@ -859,19 +876,19 @@ namespace SQ_Email_Tools
             tbl.Controls.Add(btnClear, 4, 0);
 
             bar.Controls.Add(tbl);
-            bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             _playerContent.Controls.Add(bar);
         }
 
         private void BuildHintBar()
         {
-            var bar = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = Theme.BgMid };
+            var bar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Theme.BgMid };
             bar.Controls.Add(new Label
             {
-                Text         = "  💡 雙擊列 = 發送道具    👤 資料 = 詳情/改名/充值    💰 貨幣 = 修改金幣    🗑 刪除 = 需二次確認",
+                Text         = "提示：雙擊列可發送道具。「資料」開角色詳情／改名／充值；「貨幣」調金幣；「刪除」需二次確認。",
                 ForeColor    = Theme.TextSecondary,
                 Font         = Theme.FontSmall,
                 Dock         = DockStyle.Fill,
+                Padding      = new Padding(Theme.UiPadLg, 0, Theme.UiPadLg, 0),
                 TextAlign    = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
             });
@@ -881,10 +898,10 @@ namespace SQ_Email_Tools
 
         private void BuildStatusBar()
         {
-            var bar = new Panel { Dock = DockStyle.Bottom, Height = 30, BackColor = Theme.BgCard };
+            var bar = new Panel { Dock = DockStyle.Bottom, Height = 42, BackColor = Theme.BgDark };
             bar.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Theme.Border });
-            _lblCount  = new Label { Text = "共 0 筆", ForeColor = Theme.TextMuted,      Font = Theme.FontSmall, AutoSize = true, Location = new Point(16, 8) };
-            _lblStatus = new Label { Text = "",       ForeColor = Theme.TextSecondary,  Font = Theme.FontSmall, AutoSize = true, Location = new Point(88, 8) };
+            _lblCount  = new Label { Text = "共 0 筆", ForeColor = Theme.TextMuted,      Font = Theme.FontSmall, AutoSize = true, Location = new Point(Theme.UiPadLg, 12) };
+            _lblStatus = new Label { Text = "",       ForeColor = Theme.TextSecondary,  Font = Theme.FontSmall, AutoSize = true, Location = new Point(120, 12) };
             bar.Controls.AddRange(new Control[] { _lblCount, _lblStatus });
             _playerContent.Controls.Add(bar);
         }
@@ -893,27 +910,26 @@ namespace SQ_Email_Tools
         {
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
-            _dgv.RowTemplate.Height = 36; // 更高的列高，更好閱讀
             _dgv.ReadOnly = true;
 
             // 文字欄
-            AddTextCol("colOnline",  "狀態",          56);
-            AddTextCol("colName",    "角色名稱",       120);
-            AddTextCol("colAcc",     "帳號(cdkey)",    118);
-            AddTextCol("colMaster",  "👑 主帳號",       105);
-            AddTextCol("colVip",     "VIP",            58);
-            AddTextCol("colPets",    "🐾 寵物",         56);
-            AddTextCol("colPay",     "💳 儲值(NT$)",    105);
-            AddTextCol("colLogin",   "最後登入",        110);
+            AddTextCol("colOnline",  "狀態",          64);
+            AddTextCol("colName",    "角色名稱",       140);
+            AddTextCol("colAcc",     "帳號 (cdkey)",   148);
+            AddTextCol("colMaster",  "主帳號",         120);
+            AddTextCol("colVip",     "VIP",            64);
+            AddTextCol("colPets",    "寵物",           64);
+            AddTextCol("colPay",     "儲值 NT$",       118);
+            AddTextCol("colLogin",   "最後登入",       168);
 
-            // 功能按鈕（Apple 風格：柔和色調）
-            AddBtnCol("colProfile", "👤 資料",  Color.FromArgb(  0, 113, 227), 72);  // Apple blue
-            AddBtnCol("colSend",    "✉ 發送",   Color.FromArgb( 48, 176, 199), 64);  // teal
-            AddBtnCol("colGold",    "💰 貨幣",   Color.FromArgb(255, 149,   0), 66);  // Apple orange
-            AddBtnCol("colPayEdit", "💳 充值",   Color.FromArgb(255, 204,   0), 64);  // yellow (dark text)
-            AddBtnCol("colBan",     "🚫 封禁",   Color.FromArgb(255,  59,  48), 64);  // Apple red
-            AddBtnCol("colMute",    "🔇 禁言",   Color.FromArgb(175,  82, 222), 64);  // Apple purple
-            AddBtnCol("colDelete",  "🗑 刪除",   Color.FromArgb(142,  14,   0), 60);  // dark red
+            // 功能按鈕（色塊區分，文字簡潔）
+            AddBtnCol("colProfile", "資料",  Color.FromArgb(  0, 113, 227), 76);
+            AddBtnCol("colSend",    "發送",  Color.FromArgb( 48, 176, 199), 68);
+            AddBtnCol("colGold",    "貨幣",  Color.FromArgb(255, 149,   0), 70);
+            AddBtnCol("colPayEdit", "充值",  Color.FromArgb(255, 204,   0), 68);
+            AddBtnCol("colBan",     "封禁",  Color.FromArgb(255,  59,  48), 68);
+            AddBtnCol("colMute",    "禁言",  Color.FromArgb(175,  82, 222), 68);
+            AddBtnCol("colDelete",  "刪除",  Color.FromArgb(142,  14,   0), 64);
 
             _dgv.Columns["colName"].ToolTipText = "來自資料庫；若應為英文（如 ying）卻顯示中文，請在「👤 資料」→「編輯角色名稱」修正。↑↓ 點標題可排序。";
 
@@ -1040,7 +1056,7 @@ namespace SQ_Email_Tools
                 if (_dgv.Rows.Count > 0) return;
                 string msg = DatabaseManager.Instance.IsConnected
                     ? "輸入角色名稱後按 Enter 或點「查詢」；留空可顯示全部玩家"
-                    : "請先點左側「🔗 連接資料庫」";
+                    : "請先點左側「連接資料庫」";
                 using var br = new SolidBrush(Theme.TextMuted);
                 var sz = e.Graphics.MeasureString(msg, Theme.FontHeader);
                 e.Graphics.DrawString(msg, Theme.FontHeader, br,
@@ -1054,7 +1070,7 @@ namespace SQ_Email_Tools
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = name, HeaderText = header, Width = w, ReadOnly = true,
-                DefaultCellStyle = { Padding = new Padding(6, 0, 0, 0) }
+                DefaultCellStyle = { Padding = new Padding(10, 0, 8, 0) }
             });
 
         private void AddBtnCol(string name, string text, Color bg, int w) =>
@@ -1068,8 +1084,9 @@ namespace SQ_Email_Tools
                     ForeColor           = Color.White,
                     SelectionBackColor  = bg,
                     SelectionForeColor  = Color.White,
-                    Font                = Theme.FontCell95,
-                    Alignment           = DataGridViewContentAlignment.MiddleCenter
+                    Font                = Theme.FontCell11,
+                    Alignment           = DataGridViewContentAlignment.MiddleCenter,
+                    Padding             = new Padding(4, 2, 4, 2)
                 }
             });
 
@@ -1111,7 +1128,7 @@ namespace SQ_Email_Tools
             finally
             {
                 _btnQuery.Enabled = true;
-                _btnQuery.Text    = "🔍  查  詢";
+                _btnQuery.Text    = "查詢";
             }
         }
 
