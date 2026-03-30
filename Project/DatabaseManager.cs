@@ -362,19 +362,19 @@ namespace SQ_Email_Tools
             return ok;
         }
 
-        /// <summary>與 WebApi 批量「僅在線」：Online=1 及同主帳號＋同 IP 之所有角色。</summary>
+        /// <summary>批量「僅在線」：Online=1 或 LoginTime 6 小時內（遊戲不一定寫 Online 旗標），再加同主帳同 IP 角色。</summary>
         private static async Task<List<string>> LoadOnlineBatchAccountNamesAsync(MySqlConnection conn)
         {
             const string sql = @"
 SELECT DISTINCT c.`Name`
 FROM csalogin c
-WHERE c.Online = 1
+WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
    OR (
         c.MasterId IS NOT NULL
         AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM csalogin o
-          WHERE o.Online = 1
+          WHERE (o.Online = 1 OR o.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             AND o.MasterId = c.MasterId
             AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
             AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
@@ -389,7 +389,7 @@ WHERE c.Online = 1
             }
             catch
             {
-                using var cmd = new MySqlCommand("SELECT `Name` FROM csalogin WHERE `Online`=1 ORDER BY `Name`", conn);
+                using var cmd = new MySqlCommand("SELECT `Name` FROM csalogin WHERE Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR) ORDER BY `Name`", conn);
                 using var r = await cmd.ExecuteReaderAsync();
                 while (await r.ReadAsync()) list.Add(r.GetString(0));
             }
@@ -1610,7 +1610,7 @@ WHERE c.Online = 1
                 return r == null || r == DBNull.Value ? 0 : Convert.ToInt32(r);
             }
 
-            stats.OnlineCount     = await Scalar("SELECT COUNT(*) FROM csalogin WHERE Online=1");
+            stats.OnlineCount     = await Scalar("SELECT COUNT(*) FROM csalogin WHERE Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)");
             stats.TotalPlayers    = await Scalar("SELECT COUNT(*) FROM csalogin");
             stats.TodayNewPlayers = await Scalar("SELECT COUNT(*) FROM csalogin WHERE DATE(created_at)=CURDATE()");
             stats.TodayActive     = await Scalar("SELECT COUNT(*) FROM csalogin WHERE DATE(LoginTime)=CURDATE()");
@@ -4952,7 +4952,7 @@ WHERE c.Online = 1
                 using var cmd = new MySqlCommand(
                     @"SELECT ServerId,
                              IFNULL(ServerName,'') AS ServerName,
-                             SUM(CASE WHEN Online=1 THEN 1 ELSE 0 END) AS OnlineCount,
+                             SUM(CASE WHEN Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR) THEN 1 ELSE 0 END) AS OnlineCount,
                              COUNT(*) AS TotalCount
                       FROM csalogin
                       GROUP BY ServerId, ServerName
@@ -5012,10 +5012,10 @@ WHERE c.Online = 1
                 await conn.OpenAsync();
                 using var cmd = new MySqlCommand(
                     @"SELECT
-                        (SELECT COUNT(*) FROM csalogin WHERE Online=1) AS totalOnline,
-                        (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE Online=1 AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
+                        (SELECT COUNT(*) FROM csalogin WHERE Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AS totalOnline,
+                        (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE (Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
                         (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE IP IS NOT NULL AND TRIM(IP) <> '') AS ipAll,
-                        (SELECT COUNT(*) FROM csalogin WHERE Online=1 AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", conn);
+                        (SELECT COUNT(*) FROM csalogin WHERE (Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", conn);
                 using var r = await cmd.ExecuteReaderAsync();
                 if (await r.ReadAsync())
                 {

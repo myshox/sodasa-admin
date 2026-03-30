@@ -527,21 +527,21 @@ public class DbService
     }
 
     /// <summary>
-    /// 批量「僅在線」收件人：Online=1，以及「同主帳號 MasterId + 同登入 IP」之所有角色（多開分身可能僅部分標 Online）。
-    /// MasterId 為空或 IP 空白時無法合併，僅依 Online=1。
+    /// 批量「僅在線」收件人：Online=1 或 LoginTime 在最近 6 小時內（遊戲不一定寫 Online 旗標），
+    /// 再加上同主帳號 MasterId + 同登入 IP 之所有角色。
     /// </summary>
     private static async Task<List<string>> GetAccountNamesForOnlineBatchAsync(MySqlConnection db)
     {
         const string sql = @"
 SELECT DISTINCT c.`Name`
 FROM csalogin c
-WHERE c.Online = 1
+WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
    OR (
         c.MasterId IS NOT NULL
         AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM csalogin o
-          WHERE o.Online = 1
+          WHERE (o.Online = 1 OR o.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             AND o.MasterId = c.MasterId
             AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
             AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
@@ -557,7 +557,7 @@ WHERE c.Online = 1
         catch
         {
             await using var cmd = new MySqlCommand(
-                "SELECT DISTINCT `Name` FROM csalogin WHERE Online=1", db);
+                "SELECT DISTINCT `Name` FROM csalogin WHERE Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)", db);
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync()) list.Add(r.GetString(0));
         }
@@ -3031,10 +3031,10 @@ WHERE c.Online = 1
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(
                 @"SELECT
-                    (SELECT COUNT(*) FROM csalogin WHERE Online=1) AS totalOnline,
-                    (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE Online=1 AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
+                    (SELECT COUNT(*) FROM csalogin WHERE Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AS totalOnline,
+                    (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE (Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AND IP IS NOT NULL AND TRIM(IP) <> '') AS ipWithOnline,
                     (SELECT COUNT(DISTINCT IP) FROM csalogin WHERE IP IS NOT NULL AND TRIM(IP) <> '') AS ipAll,
-                    (SELECT COUNT(*) FROM csalogin WHERE Online=1 AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", db);
+                    (SELECT COUNT(*) FROM csalogin WHERE (Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)) AND (IP IS NULL OR TRIM(IFNULL(IP,'')) = '')) AS onlineNoIp", db);
             await using var r = await cmd.ExecuteReaderAsync();
             if (await r.ReadAsync())
             {
@@ -3058,7 +3058,7 @@ WHERE c.Online = 1
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(
                 @"SELECT IFNULL(ServerId,0) serverId,
-                         SUM(IF(Online=1,1,0)) onlineCount,
+                         SUM(IF(Online=1 OR LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR),1,0)) onlineCount,
                          COUNT(*) totalCount
                   FROM csalogin
                   GROUP BY ServerId ORDER BY ServerId", db);
