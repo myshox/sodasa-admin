@@ -464,7 +464,7 @@ function BatchSendTab() {
     }
     const excludeList = excluded.map(e => e.account)
     const label = target === 'all' ? '全部玩家'
-      : target === 'online' ? '在線（資料庫 Online=1）'
+      : target === 'online' ? '在線（Online=1＋同主帳號＋同 IP 之所有角色）'
         : target === 'online_recent' ? '近期登入推測（30 分內 LoginTime，非即時連線）'
           : target === 'search' ? `${selected.size} 位玩家` : '自訂名單'
     const excludeNote = excludeList.length > 0 ? `\n排除：${excludeList.length} 人` : ''
@@ -502,12 +502,15 @@ function BatchSendTab() {
             <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>📝 自訂帳號</button>
             <button style={btnStyle('search')} onClick={() => setTarget('search')}>🔍 搜尋勾選</button>
           </div>
-          {(target === 'online' || target === 'online_recent') && (
+          {target === 'online' && (
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
-              <strong style={{ color: 'var(--text-secondary)' }}>真實在遊戲裡連線</strong>的角色，必須由<strong>遊戲伺服器</strong>在連線／斷線時正確寫入 <code style={{ fontSize: 10 }}>csalogin.Online</code>。
-              GM 工具<strong>只讀 MySQL</strong>，無法直接偵測客戶端 socket，因此「在線」＝資料庫 <code style={{ fontSize: 10 }}>Online=1</code>。
-              若遊戲內明明在線但名單較少，請請程式端檢查登入／換線／斷線時是否都有更新該欄位。
-              「近期登入推測」僅依 <code style={{ fontSize: 10 }}>LoginTime</code> 補漏，<strong>不是</strong>真實連線名單，且可能含已登出。
+              批量「在線」會發給：<strong>Online=1</strong> 的角色，以及<strong>同一主帳號（MasterId）且同一登入 IP</strong> 欄位下的<strong>所有角色</strong>（多開分身若未全部標成 Online，仍會一併納入）。
+              若 <code style={{ fontSize: 10 }}>MasterId</code> 為空或 <code style={{ fontSize: 10 }}>IP</code> 無法比對，則僅依 <code style={{ fontSize: 10 }}>Online=1</code>。
+            </p>
+          )}
+          {target === 'online_recent' && (
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+              「近期登入推測」僅依 <code style={{ fontSize: 10 }}>LoginTime</code> 補漏，<strong>不是</strong>真實連線名單，且可能含已登出；<strong>不會</strong>套用「同主帳＋同 IP」擴充。
             </p>
           )}
 

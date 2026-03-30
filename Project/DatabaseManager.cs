@@ -362,6 +362,40 @@ namespace SQ_Email_Tools
             return ok;
         }
 
+        /// <summary>與 WebApi 批量「僅在線」：Online=1 及同主帳號＋同 IP 之所有角色。</summary>
+        private static async Task<List<string>> LoadOnlineBatchAccountNamesAsync(MySqlConnection conn)
+        {
+            const string sql = @"
+SELECT DISTINCT c.`Name`
+FROM csalogin c
+WHERE c.Online = 1
+   OR (
+        c.MasterId IS NOT NULL
+        AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM csalogin o
+          WHERE o.Online = 1
+            AND o.MasterId = c.MasterId
+            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
+            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
+        )
+      )";
+            var list = new List<string>();
+            try
+            {
+                using var cmd = new MySqlCommand(sql, conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(r.GetString(0));
+            }
+            catch
+            {
+                using var cmd = new MySqlCommand("SELECT `Name` FROM csalogin WHERE `Online`=1 ORDER BY `Name`", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(r.GetString(0));
+            }
+            return list;
+        }
+
         public async Task<(int success, int fail)> BatchSendMailAsync(
             SendMailRequest template,
             IProgress<(int done, int total, string account, bool ok)> progress,
@@ -370,17 +404,21 @@ namespace SQ_Email_Tools
             HashSet<string>? excludeSet = null,
             bool onlineOnly = false)
         {
-            // 取帳號清單（onlineOnly=true 時只取 Online=1 的角色）
-            string sql = onlineOnly
-                ? "SELECT `Name` FROM csalogin WHERE `Online`=1 ORDER BY `Name`"
-                : "SELECT `Name` FROM csalogin ORDER BY `Name`";
+            // 取帳號清單（onlineOnly：Online=1 ＋ 同 MasterId＋同 IP 之所有角色，與 WebApi 一致）
             var allAccounts = new List<string>();
             using (var connA = GetConnection())
             {
                 await connA.OpenAsync();
-                using var cmdA = new MySqlCommand(sql, connA);
-                using var rA   = await cmdA.ExecuteReaderAsync();
-                while (await rA.ReadAsync()) allAccounts.Add(rA.GetString(0));
+                if (onlineOnly)
+                {
+                    allAccounts = await LoadOnlineBatchAccountNamesAsync(connA);
+                }
+                else
+                {
+                    using var cmdA = new MySqlCommand("SELECT `Name` FROM csalogin ORDER BY `Name`", connA);
+                    using var rA   = await cmdA.ExecuteReaderAsync();
+                    while (await rA.ReadAsync()) allAccounts.Add(rA.GetString(0));
+                }
             }
 
             // 套用排除名單

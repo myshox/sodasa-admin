@@ -526,6 +526,44 @@ public class DbService
         };
     }
 
+    /// <summary>
+    /// 批量「僅在線」收件人：Online=1，以及「同主帳號 MasterId + 同登入 IP」之所有角色（多開分身可能僅部分標 Online）。
+    /// MasterId 為空或 IP 空白時無法合併，僅依 Online=1。
+    /// </summary>
+    private static async Task<List<string>> GetAccountNamesForOnlineBatchAsync(MySqlConnection db)
+    {
+        const string sql = @"
+SELECT DISTINCT c.`Name`
+FROM csalogin c
+WHERE c.Online = 1
+   OR (
+        c.MasterId IS NOT NULL
+        AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM csalogin o
+          WHERE o.Online = 1
+            AND o.MasterId = c.MasterId
+            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
+            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
+        )
+      )";
+        var list = new List<string>();
+        try
+        {
+            await using var cmd = new MySqlCommand(sql, db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(r.GetString(0));
+        }
+        catch
+        {
+            await using var cmd = new MySqlCommand(
+                "SELECT DISTINCT `Name` FROM csalogin WHERE Online=1", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(r.GetString(0));
+        }
+        return list;
+    }
+
     // ── 線上玩家 ─────────────────────────────────────────────
     /// <param name="includeRecentLogin">true 時額外納入「30 分鐘內有 LoginTime」的角色（與 target=online_recent 批量一致）</param>
     public async Task<List<PlayerRow>> GetOnlineAsync(bool includeRecentLogin = false)
@@ -1134,10 +1172,15 @@ public class DbService
         }
         else
         {
-            string whereClause = CsaloginWhereForTarget(target);
-            await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {whereClause}", db);
-            await using var r2 = await cmd2.ExecuteReaderAsync();
-            while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+            if (target == "online")
+                accounts = await GetAccountNamesForOnlineBatchAsync(db);
+            else
+            {
+                string whereClause = CsaloginWhereForTarget(target);
+                await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {whereClause}", db);
+                await using var r2 = await cmd2.ExecuteReaderAsync();
+                while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+            }
         }
         if (accounts.Count == 0) return 0;
 
@@ -1173,10 +1216,15 @@ public class DbService
         }
         else
         {
-            string wh = CsaloginWhereForTarget(target);
-            await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {wh}", db);
-            await using var r2 = await cmd2.ExecuteReaderAsync();
-            while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+            if (target == "online")
+                accounts = await GetAccountNamesForOnlineBatchAsync(db);
+            else
+            {
+                string wh = CsaloginWhereForTarget(target);
+                await using var cmd2 = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {wh}", db);
+                await using var r2 = await cmd2.ExecuteReaderAsync();
+                while (await r2.ReadAsync()) accounts.Add(r2.GetString(0));
+            }
         }
         // 同一帳號多筆（或大小寫重複）只送一次
         accounts = accounts.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -1425,10 +1473,15 @@ public class DbService
                 accounts = customList.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
             else
             {
-                string where = CsaloginWhereForTarget(target);
-                await using var cmd = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {where}", db);
-                await using var r = await cmd.ExecuteReaderAsync();
-                while (await r.ReadAsync()) accounts.Add(r.GetString(0));
+                if (target == "online")
+                    accounts = await GetAccountNamesForOnlineBatchAsync(db);
+                else
+                {
+                    string where = CsaloginWhereForTarget(target);
+                    await using var cmd = new MySqlCommand($"SELECT DISTINCT `Name` FROM csalogin {where}", db);
+                    await using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync()) accounts.Add(r.GetString(0));
+                }
             }
         }
         if (accounts.Count == 0) return (0, 0);

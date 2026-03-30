@@ -63,7 +63,7 @@ export default function BatchGoldPage() {
     if (ids.length === 0) { setResult('請先載入並勾選要操作的玩家'); return }
 
     const targetLabel = target === 'all' ? '全服所有玩家'
-      : target === 'online' ? '在線（Online=1）'
+      : target === 'online' ? '在線（Online=1＋同主帳＋同IP 所有角色）'
         : target === 'online_recent' ? '近期登入推測（非即時連線）'
           : `自訂 ${ids.length} 位玩家`
     const opLabel = amount >= 0 ? `發放 ${amount.toLocaleString()} 金幣` : `扣除 ${Math.abs(amount).toLocaleString()} 金幣`
@@ -104,7 +104,7 @@ export default function BatchGoldPage() {
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="radio" checked={target === 'online'} onChange={() => setTarget('online')} />
-            <span>🟢 在線（Online=1）</span>
+            <span title="後端：同主帳＋同 IP 擴充">🟢 在線（含同主帳＋同IP）</span>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
             <input type="radio" checked={target === 'online_recent'} onChange={() => setTarget('online_recent')} />

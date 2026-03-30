@@ -82,7 +82,7 @@ export default function BatchPage() {
     }
 
     const targetLabel = target === 'all' ? '全部玩家'
-      : target === 'online' ? '在線（Online=1）'
+      : target === 'online' ? '在線（Online=1＋同主帳＋同IP 所有角色）'
         : target === 'online_recent' ? '近期登入推測（非即時連線）'
           : target === 'search' ? `${selected.size} 位勾選玩家` : '自訂名單'
 
@@ -128,9 +128,14 @@ export default function BatchPage() {
               <button style={btnStyle('custom')} onClick={() => setTarget('custom')}>自訂帳號</button>
               <button style={btnStyle('search')} onClick={() => setTarget('search')}>🔍 搜尋勾選</button>
             </div>
-            {(target === 'online' || target === 'online_recent') && (
+            {target === 'online' && (
               <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
-                真實在線須由遊戲伺服器寫入 <code style={{ fontSize: 10 }}>Online=1</code>；GM 只讀資料庫。「近期推測」不是即時連線名單。
+                「在線」批量含 <code style={{ fontSize: 10 }}>Online=1</code> 及<strong>同主帳號＋同 IP</strong> 之所有角色。
+              </p>
+            )}
+            {target === 'online_recent' && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.6 }}>
+                「近期推測」不是即時連線，且不套用同主帳＋同 IP 擴充。
               </p>
             )}
             {target === 'custom' && (
