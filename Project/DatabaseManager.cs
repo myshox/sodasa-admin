@@ -362,7 +362,7 @@ namespace SQ_Email_Tools
             return ok;
         }
 
-        /// <summary>批量「僅在線」：Online=1 或 LoginTime 6 小時內（遊戲不一定寫 Online 旗標），再加同主帳同 IP 角色。</summary>
+        /// <summary>批量「僅在線」：Online=1 或 LoginTime 6 小時內，再加同主帳號（MasterId）所有角色（不限 IP）。</summary>
         private static async Task<List<string>> LoadOnlineBatchAccountNamesAsync(MySqlConnection conn)
         {
             const string sql = @"
@@ -371,13 +371,10 @@ FROM csalogin c
 WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
    OR (
         c.MasterId IS NOT NULL
-        AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM csalogin o
           WHERE (o.Online = 1 OR o.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             AND o.MasterId = c.MasterId
-            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
-            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
         )
       )";
             var list = new List<string>();

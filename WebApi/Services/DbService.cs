@@ -527,8 +527,8 @@ public class DbService
     }
 
     /// <summary>
-    /// 批量「僅在線」收件人：Online=1 或 LoginTime 在最近 6 小時內（遊戲不一定寫 Online 旗標），
-    /// 再加上同主帳號 MasterId + 同登入 IP 之所有角色。
+    /// 批量「僅在線」收件人：Online=1 或 LoginTime 在最近 6 小時內，
+    /// 再加上同主帳號（MasterId）底下的所有角色（不限 IP，因為動態 IP 會變）。
     /// </summary>
     private static async Task<List<string>> GetAccountNamesForOnlineBatchAsync(MySqlConnection db)
     {
@@ -538,13 +538,10 @@ FROM csalogin c
 WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
    OR (
         c.MasterId IS NOT NULL
-        AND NULLIF(TRIM(IFNULL(c.IP,'')), '') IS NOT NULL
         AND EXISTS (
           SELECT 1 FROM csalogin o
           WHERE (o.Online = 1 OR o.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             AND o.MasterId = c.MasterId
-            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') IS NOT NULL
-            AND NULLIF(TRIM(IFNULL(o.IP,'')), '') = NULLIF(TRIM(IFNULL(c.IP,'')), '')
         )
       )";
         var list = new List<string>();
