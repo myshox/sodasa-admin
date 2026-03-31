@@ -219,10 +219,10 @@ function SingleSendTab() {
       const cartPayload = cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' }))
       if (recipients.length === 1) {
         const r = await api.post('/players/send-cart', { account: recipients[0].account, cart: cartPayload, title: title.trim(), content: content.trim() })
-        setResult(r.data.message || `已發送 ${r.data.success} 筆`)
+        setResult((r.data.message || `已發送 ${r.data.success} 筆`) + '（在線玩家需重新登入後至信箱領取）')
       } else {
         const r = await api.post('/players/batch-send-cart', { target: 'custom', customList: recipients.map(r => r.account).join('\n'), cart: cartPayload, title: title.trim(), content: content.trim() })
-        setResult(r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`)
+        setResult((r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`) + '（在線玩家需重新登入後至信箱領取）')
       }
       setSentSummary({ accounts: [...recipients], items: sentItems })
       setCart([])
@@ -478,7 +478,7 @@ function BatchSendTab() {
         excludeList: target !== 'search' ? excludeList : [], // search 模式已在前端過濾
       })
       const ok = (r.data.accounts?.length ?? 0) > 0
-      setResult(r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`)
+      setResult((r.data.message || `已發送至 ${r.data.accounts?.length ?? 0} 人`) + '（在線玩家需重新登入後至信箱領取）')
       setResultOk(ok)
       setSentAccounts(r.data.accounts ?? [])
       setShowSent(ok)

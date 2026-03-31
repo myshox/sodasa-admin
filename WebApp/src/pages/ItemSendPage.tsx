@@ -115,7 +115,7 @@ export default function ItemSendPage() {
         })
         successCount++
       }
-      setResult(`✓ 已發送給 ${successCount} 位玩家`)
+      setResult(`✓ 已發送給 ${successCount} 位玩家（在線玩家需重新登入後至信箱領取）`)
       setCart([])
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } }

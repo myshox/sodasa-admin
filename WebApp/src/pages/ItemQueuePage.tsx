@@ -41,7 +41,7 @@ export default function ItemQueuePage() {
         content: content.trim() || undefined,
         quantity: Math.max(1, Math.min(999, quantity || 1)),
       })
-      setMsg(r.data.message || '發送成功')
+      setMsg((r.data.message || '發送成功') + '（在線玩家需重新登入後至信箱領取）')
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } } }
       setMsg(err.response?.data?.message || '發送失敗')

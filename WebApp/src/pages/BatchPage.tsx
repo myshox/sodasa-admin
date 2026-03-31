@@ -92,7 +92,7 @@ export default function BatchPage() {
     try {
       const body = { target: targetStr, customList: customListStr, cart: cart.map(c => ({ itemId: c.itemId, qty: c.qty, type: c.type, name: c.name ?? '', buff3: c.buff3 ?? '' })), title, content }
       const r = await api.post('/players/batch-send-cart', body)
-      setResult(r.data.message || `已發送至 ${r.data.count || '?'} 人`)
+      setResult((r.data.message || `已發送至 ${r.data.count || '?'} 人`) + '（在線玩家需重新登入後至信箱領取）')
       setCart([])
     } catch { setResult('發送失敗') }
     finally { setLoading(false) }
