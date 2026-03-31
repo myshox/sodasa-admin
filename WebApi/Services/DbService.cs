@@ -14,6 +14,45 @@ public class DbService
 
     private MySqlConnection Open() => new(_conn);
 
+    // ── 寫入 mail 通知表，讓遊戲伺服器即時推送給在線玩家 ──────
+    private static async Task NotifyMailAsync(MySqlConnection db, long firstId, int count, string cdkey)
+    {
+        if (count <= 0) return;
+        try
+        {
+            if (count == 1)
+            {
+                await using var n = new MySqlCommand(
+                    "INSERT IGNORE INTO mail(id,cdkey) VALUES(@id,@k)", db);
+                n.Parameters.AddWithValue("@id", firstId);
+                n.Parameters.AddWithValue("@k",  cdkey);
+                await n.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                await using var n = new MySqlCommand(
+                    "INSERT IGNORE INTO mail(id,cdkey) SELECT id,cdkey FROM maildata WHERE id>=@fid AND cdkey=@k", db);
+                n.Parameters.AddWithValue("@fid", firstId);
+                n.Parameters.AddWithValue("@k",   cdkey);
+                await n.ExecuteNonQueryAsync();
+            }
+        }
+        catch { /* 通知失敗不影響主流程 */ }
+    }
+
+    private static async Task NotifyMailBulkAsync(MySqlConnection db, long firstId, int count)
+    {
+        if (count <= 0) return;
+        try
+        {
+            await using var n = new MySqlCommand(
+                "INSERT IGNORE INTO mail(id,cdkey) SELECT id,cdkey FROM maildata WHERE id>=@fid", db);
+            n.Parameters.AddWithValue("@fid", firstId);
+            await n.ExecuteNonQueryAsync();
+        }
+        catch { }
+    }
+
     // ── 玩家搜尋 ─────────────────────────────────────────────
     public async Task<List<PlayerRow>> SearchPlayersAsync(string kw, int limit = 50)
     {
@@ -1107,7 +1146,6 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     public async Task<(int success, int fail)> SendItemMailAsync(string account, int itemId, int quantity, string title = "", string content = "", string buff3 = "")
     {
         if (quantity < 1) quantity = 1;
-        // 與 EXE 一致：無標題時使用道具ID作為名稱
         string itemLabel = $"道具#{itemId}";
         string buff1 = string.IsNullOrWhiteSpace(title)   ? itemLabel : title.Trim();
         string buff2 = string.IsNullOrWhiteSpace(content) ? itemLabel : content.Trim();
@@ -1128,7 +1166,13 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                 cmd.Parameters.AddWithValue("@data",     itemId);
                 cmd.Parameters.AddWithValue("@sendtime", nowInt);
                 cmd.Parameters.AddWithValue("@endtime",  endInt);
-                if (await cmd.ExecuteNonQueryAsync() > 0) success++; else fail++;
+                if (await cmd.ExecuteNonQueryAsync() > 0)
+                {
+                    success++;
+                    long newId = cmd.LastInsertedId;
+                    await NotifyMailAsync(db, newId, 1, account);
+                }
+                else fail++;
             }
             catch { fail++; }
         }
@@ -1152,7 +1196,9 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             cmd.Parameters.AddWithValue("@content", content.Trim());
             cmd.Parameters.AddWithValue("@now",     now);
             cmd.Parameters.AddWithValue("@end",     end);
-            return await cmd.ExecuteNonQueryAsync() > 0;
+            bool ok = await cmd.ExecuteNonQueryAsync() > 0;
+            if (ok) await NotifyMailAsync(db, cmd.LastInsertedId, 1, account.Trim());
+            return ok;
         }
         catch { return false; }
     }
@@ -1193,7 +1239,13 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             cmd.Parameters.AddWithValue("@content", content);
             cmd.Parameters.AddWithValue("@now",     now);
             cmd.Parameters.AddWithValue("@end",     now + 86400 * 30);
-            try { await cmd.ExecuteNonQueryAsync(); sent++; } catch { }
+            try
+            {
+                await cmd.ExecuteNonQueryAsync();
+                sent++;
+                await NotifyMailAsync(db, cmd.LastInsertedId, 1, acc);
+            }
+            catch { }
         }
         return sent;
     }
@@ -1294,6 +1346,8 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                     int inserted = await cmd.ExecuteNonQueryAsync();
                     totalSent += inserted;
                     foreach (var acc in batch) sentSet.Add(acc);
+                    if (inserted > 0)
+                        await NotifyMailBulkAsync(db, cmd.LastInsertedId, inserted);
                 }
                 catch (Exception ex) { totalFail += batch.Count; lastError = ex.Message; }
             }
@@ -2302,7 +2356,12 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         cmd.CommandText =
             "INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3) VALUES "
             + string.Join(",", valueParts);
-        try { success = await cmd.ExecuteNonQueryAsync(); }
+        try
+        {
+            success = await cmd.ExecuteNonQueryAsync();
+            if (success > 0)
+                await NotifyMailAsync(db, cmd.LastInsertedId, success, account);
+        }
         catch { fail = cart.Sum(c => Math.Max(1, c.Qty)); }
         return (success, fail);
     }
@@ -3410,6 +3469,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             cmdMail.Parameters.AddWithValue("@e",  (int)(now + 30L * 24 * 3600));
             cmdMail.Parameters.AddWithValue("@q",  quantity);
             await cmdMail.ExecuteNonQueryAsync();
+            await NotifyMailAsync(dbMail, cmdMail.LastInsertedId, 1, uid);
 
             // 設定 bit（標記此里程碑已發送）
             int bit = 1 << milestoneIdx;

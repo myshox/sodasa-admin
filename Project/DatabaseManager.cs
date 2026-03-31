@@ -163,6 +163,47 @@ namespace SQ_Email_Tools
         public MySqlConnection GetConnection() => new MySqlConnection(_connectionString);
 
         // ══════════════════════════════════════════════════════════
+        // mail 通知表：讓遊戲伺服器即時推送給在線玩家
+        // ══════════════════════════════════════════════════════════
+        private static async Task NotifyMailAsync(MySqlConnection db, long firstId, int count, string cdkey)
+        {
+            if (count <= 0) return;
+            try
+            {
+                if (count == 1)
+                {
+                    using var n = new MySqlCommand(
+                        "INSERT IGNORE INTO mail(id,cdkey) VALUES(@id,@k)", db);
+                    n.Parameters.AddWithValue("@id", firstId);
+                    n.Parameters.AddWithValue("@k",  cdkey);
+                    await n.ExecuteNonQueryAsync();
+                }
+                else
+                {
+                    using var n = new MySqlCommand(
+                        "INSERT IGNORE INTO mail(id,cdkey) SELECT id,cdkey FROM maildata WHERE id>=@fid AND cdkey=@k", db);
+                    n.Parameters.AddWithValue("@fid", firstId);
+                    n.Parameters.AddWithValue("@k",   cdkey);
+                    await n.ExecuteNonQueryAsync();
+                }
+            }
+            catch { }
+        }
+
+        private static async Task NotifyMailBulkAsync(MySqlConnection db, long firstId, int count)
+        {
+            if (count <= 0) return;
+            try
+            {
+                using var n = new MySqlCommand(
+                    "INSERT IGNORE INTO mail(id,cdkey) SELECT id,cdkey FROM maildata WHERE id>=@fid", db);
+                n.Parameters.AddWithValue("@fid", firstId);
+                await n.ExecuteNonQueryAsync();
+            }
+            catch { }
+        }
+
+        // ══════════════════════════════════════════════════════════
         // 玩家查詢
         // ══════════════════════════════════════════════════════════
         public async Task<List<PlayerInfo>> SearchPlayersAsync(string query, int limit = 300)
@@ -336,8 +377,6 @@ namespace SQ_Email_Tools
         {
             using var conn = GetConnection();
             await conn.OpenAsync();
-            // maildata 沒有 num/數量欄位：數量 > 1 時插入多筆記錄
-            // 對應 [gm newsend/additem 編號 數量 帳號] 指令
             int qty = Math.Max(1, req.Quantity);
             const string sql = @"INSERT INTO maildata
                 (type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
@@ -354,7 +393,11 @@ namespace SQ_Email_Tools
                 cmd.Parameters.AddWithValue("@sendtime", req.StartTime);
                 cmd.Parameters.AddWithValue("@endtime",  req.EndTime);
                 cmd.Parameters.AddWithValue("@buff3",    req.Buff3);
-                if (await cmd.ExecuteNonQueryAsync() > 0) success++;
+                if (await cmd.ExecuteNonQueryAsync() > 0)
+                {
+                    success++;
+                    await NotifyMailAsync(conn, cmd.LastInsertedId, 1, req.Cdkey);
+                }
             }
             bool ok = success == qty;
             if (success > 0) await GmLogger.Instance.LogAsync("發送郵件", req.Cdkey,
@@ -465,6 +508,8 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                     batchOk    = rows >= expect;
                     if (batchOk) success += batch.Count;
                     else         { success += rows / Math.Max(1, qty); fail += batch.Count - rows / Math.Max(1, qty); }
+                    if (rows > 0)
+                        await NotifyMailBulkAsync(conn, cmd.LastInsertedId, rows);
                 }
                 catch (Exception batchEx)
                 {
