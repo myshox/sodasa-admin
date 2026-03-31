@@ -87,7 +87,7 @@ export default function PlayerHistoryPage() {
       ])
       setData(historyRes.data)
       setPoolItemList(Array.isArray(poolRes.data) ? poolRes.data : [])
-      if (!historyRes.data.trades.length && !historyRes.data.street.length && !historyRes.data.speed.length && !historyRes.data.cost.length && (Array.isArray(poolRes.data) ? poolRes.data.length : 0) === 0)
+      if (!historyRes.data.trades.length && !historyRes.data.street.length && !historyRes.data.speed.length && !historyRes.data.cost.length && !(historyRes.data.shopLogs?.length) && !(historyRes.data.vipPointLog?.length) && (Array.isArray(poolRes.data) ? poolRes.data.length : 0) === 0)
         setMsg('查無紀錄')
     } catch {
       setMsg('查詢失敗，請確認帳號是否正確')

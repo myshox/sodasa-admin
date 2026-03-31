@@ -88,7 +88,7 @@ export default function PlayersPage() {
     if (!window.confirm(`確定清除「${detail.onlineName}」的${label}？\n（此操作不可逆）`)) return
     setClearingMail(true)
     try {
-      const r = await api.post(`/players/${detail.account}/clear-mail`, { unclaimedOnly })
+      const r = await api.post(`/players/${encodeURIComponent(detail.account)}/clear-mail`, { unclaimedOnly })
       flash(r.data.message || '清除完成')
       loadDetail(detail.account)
     } catch { flash('清除失敗') }
@@ -202,7 +202,7 @@ export default function PlayersPage() {
   }
 
   const loadDetail = async (account: string) => {
-    const r = await api.get(`/players/${account}`)
+    const r = await api.get(`/players/${encodeURIComponent(account)}`)
     const d = r.data as PlayerDetail
     setDetail(d)
     setPlayerPets(null) // 切換玩家時收合寵物清單
@@ -214,59 +214,75 @@ export default function PlayersPage() {
 
   const saveGold = async () => {
     if (!detail) return
-    const val = parseInt(goldVal) || 0
-    await api.put(`/players/${detail.account}/gold`, { value: val })
-    setDetail({ ...detail, gold: val }); flash(S.updGold)
+    try {
+      const val = parseInt(goldVal) || 0
+      await api.put(`/players/${encodeURIComponent(detail.account)}/gold`, { value: val })
+      setDetail({ ...detail, gold: val }); flash(S.updGold)
+    } catch { flash('操作失敗') }
   }
   const addGold = async (d: number) => {
     if (!detail) return
-    const val = Math.max(0, detail.gold + d)
-    await api.put(`/players/${detail.account}/gold`, { value: val })
-    setDetail({ ...detail, gold: val }); setGoldVal(String(val)); flash(S.updGold)
+    try {
+      const val = Math.max(0, detail.gold + d)
+      await api.put(`/players/${encodeURIComponent(detail.account)}/gold`, { value: val })
+      setDetail({ ...detail, gold: val }); setGoldVal(String(val)); flash(S.updGold)
+    } catch { flash('操作失敗') }
   }
   const saveCrystal = async () => {
     if (!detail) return
-    const val = parseInt(crysVal) || 0
-    await api.put(`/players/${detail.account}/crystal`, { value: val })
-    setDetail({ ...detail, crystal: val }); flash(S.updCrystal)
+    try {
+      const val = parseInt(crysVal) || 0
+      await api.put(`/players/${encodeURIComponent(detail.account)}/crystal`, { value: val })
+      setDetail({ ...detail, crystal: val }); flash(S.updCrystal)
+    } catch { flash('操作失敗') }
   }
 
   const doBan = async (ban: boolean) => {
     if (!detail) return
-    await api.post(`/players/${detail.account}/ban`, {
-      ban,
-      days:   ban && banHours === 0 ? banDays : 0,
-      hours:  ban ? banHours : 0,
-      reason: banReason,
-    })
-    setDetail({ ...detail, isBanned: ban })
-    setShowBan(false); flash(ban ? S.banned : S.unbanned)
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/ban`, {
+        ban,
+        days:   ban && banHours === 0 ? banDays : 0,
+        hours:  ban ? banHours : 0,
+        reason: banReason,
+      })
+      setDetail({ ...detail, isBanned: ban })
+      setShowBan(false); flash(ban ? S.banned : S.unbanned)
+    } catch { flash('操作失敗') }
   }
 
   const clearGold = async () => {
     if (!detail || !window.confirm(`確定將「${detail.onlineName}」的金幣清零？`)) return
-    await api.put(`/players/${detail.account}/gold`, { value: 0 })
-    setDetail({ ...detail, gold: 0 }); setGoldVal('0'); flash('已清零金幣')
+    try {
+      await api.put(`/players/${encodeURIComponent(detail.account)}/gold`, { value: 0 })
+      setDetail({ ...detail, gold: 0 }); setGoldVal('0'); flash('已清零金幣')
+    } catch { flash('操作失敗') }
   }
 
   const clearCrystal = async () => {
     if (!detail || !window.confirm(`確定將「${detail.onlineName}」的水晶清零？`)) return
-    await api.put(`/players/${detail.account}/crystal`, { value: 0 })
-    setDetail({ ...detail, crystal: 0 }); setCrysVal('0'); flash('已清零水晶')
+    try {
+      await api.put(`/players/${encodeURIComponent(detail.account)}/crystal`, { value: 0 })
+      setDetail({ ...detail, crystal: 0 }); setCrysVal('0'); flash('已清零水晶')
+    } catch { flash('操作失敗') }
   }
 
   const doMute = async () => {
     if (!detail) return
-    await api.post(`/players/${detail.account}/mute`, { mute: !detail.isMuted })
-    setDetail({ ...detail, isMuted: !detail.isMuted })
-    flash(detail.isMuted ? '已解除禁言' : '已禁言')
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/mute`, { mute: !detail.isMuted })
+      setDetail({ ...detail, isMuted: !detail.isMuted })
+      flash(detail.isMuted ? '已解除禁言' : '已禁言')
+    } catch { flash('操作失敗') }
   }
 
   const doForceOffline = async () => {
     if (!detail) return
     if (!window.confirm(`確認強制下線「${detail.onlineName}」（${detail.account}）？`)) return
-    await api.post(`/players/${detail.account}/force-offline`)
-    setDetail({ ...detail, isOnline: false }); flash('已強制下線')
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/force-offline`)
+      setDetail({ ...detail, isOnline: false }); flash('已強制下線')
+    } catch { flash('操作失敗') }
   }
 
   const doRecharge = async () => {
@@ -278,25 +294,31 @@ export default function PlayersPage() {
       `確認充值？\n\n玩家：${detail.onlineName}（${detail.account}）\n台幣：NT$ ${twdAmount.toLocaleString()}${bonusNote}\n${giveGold ? `金幣：+${finalGold.toLocaleString()}` : '不發放金幣'}${paydataNote}`
     )
     if (!ok) return
-    await api.post(`/players/${detail.account}/recharge`, {
-      twdAmount, goldAmount: finalGold, giveGold, updatePaydata, bonusPercent: bonusPct
-    })
-    flash(S.rechargeDone); setShowRecharge(false)
-    setTwdAmount(0); setGoldAmount(0); setBonusPct(0); setSelectedTierIdx(-1)
-    loadDetail(detail.account)
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/recharge`, {
+        twdAmount, goldAmount: finalGold, giveGold, updatePaydata, bonusPercent: bonusPct
+      })
+      flash(S.rechargeDone); setShowRecharge(false)
+      setTwdAmount(0); setGoldAmount(0); setBonusPct(0); setSelectedTierIdx(-1)
+      loadDetail(detail.account)
+    } catch { flash('充值失敗') }
   }
 
   const doRename = async () => {
     if (!detail || !newName.trim()) return
-    await api.post(`/players/${detail.account}/rename`, { newName: newName.trim() })
-    setDetail({ ...detail, onlineName: newName.trim() })
-    setShowRename(false); flash('改名成功')
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/rename`, { newName: newName.trim() })
+      setDetail({ ...detail, onlineName: newName.trim() })
+      setShowRename(false); flash('改名成功')
+    } catch { flash('改名失敗') }
   }
 
   const doResetPaydata = async () => {
     if (!detail || !confirm('確定重置累積儲值進度為 0？（不影響歷史永久累計）')) return
-    await api.post(`/players/${detail.account}/paydata/reset`)
-    flash('已重置進度'); loadDetail(detail.account)
+    try {
+      await api.post(`/players/${encodeURIComponent(detail.account)}/paydata/reset`)
+      flash('已重置進度'); loadDetail(detail.account)
+    } catch { flash('操作失敗') }
   }
 
   const cycleProgress = detail ? Math.min(100, ((detail.paydataPoint ?? 0) / CYCLE) * 100) : 0

@@ -28,9 +28,17 @@ export default function GmLogPage() {
 
   useEffect(() => { loadDates(); load(0) }, [])
 
-  const doExport = () => {
-    const params = date ? `?date=${date}` : ''
-    window.open(`${import.meta.env.VITE_API_URL ?? '/api'}/gmlog/export${params}`, '_blank')
+  const doExport = async () => {
+    try {
+      const params = date ? `?date=${date}` : ''
+      const r = await api.get(`/gmlog/export${params}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(r.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `gmlog${date ? `_${date}` : ''}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { alert('匯出失敗') }
   }
 
   return (
@@ -55,7 +63,7 @@ export default function GmLogPage() {
             flex: '0 1 auto', maxWidth: '100%',
           }}>
           <option value="">全部日期</option>
-          {dates.map(d => <option key={d} value={d}>{d}（今日: {d}）</option>)}
+          {dates.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
         <div className="gm-search-bar__grow" style={{ minWidth: 'min(100%, 200px)' }}>
           <input

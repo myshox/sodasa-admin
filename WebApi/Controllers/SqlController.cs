@@ -47,23 +47,26 @@ public class SqlController : ControllerBase
         if (!colOk) return BadRequest(new { error = colErr });
         var columns = colRows.Select(r => r.ContainsKey("Field") ? r["Field"]?.ToString() ?? "" : r.Values.FirstOrDefault()?.ToString() ?? "").Where(s => s != "").ToList();
 
-        // WHERE 條件
+        // WHERE 條件（參數化）
         string where = "";
+        var searchParams = new Dictionary<string, object>();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var parts = columns.Select(c => $"CAST(`{c}` AS CHAR) LIKE '%{search.Replace("'", "\\'")}%'");
+            var parts = columns.Select((c, i) => $"CAST(`{c}` AS CHAR) LIKE @_s{i}");
             where = "WHERE " + string.Join(" OR ", parts);
+            for (int i = 0; i < columns.Count; i++)
+                searchParams[$"@_s{i}"] = $"%{search}%";
         }
 
         // 總筆數
-        var (cntOk, cntRows, cntErr) = await _db.ExecuteReadOnlyQueryAsync($"SELECT COUNT(*) AS cnt FROM `{table}` {where}");
+        var (cntOk, cntRows, cntErr) = await _db.ExecuteReadOnlyQueryAsync($"SELECT COUNT(*) AS cnt FROM `{table}` {where}", searchParams);
         if (!cntOk) return BadRequest(new { error = cntErr });
         int total = cntRows.Count > 0 && cntRows[0].ContainsKey("cnt") ? Convert.ToInt32(cntRows[0]["cnt"]) : 0;
 
         // 資料
         int offset = (page - 1) * pageSize;
         var (dataOk, dataRows, dataErr) = await _db.ExecuteReadOnlyQueryAsync(
-            $"SELECT * FROM `{table}` {where} LIMIT {pageSize} OFFSET {offset}");
+            $"SELECT * FROM `{table}` {where} LIMIT {pageSize} OFFSET {offset}", searchParams);
         if (!dataOk) return BadRequest(new { error = dataErr });
 
         return Ok(new { columns, rows = dataRows, total, page, pageSize });

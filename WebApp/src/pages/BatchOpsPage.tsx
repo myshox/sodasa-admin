@@ -207,8 +207,8 @@ function SingleSendTab() {
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
 
-  const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${selectedAccount}/mail-history`); setMailHistory(r.data); setShowHistory(true) } finally { setHistoryLoading(false) } }
-  const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${selectedAccount}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } finally { setRawLoading(false) } }
+  const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-history`); setMailHistory(r.data); setShowHistory(true) } finally { setHistoryLoading(false) } }
+  const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } finally { setRawLoading(false) } }
 
   const send = async () => {
     if (recipients.length === 0) { setResult('請先加入至少一位玩家'); return }
@@ -274,7 +274,7 @@ function SingleSendTab() {
           )}
           {recipients.length === 1 && (
             <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-              <button onClick={async () => { try { const r = await api.get(`/players/${recipients[0].account}/mail-full`); setMailFull(r.data); setShowFull(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>🧬 完整欄位</button>
+              <button onClick={async () => { try { const r = await api.get(`/players/${encodeURIComponent(recipients[0].account)}/mail-full`); setMailFull(r.data); setShowFull(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>🧬 完整欄位</button>
               <button onClick={async () => { try { const r = await api.get('/players/maildata-schema'); setSchema(r.data); setShowSchema(true) } catch { setResult('載入失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(139,92,246,.15)', border: '1px solid #8b5cf6', borderRadius: 4, color: '#8b5cf6' }}>📋 表結構</button>
               <button onClick={async () => { if (!window.confirm(`修正 ${recipients[0].name} 的舊版網頁郵件？`)) return; try { const r = await api.post('/players/fix-old-mails', { account: recipients[0].account }); setResult(r.data.message) } catch { setResult('修正失敗') } }} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(86,196,118,.15)', border: '1px solid var(--accent-green)', borderRadius: 4, color: 'var(--accent-green)' }}>🔧 修正舊郵件</button>
             </div>

@@ -71,7 +71,7 @@ export default function ItemSendPage() {
     if (!acc) return
     setHistoryLoading(true)
     try {
-      const r = await api.get(`/players/${acc}/mail-history`)
+      const r = await api.get(`/players/${encodeURIComponent(acc)}/mail-history`)
       setMailHistory(r.data); setShowHistory(true)
     } finally { setHistoryLoading(false) }
   }
@@ -96,9 +96,9 @@ export default function ItemSendPage() {
     addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.name })
   }
 
-  const removeFromCart = (idx: number) => setCart(cart.filter((_, i) => i !== idx))
+  const removeFromCart = (idx: number) => setCart(prev => prev.filter((_, i) => i !== idx))
   const updateCartQty = (idx: number, qty: number) =>
-    setCart(cart.map((c, i) => i === idx ? { ...c, qty: Math.max(1, qty) } : c))
+    setCart(prev => prev.map((c, i) => i === idx ? { ...c, qty: Math.max(1, qty) } : c))
 
   const send = async () => {
     if (selectedAccounts.length === 0) { setResult('請先選定玩家'); return }

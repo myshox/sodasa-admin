@@ -1609,7 +1609,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             stats.TotalPlayers    = await Scalar("SELECT COUNT(*) FROM csalogin");
             stats.TodayNewPlayers = await Scalar("SELECT COUNT(*) FROM csalogin WHERE DATE(created_at)=CURDATE()");
             stats.TodayActive     = await Scalar("SELECT COUNT(*) FROM csalogin WHERE DATE(LoginTime)=CURDATE()");
-            stats.TotalMails      = await Scalar("SELECT COUNT(*) FROM maildata");
+            stats.TotalMails      = await Scalar("SELECT COUNT(*) FROM maildata WHERE deleamill=0");
             stats.UnreadMails     = await Scalar("SELECT COUNT(*) FROM maildata WHERE `check`=0 AND deleamill=0");
 
             // 充值統計（recharge_orders）
@@ -1779,7 +1779,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
 
             // 郵件統計
             using (var cmd4 = new MySqlCommand(
-                "SELECT COUNT(*) as tot, SUM(IF(`check`=0,1,0)) as unread FROM maildata WHERE cdkey=@acc", conn))
+                "SELECT COUNT(*) as tot, SUM(IF(`check`=0,1,0)) as unread FROM maildata WHERE cdkey=@acc AND deleamill=0", conn))
             {
                 cmd4.Parameters.AddWithValue("@acc", account);
                 using var r4 = await cmd4.ExecuteReaderAsync();

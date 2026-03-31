@@ -100,11 +100,11 @@ public class DbService
                 FROM csalogin c
                 LEFT JOIN `lock` lk ON lk.`Name`=c.`Name`
                 LEFT JOIN (
-                    SELECT receiverid,
+                    SELECT cdkey,
                            COUNT(*) AS total,
-                           SUM(CASE WHEN isread=0 THEN 1 ELSE 0 END) AS unread
-                    FROM maildata GROUP BY receiverid
-                ) mail ON mail.receiverid=c.`Name`
+                           SUM(CASE WHEN `check`=0 THEN 1 ELSE 0 END) AS unread
+                    FROM maildata WHERE deleamill=0 GROUP BY cdkey
+                ) mail ON mail.cdkey=c.`Name`
                 WHERE c.`Name`=@acc LIMIT 1";
             await using var cmd = new MySqlCommand(sqlFull, db);
             cmd.Parameters.AddWithValue("@acc", account);
@@ -1053,9 +1053,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             @"SELECT id, IFNULL(cdkey,'') receiver,
                      IFNULL(buff1,'') sender,
                      IFNULL(buff2,'') title,
-                     IFNULL(data,'') content,
-                     IFNULL(check,0) isRead,
-                     DATE_FORMAT(sendtime,'%Y-%m-%d %H:%i') time
+                     IFNULL(data,0) itemId,
+                     IFNULL(buff3,'') content,
+                     IFNULL(`check`,0) isRead,
+                     FROM_UNIXTIME(sendtime,'%Y-%m-%d %H:%i') time
               FROM maildata
               WHERE cdkey LIKE @q
               ORDER BY id DESC LIMIT 100", db);
@@ -1067,6 +1068,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                 id      = r.GetInt64("id"),
                 sender  = r.GetString("sender"),
                 title   = r.GetString("title"),
+                itemId  = r.GetInt32("itemId"),
                 content = r.GetString("content"),
                 isRead  = !r.IsDBNull(r.GetOrdinal("isRead")) && r.GetInt32("isRead") == 1,
                 time    = r.IsDBNull(r.GetOrdinal("time")) ? "" : r.GetString("time"),
@@ -1146,7 +1148,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(
                 @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                  VALUES(3,@cdkey,'GM',@title,@content,@now,@end,0,0,'')", db);
+                  VALUES(3,@cdkey,'GM',@title,0,@now,@end,0,0,@content)", db);
             cmd.Parameters.AddWithValue("@cdkey",   account.Trim());
             cmd.Parameters.AddWithValue("@title",   title.Trim());
             cmd.Parameters.AddWithValue("@content", content.Trim());
@@ -1187,7 +1189,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         {
             await using var cmd = new MySqlCommand(
                 @"INSERT INTO maildata(type,cdkey,buff1,buff2,data,sendtime,endtime,`check`,deleamill,buff3)
-                  VALUES(3,@cdkey,'GM',@title,@content,@now,@end,0,0,'')", db);
+                  VALUES(3,@cdkey,'GM',@title,0,@now,@end,0,0,@content)", db);
             cmd.Parameters.AddWithValue("@cdkey",   acc);
             cmd.Parameters.AddWithValue("@title",   title);
             cmd.Parameters.AddWithValue("@content", content);
@@ -1576,7 +1578,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     }
 
     // ── 唯讀 SQL（僅允許 SELECT / SHOW / DESCRIBE）─────────────
-    public async Task<(bool ok, List<Dictionary<string, object>> rows, string error)> ExecuteReadOnlyQueryAsync(string sql)
+    public Task<(bool ok, List<Dictionary<string, object>> rows, string error)> ExecuteReadOnlyQueryAsync(string sql)
+        => ExecuteReadOnlyQueryAsync(sql, null);
+
+    public async Task<(bool ok, List<Dictionary<string, object>> rows, string error)> ExecuteReadOnlyQueryAsync(string sql, Dictionary<string, object>? parameters)
     {
         if (string.IsNullOrWhiteSpace(sql)) return (false, new List<Dictionary<string, object>>(), "查詢不可為空");
         var upper = sql.TrimStart().ToUpperInvariant();
@@ -1587,6 +1592,9 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         {
             await using var db = Open(); await db.OpenAsync();
             await using var cmd = new MySqlCommand(sql, db);
+            if (parameters != null)
+                foreach (var kv in parameters)
+                    cmd.Parameters.AddWithValue(kv.Key, kv.Value);
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
@@ -2194,7 +2202,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             await using var cmd = new MySqlCommand(
                 @"SELECT id, type, cdkey,
                          IFNULL(buff1,'') buff1, IFNULL(buff2,'') buff2,
-                         IFNULL(data,'')  rawData,
+                         IFNULL(data,0)   rawData,
                          IFNULL(buff3,'') buff3,
                          sendtime, endtime,
                          IFNULL(`check`,0) isRead,
@@ -3407,8 +3415,8 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             await using var dbMail = Open(); await dbMail.OpenAsync();
             var (uid, _) = await ResolveCsaloginAsync(dbMail, account);
             await using var cmdMail = new MySqlCommand(
-                @"INSERT INTO maildata (cdkey,type,buff1,buff2,data,starttime,endtime,buff3,`check`,deleamill,quantity)
-                  VALUES (@k,@t,@b1,@b2,@d,@s,@e,'',0,0,@q)", dbMail);
+                @"INSERT INTO maildata (cdkey,type,buff1,buff2,data,sendtime,endtime,buff3,`check`,deleamill)
+                  VALUES (@k,@t,@b1,@b2,@d,@s,@e,@b3,0,0)", dbMail);
             cmdMail.Parameters.AddWithValue("@k",  uid);
             cmdMail.Parameters.AddWithValue("@t",  1);
             cmdMail.Parameters.AddWithValue("@b1", $"[GM] {itemName}");
@@ -3416,7 +3424,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             cmdMail.Parameters.AddWithValue("@d",  itemId);
             cmdMail.Parameters.AddWithValue("@s",  (int)now);
             cmdMail.Parameters.AddWithValue("@e",  (int)(now + 30L * 24 * 3600));
-            cmdMail.Parameters.AddWithValue("@q",  quantity);
+            cmdMail.Parameters.AddWithValue("@b3", itemName);
             await cmdMail.ExecuteNonQueryAsync();
 
             // 設定 bit（標記此里程碑已發送）

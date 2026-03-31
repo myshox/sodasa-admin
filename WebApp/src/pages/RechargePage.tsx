@@ -151,7 +151,7 @@ export default function RechargePage() {
 
     setLoading(true); setMsg('')
     try {
-      const r = await api.post(`/players/${info.account}/recharge`, {
+      const r = await api.post(`/players/${encodeURIComponent(info.account)}/recharge`, {
         twdAmount: opType === 'onlyGold' ? 0 : finalTwd,
         goldAmount: giveGold ? finalGold : 0,
         giveGold
@@ -167,7 +167,7 @@ export default function RechargePage() {
 
   const doFix = async () => {
     if (!info) return; setLoading(true)
-    try { const r = await api.post(`/players/${info.account}/paydata/fix`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
+    try { const r = await api.post(`/players/${encodeURIComponent(info.account)}/paydata/fix`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
     catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setMsg(err.response?.data?.message || '修復失敗'); setMsgOk(false) }
     finally { setLoading(false) }
   }
@@ -176,7 +176,7 @@ export default function RechargePage() {
     if (!info || !info.claimReady) return
     if (!window.confirm(`確定要發放「${info.onlineName}」第 ${info.totalCheck} 輪的累積獎勵？`)) return
     setLoading(true)
-    try { const r = await api.post(`/players/${info.account}/paydata/claim`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
+    try { const r = await api.post(`/players/${encodeURIComponent(info.account)}/paydata/claim`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
     catch (e: unknown) { const err = e as { response?: { data?: { message?: string } } }; setMsg(err.response?.data?.message || '操作失敗'); setMsgOk(false) }
     finally { setLoading(false) }
   }
@@ -185,7 +185,7 @@ export default function RechargePage() {
     if (!info) return
     if (!window.confirm(`確定要將「${info.onlineName}」的累積充值進度歸零？\n\n⚠ 此操作無法復原`)) return
     setLoading(true)
-    try { const r = await api.post(`/players/${info.account}/paydata/reset`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
+    try { const r = await api.post(`/players/${encodeURIComponent(info.account)}/paydata/reset`); setMsg(r.data.message); setMsgOk(true); await loadPlayer(info.account) }
     catch { setMsg('重置失敗'); setMsgOk(false) }
     finally { setLoading(false) }
   }

@@ -21,6 +21,7 @@ export default function PlayerAutocomplete({
   const [activeIdx,   setActiveIdx]   = useState(-1)
   const [checked,     setChecked]     = useState<Set<string>>(new Set())
   const timer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const abortRef = useRef<AbortController | undefined>(undefined)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const multiMode = !!onSelectMulti
@@ -29,16 +30,18 @@ export default function PlayerAutocomplete({
     if (!value.trim() || value.length < 1) { setSuggestions([]); setOpen(false); return }
     clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
+      abortRef.current?.abort()
+      const ctrl = new AbortController()
+      abortRef.current = ctrl
       try {
-        const r = await api.get('/players/search', { params: { q: value.trim(), limit: 20 } })
+        const r = await api.get('/players/search', { params: { q: value.trim(), limit: 20 }, signal: ctrl.signal })
         setSuggestions(r.data)
         setOpen(r.data.length > 0)
         setActiveIdx(-1)
-        // 多選模式下：有新結果時重置勾選
         if (multiMode) setChecked(new Set())
-      } catch { setSuggestions([]); setOpen(false) }
+      } catch { if (!ctrl.signal.aborted) { setSuggestions([]); setOpen(false) } }
     }, 280)
-    return () => { clearTimeout(timer.current) }
+    return () => { clearTimeout(timer.current); abortRef.current?.abort() }
   }, [value, multiMode])
 
   useEffect(() => {

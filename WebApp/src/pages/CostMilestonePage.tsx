@@ -371,9 +371,9 @@ export default function CostMilestonePage() {
     try {
       let r
       if (claimMode === 'sync') {
-        r = await api.post(`/players/${info.account}/costdata/claim/${claimTarget}`)
+        r = await api.post(`/players/${encodeURIComponent(info.account)}/costdata/claim/${claimTarget}`)
       } else {
-        r = await api.post(`/players/${info.account}/costdata/claim-mail/${claimTarget}`, {
+        r = await api.post(`/players/${encodeURIComponent(info.account)}/costdata/claim-mail/${claimTarget}`, {
           addPoint: parseInt(mailItemId, 10),
           charName: mailName,
           quantity: parseInt(mailQty, 10)
@@ -392,7 +392,7 @@ export default function CostMilestonePage() {
     if (!window.confirm(`確定增加「${info.onlineName}」${pt.toLocaleString()} 消費點數？`)) return
     setLoading(true)
     try {
-      const r = await api.post(`/players/${info.account}/costdata/adjust`, { addPoint: pt, charName: info.onlineName })
+      const r = await api.post(`/players/${encodeURIComponent(info.account)}/costdata/adjust`, { addPoint: pt, charName: info.onlineName })
       setMsg(r.data.message); setMsgOk(true); setAddPt('')
       await loadPlayer(info.account)
     } catch (e: any) { setMsg(e.response?.data?.message || '調整失敗'); setMsgOk(false) }
@@ -406,7 +406,7 @@ export default function CostMilestonePage() {
     )) return
     setLoading(true)
     try {
-      const r = await api.post(`/players/${info.account}/costdata/reset`)
+      const r = await api.post(`/players/${encodeURIComponent(info.account)}/costdata/reset`)
       setMsg(r.data.message); setMsgOk(true)
       await loadPlayer(info.account)
     } catch (e: any) { setMsg(e.response?.data?.message || '重置失敗'); setMsgOk(false) }
@@ -420,7 +420,7 @@ export default function CostMilestonePage() {
     )) return
     setLoading(true)
     try {
-      const r = await api.post(`/players/${info.account}/costdata/full-reset`)
+      const r = await api.post(`/players/${encodeURIComponent(info.account)}/costdata/full-reset`)
       setMsg(r.data.message); setMsgOk(true)
       await loadPlayer(info.account)
     } catch (e: any) { setMsg(e.response?.data?.message || '完全重置失敗'); setMsgOk(false) }

@@ -49,7 +49,7 @@ export default function MailPage() {
             <span>發件人</span><span>標題</span><span>狀態</span><span>時間</span>
           </div>
           {rows.length === 0
-            ? <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.searchHint}</p>
+            ? <p style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>輸入帳號搜尋信件紀錄</p>
             : rows.map(r => (
               <div key={r.id} onClick={() => setSel(r)} data-suggestion-item style={{
                 display: 'grid', gridTemplateColumns: '80px 1fr 80px 140px',
