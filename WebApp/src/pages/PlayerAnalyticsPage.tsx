@@ -20,7 +20,7 @@ export default function PlayerAnalyticsPage() {
       api.get('/analytics/player/growth').then(r => setGrowth(r.data)),
       api.get('/analytics/player/retention').then(r => setRetention(r.data || {})),
       api.get('/analytics/player/inactive?days=30').then(r => setInactive(r.data || [])),
-    ]).finally(() => setLoading(false))
+    ]).catch(() => {}).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])

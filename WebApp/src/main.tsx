@@ -42,6 +42,7 @@ import ServerStatusPage   from './pages/ServerStatusPage'
 import CostMilestonePage  from './pages/CostMilestonePage'
 import GuildPage          from './pages/GuildPage'
 import PetRankPage        from './pages/PetRankPage'
+import PetBillingPage     from './pages/PetBillingPage'
 
 const Guard = ({ children }: { children: React.ReactNode }) =>
   localStorage.getItem('gm_token') ? <>{children}</> : <Navigate to="/login" replace />
@@ -98,6 +99,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="cost-milestone" element={<CostMilestonePage />} />
         <Route path="guild"          element={<GuildPage />} />
         <Route path="petrank"        element={<PetRankPage />} />
+        <Route path="petbilling"     element={<PetBillingPage />} />
       </Route>
     </Routes>
   </BrowserRouter>

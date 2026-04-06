@@ -12,6 +12,11 @@ public class PetRankController : ControllerBase
     private readonly DbService _db;
     public PetRankController(DbService db) => _db = db;
 
+    /// <summary>取得寵物總排行榜（petbilling 動態表）</summary>
+    [HttpGet("billing")]
+    public async Task<IActionResult> GetBilling([FromQuery] int limit = 2000) =>
+        Ok(await _db.GetPetBillingRankAsync(limit));
+
     /// <summary>取得所有練寵種類（id, name, 參賽數, 最高分）</summary>
     [HttpGet("pets")]
     public async Task<IActionResult> GetPets() =>

@@ -46,6 +46,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/cost-milestone': '消費里程碑',
   '/guild': '家族管理',
   '/petrank': '練寵排行榜',
+  '/petbilling': '寵物總排行',
 }
 
 export function getRouteTitle(pathname: string): string {

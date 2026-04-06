@@ -19,7 +19,7 @@ export default function TradeAuditPage() {
       api.get('/tradeaudit/sameip').then(r => setSameIp(r.data || [])),
       api.get('/tradeaudit/gold').then(r => setGold(r.data || [])),
       api.get('/tradeaudit/traders').then(r => setTraders(r.data || [])),
-    ]).finally(() => setLoading(false))
+    ]).catch(() => {}).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])

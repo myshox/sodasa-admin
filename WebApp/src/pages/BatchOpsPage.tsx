@@ -207,8 +207,8 @@ function SingleSendTab() {
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
 
-  const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-history`); setMailHistory(r.data); setShowHistory(true) } finally { setHistoryLoading(false) } }
-  const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } finally { setRawLoading(false) } }
+  const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-history`); setMailHistory(r.data); setShowHistory(true) } catch { } finally { setHistoryLoading(false) } }
+  const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } catch { } finally { setRawLoading(false) } }
 
   const send = async () => {
     if (recipients.length === 0) { setResult('請先加入至少一位玩家'); return }

@@ -18,7 +18,7 @@ export default function RechargeAnalyticsPage() {
       api.get('/analytics/recharge/monthly').then(r => setMonthly(r.data)),
       api.get('/analytics/recharge/tier').then(r => setTier(r.data || {})),
       api.get('/analytics/recharge/firstpay').then(r => setFirstPay(r.data || {})),
-    ]).finally(() => setLoading(false))
+    ]).catch(() => {}).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])

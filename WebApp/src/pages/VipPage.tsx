@@ -25,7 +25,7 @@ export default function VipPage() {
   const load = async () => {
     setLoading(true)
     try { const r = await api.get('/players/vip'); setRows(r.data) }
-    finally { setLoading(false) }
+    catch { } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
 

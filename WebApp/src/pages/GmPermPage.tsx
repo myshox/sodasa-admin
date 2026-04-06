@@ -12,7 +12,7 @@ export default function GmPermPage() {
 
   const load = () => {
     setLoading(true)
-    api.get('/gmperm', { params: { q: q || undefined } }).then(r => setList(r.data || [])).finally(() => setLoading(false))
+    api.get('/gmperm', { params: { q: q || undefined } }).then(r => setList(r.data || [])).catch(() => {}).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [q])
@@ -21,7 +21,7 @@ export default function GmPermPage() {
     if (!edit) return
     setSaving(true)
     try {
-      await api.put(`/gmperm/${edit.account}`, { neiCe: edit.neiCe, groupId: edit.groupId })
+      await api.put(`/gmperm/${encodeURIComponent(edit.account)}`, { neiCe: edit.neiCe, groupId: edit.groupId })
       setMsg('✓ 已更新權限')
       setEdit(null)
       load()

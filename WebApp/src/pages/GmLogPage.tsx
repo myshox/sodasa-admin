@@ -23,14 +23,14 @@ export default function GmLogPage() {
     try {
       const r = await api.get('/gmlog', { params: { offset: p * pageSize, limit: pageSize, q: qv, date: dv } })
       setRows(r.data.items ?? r.data); setTotal(r.data.total ?? r.data.length); setPage(p)
-    } finally { setLoading(false) }
+    } catch { } finally { setLoading(false) }
   }
 
   useEffect(() => { loadDates(); load(0) }, [])
 
   const doExport = async () => {
     try {
-      const params = date ? `?date=${date}` : ''
+      const params = date ? `?date=${encodeURIComponent(date)}` : ''
       const r = await api.get(`/gmlog/export${params}`, { responseType: 'blob' })
       const url = URL.createObjectURL(r.data)
       const a = document.createElement('a')

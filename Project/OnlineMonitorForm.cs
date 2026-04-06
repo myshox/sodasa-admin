@@ -74,15 +74,15 @@ namespace SQ_Email_Tools
             _dgv.RowTemplate.Height = 36;
             _dgv.CellDoubleClick   += OpenPlayerProfile;
 
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cOnline",     HeaderText = "狀態",      Width = 70  });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCharName",   HeaderText = "角色名稱",  Width = 130 });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAccount",    HeaderText = "帳號",      Width = 130 });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cMaster",     HeaderText = "主帳號",    Width = 110 });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cServerId",   HeaderText = "伺服器",    Width = 80  });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cLoginTime",  HeaderText = "登入時間",  Width = 140 });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cOnline",     HeaderText = "狀態",      FillWeight = 50,  MinimumWidth = 55  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCharName",   HeaderText = "角色名稱",  FillWeight = 120, MinimumWidth = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAccount",    HeaderText = "帳號",      FillWeight = 120, MinimumWidth = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cMaster",     HeaderText = "主帳號",    FillWeight = 100, MinimumWidth = 70  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cServerId",   HeaderText = "伺服器",    FillWeight = 60,  MinimumWidth = 50  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cLoginTime",  HeaderText = "登入時間",  FillWeight = 120, MinimumWidth = 90  });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = "cPayTotal", HeaderText = "累積充值", Width = 100,
+                Name = "cPayTotal", HeaderText = "累積充值", FillWeight = 80, MinimumWidth = 70,
                 DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight }
             });
 

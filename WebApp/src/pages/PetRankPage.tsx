@@ -52,7 +52,7 @@ export default function PetRankPage() {
       if (r.data.length > 0) {
         setSelectedPet(r.data[0])
       }
-    })
+    }).catch(() => {})
   }, [])
 
   // 切換寵物時載入排行
@@ -89,18 +89,22 @@ export default function PetRankPage() {
   }
 
   const toggleCheck = async (entry: PetRankEntry) => {
-    await api.put(`/petrank/${encodeURIComponent(entry.unicode)}/check`, !entry.check)
-    setLeaderboard(prev => prev.map(e =>
-      e.unicode === entry.unicode ? { ...e, check: !entry.check } : e
-    ))
-    flashMsg(`已${!entry.check ? '通過審核' : '取消審核'}：${entry.author}`)
+    try {
+      await api.put(`/petrank/${encodeURIComponent(entry.unicode)}/check`, !entry.check)
+      setLeaderboard(prev => prev.map(e =>
+        e.unicode === entry.unicode ? { ...e, check: !entry.check } : e
+      ))
+      flashMsg(`已${!entry.check ? '通過審核' : '取消審核'}：${entry.author}`)
+    } catch { flashMsg('操作失敗') }
   }
 
   const deleteEntry = async (entry: PetRankEntry) => {
     if (!confirm(`確定刪除 ${entry.author} 的記錄（分數 ${entry.sum}）？此操作不可還原！`)) return
-    await api.delete(`/petrank/${encodeURIComponent(entry.unicode)}`)
-    setLeaderboard(prev => prev.filter(e => e.unicode !== entry.unicode).map((e, i) => ({ ...e, rank: i + 1 })))
-    flashMsg(`已刪除 ${entry.author} 的記錄`)
+    try {
+      await api.delete(`/petrank/${encodeURIComponent(entry.unicode)}`)
+      setLeaderboard(prev => prev.filter(e => e.unicode !== entry.unicode).map((e, i) => ({ ...e, rank: i + 1 })))
+      flashMsg(`已刪除 ${entry.author} 的記錄`)
+    } catch { flashMsg('刪除失敗') }
   }
 
   const queryPlayer = useCallback(async () => {
@@ -110,14 +114,16 @@ export default function PetRankPage() {
     try {
       const r = await api.get<PetPlayerEntry[]>(`/petrank/player/${encodeURIComponent(playerQ.trim())}`)
       setPlayerEntries(r.data)
-    } finally { setPlayerLoading(false) }
+    } catch { setPlayerEntries([]) } finally { setPlayerLoading(false) }
   }, [playerQ])
 
   const deletePlayerEntry = async (entry: PetPlayerEntry) => {
     if (!confirm(`確定刪除此記錄？`)) return
-    await api.delete(`/petrank/${encodeURIComponent(entry.unicode)}`)
-    setPlayerEntries(prev => prev ? prev.filter(e => e.unicode !== entry.unicode) : prev)
-    flashMsg('已刪除')
+    try {
+      await api.delete(`/petrank/${encodeURIComponent(entry.unicode)}`)
+      setPlayerEntries(prev => prev ? prev.filter(e => e.unicode !== entry.unicode) : prev)
+      flashMsg('已刪除')
+    } catch { flashMsg('刪除失敗') }
   }
 
   return (

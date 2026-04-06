@@ -31,7 +31,7 @@ export default function BanPage() {
     try {
       const r = await api.get('/players/banned', { params: q ? { q } : {} })
       setList(r.data)
-    } finally { setLoading(false) }
+    } catch { } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
 
@@ -39,9 +39,11 @@ export default function BanPage() {
 
   const unban = async (account: string) => {
     if (!window.confirm(`確定解除封禁帳號「${account}」？`)) return
-    await api.post(`/players/${encodeURIComponent(account)}/ban`, { ban: false, days: 0 })
-    setList(list.filter(x => x.account !== account))
-    flash(S.unbanned)
+    try {
+      await api.post(`/players/${encodeURIComponent(account)}/ban`, { ban: false, days: 0 })
+      setList(prev => prev.filter(x => x.account !== account))
+      flash(S.unbanned)
+    } catch { flash('解封失敗') }
   }
 
   const addBanTargets = (players: PlayerRow[]) => {
@@ -82,12 +84,14 @@ export default function BanPage() {
       )) return
     }
 
-    for (const t of targets) {
-      await api.post(`/players/${encodeURIComponent(t.account)}/ban`, {
-        ban: true, days, hours, reason: banReason.trim()
-      })
-    }
-    flash(targets.length > 1 ? `已封禁 ${targets.length} 位玩家` : S.banned)
+    try {
+      for (const t of targets) {
+        await api.post(`/players/${encodeURIComponent(t.account)}/ban`, {
+          ban: true, days, hours, reason: banReason.trim()
+        })
+      }
+      flash(targets.length > 1 ? `已封禁 ${targets.length} 位玩家` : S.banned)
+    } catch { flash('封禁操作失敗') }
     setBanQ(''); setBanTargets([]); setBanReason(''); setBanHours(0); load(listQ)
   }
 

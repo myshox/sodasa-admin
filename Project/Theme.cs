@@ -189,7 +189,7 @@ namespace SQ_Email_Tools
             dgv.BorderStyle               = BorderStyle.None;
             dgv.CellBorderStyle           = DataGridViewCellBorderStyle.SingleHorizontal;
             dgv.RowHeadersVisible         = false;
-            dgv.AutoSizeColumnsMode       = DataGridViewAutoSizeColumnsMode.None;
+            dgv.AutoSizeColumnsMode       = DataGridViewAutoSizeColumnsMode.Fill;
             dgv.AllowUserToAddRows        = false;
             dgv.AllowUserToDeleteRows     = false;
             dgv.ReadOnly                  = false;

@@ -100,10 +100,10 @@ namespace SQ_Email_Tools
             _dgv.RowTemplate.Height = 36;
             _dgv.CellDoubleClick   += DgvDoubleClick;
 
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStatus",   HeaderText = "狀態",     Width = 70  });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCharName", HeaderText = "角色名稱", Width = 120 });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAccount",  HeaderText = "帳號",     Width = 130 });
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cExpire",   HeaderText = "解封時間", Width = 150 });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStatus",   HeaderText = "狀態",     FillWeight = 50,  MinimumWidth = 55  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCharName", HeaderText = "角色名稱", FillWeight = 110, MinimumWidth = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAccount",  HeaderText = "帳號",     FillWeight = 120, MinimumWidth = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cExpire",   HeaderText = "解封時間", FillWeight = 130, MinimumWidth = 90  });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "cAction", HeaderText = "操作（雙擊執行）",

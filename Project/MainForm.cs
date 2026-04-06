@@ -1069,14 +1069,14 @@ namespace SQ_Email_Tools
         private void AddTextCol(string name, string header, int w) =>
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = name, HeaderText = header, Width = w, ReadOnly = true,
+                Name = name, HeaderText = header, FillWeight = w, MinimumWidth = Math.Max(50, w / 2), ReadOnly = true,
                 DefaultCellStyle = { Padding = new Padding(10, 0, 8, 0) }
             });
 
         private void AddBtnCol(string name, string text, Color bg, int w) =>
             _dgv.Columns.Add(new DataGridViewButtonColumn
             {
-                Name = name, HeaderText = "", Width = w, FlatStyle = FlatStyle.Flat,
+                Name = name, HeaderText = "", FillWeight = w, MinimumWidth = Math.Max(44, w - 10), FlatStyle = FlatStyle.Flat,
                 UseColumnTextForButtonValue = true, Text = text,
                 DefaultCellStyle =
                 {
@@ -1134,16 +1134,16 @@ namespace SQ_Email_Tools
 
         private async Task CheckBanStatusAsync()
         {
-            try
+            foreach (var p in _players)
             {
-                foreach (var p in _players)
+                try
                 {
                     var (banned, endTime) = await DatabaseManager.Instance.GetBanStatusAsync(p.Account);
                     p.IsBanned   = banned;
                     p.BanEndTime = endTime;
                 }
+                catch { }
             }
-            catch { }
         }
 
         private void RefreshGrid()
@@ -1189,80 +1189,85 @@ namespace SQ_Email_Tools
             var player = _dgv.Rows[e.RowIndex].Tag as PlayerInfo;
             if (player == null) return;
 
-            switch (_dgv.Columns[e.ColumnIndex].Name)
+            try
             {
-                case "colProfile":
-                    new PlayerProfileForm(player).ShowDialog(this);
-                    break;
-                case "colSend":
-                    new SendForm(player).ShowDialog(this);
-                    break;
-                case "colGold":
-                    new GoldDialog(player).ShowDialog(this);
-                    break;
-                case "colPayEdit":
-                    // 與玩家詳情一致：同一對話框（含修復循環、發放獎勵、清0、STEP 3）
-                    using (var dlg = new AdjustRechargeDialog(player.OnlineName, player.PayTotal, player.PayTotal, player.Account, false, 0))
-                    {
-                        if (dlg.ShowDialog(this) == DialogResult.OK)
+                switch (_dgv.Columns[e.ColumnIndex].Name)
+                {
+                    case "colProfile":
+                        new PlayerProfileForm(player).ShowDialog(this);
+                        break;
+                    case "colSend":
+                        new SendForm(player).ShowDialog(this);
+                        break;
+                    case "colGold":
+                        new GoldDialog(player).ShowDialog(this);
+                        break;
+                    case "colPayEdit":
+                        using (var dlg = new AdjustRechargeDialog(player.OnlineName, player.PayTotal, player.PayTotal, player.Account, false, 0))
                         {
-                            bool ok2;
-                            if (dlg.IsResetRequest)
+                            if (dlg.ShowDialog(this) == DialogResult.OK)
                             {
-                                ok2 = await DatabaseManager.Instance.ResetPaydataProgressAsync(player.Account);
-                                if (ok2)
+                                bool ok2;
+                                if (dlg.IsResetRequest)
                                 {
-                                    player.PayTotal = 0;
-                                    _dgv.Rows[e.RowIndex].Cells["colPay"].Value = "—";
-                                    _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor = Theme.TextMuted;
-                                    _lblStatus.Text = $"✓  已重置「{player.OnlineName}」累儲進度（歸零）";
+                                    ok2 = await DatabaseManager.Instance.ResetPaydataProgressAsync(player.Account);
+                                    if (ok2)
+                                    {
+                                        player.PayTotal = 0;
+                                        _dgv.Rows[e.RowIndex].Cells["colPay"].Value = "—";
+                                        _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor = Theme.TextMuted;
+                                        _lblStatus.Text = $"✓  已重置「{player.OnlineName}」累儲進度（歸零）";
+                                    }
+                                    else MessageBox.Show("重置失敗（玩家可能無 paydata 記錄）", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 }
-                                else MessageBox.Show("重置失敗（玩家可能無 paydata 記錄）", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            }
-                            else
-                            {
-                                ok2 = await DatabaseManager.Instance.AdjustPayDataPointAsync(
-                                    player.Account, dlg.TwdAmount, dlg.GoldAmount, dlg.GiveGold);
-                                if (ok2)
+                                else
                                 {
-                                    player.PayTotal += dlg.TwdAmount;
-                                    long newTotal = player.PayTotal;
-                                    _dgv.Rows[e.RowIndex].Cells["colPay"].Value =
-                                        newTotal > 0 ? $"NT$ {newTotal:N0}" : "—";
-                                    _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor =
-                                        newTotal > 0 ? Color.FromArgb(255, 200, 80) : Theme.TextMuted;
-                                    _lblStatus.Text = $"✓  已更新「{player.OnlineName}」充值 +NT${dlg.TwdAmount:N0}" +
-                                        (dlg.GiveGold ? $"（金幣 +{dlg.GoldAmount:N0}）" : "（僅累儲進度）");
+                                    ok2 = await DatabaseManager.Instance.AdjustPayDataPointAsync(
+                                        player.Account, dlg.TwdAmount, dlg.GoldAmount, dlg.GiveGold);
+                                    if (ok2)
+                                    {
+                                        player.PayTotal += dlg.TwdAmount;
+                                        long newTotal = player.PayTotal;
+                                        _dgv.Rows[e.RowIndex].Cells["colPay"].Value =
+                                            newTotal > 0 ? $"NT$ {newTotal:N0}" : "—";
+                                        _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor =
+                                            newTotal > 0 ? Color.FromArgb(255, 200, 80) : Theme.TextMuted;
+                                        _lblStatus.Text = $"✓  已更新「{player.OnlineName}」充值 +NT${dlg.TwdAmount:N0}" +
+                                            (dlg.GiveGold ? $"（金幣 +{dlg.GoldAmount:N0}）" : "（僅累儲進度）");
+                                    }
+                                    else MessageBox.Show("修改失敗", "錯誤");
                                 }
-                                else MessageBox.Show("修改失敗", "錯誤");
-                            }
-                            if (dlg.NeedsRefresh)
-                            {
-                                // 對話框內執行了修復循環或發放獎勵，刷新該列顯示
-                                _dgv.Rows[e.RowIndex].Cells["colPay"].Value = player.PayTotal > 0 ? $"NT$ {player.PayTotal:N0}" : "—";
+                                if (dlg.NeedsRefresh)
+                                {
+                                    _dgv.Rows[e.RowIndex].Cells["colPay"].Value = player.PayTotal > 0 ? $"NT$ {player.PayTotal:N0}" : "—";
+                                }
                             }
                         }
-                    }
-                    break;
-                case "colBan":
-                    new BanDialog(player).ShowDialog(this);
-                    var (banned, endTime) = await DatabaseManager.Instance.GetBanStatusAsync(player.Account);
-                    player.IsBanned = banned; player.BanEndTime = endTime;
-                    RefreshPlayerRow(e.RowIndex, player);
-                    break;
-                case "colMute":
-                    bool isMuted = await DatabaseManager.Instance.GetMuteStatusAsync(player.Account);
-                    string muteAction = isMuted ? "解除禁言" : "禁言";
-                    if (MessageBox.Show($"對「{player.OnlineName}」執行【{muteAction}】？", "確認",
-                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                    {
-                        bool ok = await DatabaseManager.Instance.MutePlayerAsync(player.Account, !isMuted);
-                        _lblStatus.Text = ok ? $"✓  已{muteAction}「{player.OnlineName}」" : "✗ 操作失敗";
-                    }
-                    break;
-                case "colDelete":
-                    await DeletePlayerAsync(_dgv.Rows[e.RowIndex], player);
-                    break;
+                        break;
+                    case "colBan":
+                        new BanDialog(player).ShowDialog(this);
+                        var (banned, endTime) = await DatabaseManager.Instance.GetBanStatusAsync(player.Account);
+                        player.IsBanned = banned; player.BanEndTime = endTime;
+                        RefreshPlayerRow(e.RowIndex, player);
+                        break;
+                    case "colMute":
+                        bool isMuted = await DatabaseManager.Instance.GetMuteStatusAsync(player.Account);
+                        string muteAction = isMuted ? "解除禁言" : "禁言";
+                        if (MessageBox.Show($"對「{player.OnlineName}」執行【{muteAction}】？", "確認",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                        {
+                            bool ok = await DatabaseManager.Instance.MutePlayerAsync(player.Account, !isMuted);
+                            _lblStatus.Text = ok ? $"✓  已{muteAction}「{player.OnlineName}」" : "✗ 操作失敗";
+                        }
+                        break;
+                    case "colDelete":
+                        await DeletePlayerAsync(_dgv.Rows[e.RowIndex], player);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _lblStatus.Text = $"✗ 操作失敗：{ex.Message}";
             }
         }
 
@@ -1645,20 +1650,20 @@ namespace SQ_Email_Tools
             _dgv.RowTemplate.Height  = 34;
 
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
-                { Name = "colAcc",  HeaderText = "帳號 (cdkey)", Width = 150, ReadOnly = true });
+                { Name = "colAcc",  HeaderText = "帳號 (cdkey)", FillWeight = 150, MinimumWidth = 100, ReadOnly = true });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
-                { Name = "colCur",  HeaderText = "目前名稱（重複）", Width = 130, ReadOnly = true,
+                { Name = "colCur",  HeaderText = "目前名稱（重複）", FillWeight = 130, MinimumWidth = 80, ReadOnly = true,
                   DefaultCellStyle = { ForeColor = Color.FromArgb(230, 80, 80) } });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
-                { Name = "colSrc",  HeaderText = "來源", Width = 100, ReadOnly = true,
+                { Name = "colSrc",  HeaderText = "來源", FillWeight = 100, MinimumWidth = 60, ReadOnly = true,
                   DefaultCellStyle = { ForeColor = Theme.TextMuted } });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
                 { Name = "colNew",  HeaderText = "✏ 新名稱（可直接編輯）",
-                  AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, ReadOnly = false,
+                  AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 120, ReadOnly = false,
                   DefaultCellStyle = { BackColor = Color.FromArgb(18, 36, 18), ForeColor = Color.FromArgb(120, 240, 120) } });
             _dgv.Columns.Add(new DataGridViewButtonColumn
             {
-                Name    = "colApply", HeaderText = "", Width = 72,
+                Name    = "colApply", HeaderText = "", FillWeight = 72, MinimumWidth = 62,
                 FlatStyle = FlatStyle.Flat, UseColumnTextForButtonValue = true, Text = "✅ 套用",
                 DefaultCellStyle = {
                     BackColor = Color.FromArgb(30, 100, 30), ForeColor = Color.White,
@@ -2228,13 +2233,13 @@ namespace SQ_Email_Tools
              "FROM csalogin ORDER BY MasterId, Name LIMIT 100;"),
 
             ("查特定帳號",
-             "SELECT * FROM csalogin WHERE Name = 'fa3g6388a845';"),
+             "SELECT * FROM csalogin WHERE Name = '帳號名稱';"),
 
-            ("myshox 旗下角色",
+            ("查主帳號旗下角色",
              "SELECT c.Name, c.OnlineName, c.MasterId\n" +
              "FROM csalogin c\n" +
              "JOIN csaloginmaster m ON m.Id = c.MasterId\n" +
-             "WHERE m.Name = 'myshox';"),
+             "WHERE m.Name = '主帳號名稱';"),
         };
 
         public SqlQueryForm()
@@ -2522,7 +2527,7 @@ namespace SQ_Email_Tools
                 BackColor   = Theme.BgCard,
                 ForeColor   = Theme.TextPrimary,
                 BorderStyle = BorderStyle.FixedSingle,
-                Text        = "dfegdaddc64h\r\nbffa476be5cg\r\nh62he2dhghg"
+                Text        = ""
             };
 
             _btnScan = Theme.MakeButton("🔍 重新掃描", Theme.AccentBlue, Color.White, 120, 32);

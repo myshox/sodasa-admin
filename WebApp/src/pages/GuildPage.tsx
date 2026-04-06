@@ -75,7 +75,7 @@ export default function GuildPage() {
     let ok = 0, fail = 0
     for (const cdkey of selMembers) {
       try {
-        await api.delete(`/guild/${selected.guildId}/members/${cdkey}`)
+        await api.delete(`/guild/${selected.guildId}/members/${encodeURIComponent(cdkey)}`)
         ok++
       } catch { fail++ }
     }

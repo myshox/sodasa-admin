@@ -59,8 +59,11 @@ public class PlayersController : ControllerBase
     [HttpPost("batch-gold")]
     public async Task<IActionResult> BatchGold([FromBody] BatchGoldRequest req)
     {
+        var target = req.Target ?? "online";
+        if (!DbService.IsValidBatchTarget(target))
+            return BadRequest(new { message = $"不支援的批量目標：{target}" });
         var (done, fail) = await _db.BatchGoldAsync(
-            req.Target ?? "online",
+            target,
             req.CustomList ?? "",
             req.AccountIds ?? "",
             req.Amount);
@@ -70,6 +73,8 @@ public class PlayersController : ControllerBase
     [HttpPost("batch-mail")]
     public async Task<IActionResult> BatchMail([FromBody] BatchMailRequest req)
     {
+        if (!DbService.IsValidBatchTarget(req.Target))
+            return BadRequest(new { message = $"不支援的批量目標：{req.Target}" });
         var count = await _db.BatchMailAsync(req.Target, req.CustomList, req.Title, req.Content);
         return Ok(new { count });
     }
@@ -77,6 +82,8 @@ public class PlayersController : ControllerBase
     [HttpPost("batch-send-cart")]
     public async Task<IActionResult> BatchSendCart([FromBody] BatchSendCartRequest req)
     {
+        if (!DbService.IsValidBatchTarget(req.Target))
+            return BadRequest(new { message = $"不支援的批量目標：{req.Target}" });
         if (req.Cart == null || req.Cart.Count == 0)
             return BadRequest(new { message = "購物車為空" });
         var (count, fail, sentAccounts, lastError) = await _db.BatchSendCartAsync(
@@ -252,10 +259,10 @@ public class PlayersController : ControllerBase
         var result = await _db.ClaimPaydataRewardAsync(account);
         return result switch
         {
-            "ok"             => Ok(new { message = "✓ 已標記獎勵已發放（第 " + result + " 輪）" }),
             "already_claimed"=> BadRequest(new { message = "⚠ 此輪獎勵已發放，無法重複領取" }),
             "no_cycle"       => BadRequest(new { message = "⚠ 尚未完成任何循環，無獎勵可發放" }),
             "not_found"      => BadRequest(new { message = "找不到玩家 paydata 記錄" }),
+            "error"          => StatusCode(500, new { message = "資料庫錯誤，請稍後再試" }),
             _                => Ok(new { message = $"✓ 獎勵已發放（輪次 #{result}）" })
         };
     }

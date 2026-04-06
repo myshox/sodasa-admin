@@ -272,16 +272,16 @@ namespace SQ_Email_Tools
             _regDgv.ReadOnly            = true;
             _regDgv.RowTemplate.Height  = 32;
             _regDgv.ColumnHeadersHeight = 34;
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c0", HeaderText = "狀態",     Width = 64  });
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c1", HeaderText = "帳號",     Width = 155 });
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c2", HeaderText = "角色名",   Width = 110 });
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c3", HeaderText = "主帳號",   Width = 110 });
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c4", HeaderText = "分流",     Width = 80  });
-            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c5", HeaderText = "註冊時間", Width = 148 });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c0", HeaderText = "狀態",     FillWeight = 50,  MinimumWidth = 50  });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c1", HeaderText = "帳號",     FillWeight = 140, MinimumWidth = 90  });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c2", HeaderText = "角色名",   FillWeight = 100, MinimumWidth = 70  });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c3", HeaderText = "主帳號",   FillWeight = 100, MinimumWidth = 70  });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c4", HeaderText = "分流",     FillWeight = 60,  MinimumWidth = 45  });
+            _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c5", HeaderText = "註冊時間", FillWeight = 130, MinimumWidth = 95  });
             _regDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "c6", HeaderText = "註冊 IP",
-                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 90
             });
             regWrap.Controls.Add(_regDgv, 0, 1);
             root.Controls.Add(regWrap, 0, 4);

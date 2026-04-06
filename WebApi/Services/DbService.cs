@@ -515,6 +515,12 @@ public class DbService
     /// 「真實在線」在技術上＝遊戲伺服器寫入的 Online=1；GM 僅讀 DB，無法讀 socket。
     /// online_recent 僅依 LoginTime 推測，非即時連線。
     /// </summary>
+    private static readonly HashSet<string> _validTargets = new(StringComparer.OrdinalIgnoreCase)
+        { "all", "online", "online_recent", "custom" };
+
+    public static bool IsValidBatchTarget(string? target) =>
+        !string.IsNullOrEmpty(target) && _validTargets.Contains(target);
+
     public static string CsaloginWhereForTarget(string target)
     {
         return target switch
@@ -522,7 +528,9 @@ public class DbService
             "online" => "WHERE Online=1",
             "online_recent" =>
                 "WHERE (Online=1 OR (LoginTime IS NOT NULL AND LoginTime > DATE_SUB(NOW(), INTERVAL 30 MINUTE)))",
-            _ => ""
+            "all" => "",
+            "custom" => "",
+            _ => throw new ArgumentException($"不支援的批量目標：{target}")
         };
     }
 
@@ -2360,6 +2368,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         var result = new PlayerHistoryResult();
 
         // ── 交易紀錄（送出 + 收到）────────────────────────────────
+        try {
         await using var cmd1 = new MySqlCommand(
             @"SELECT mecdkey,mename,tocdkey,toname,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time,
@@ -2389,8 +2398,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         await r1.CloseAsync();
         result.TradeSent     = result.Trades.Count(t => t.Direction == "sent");
         result.TradeReceived = result.Trades.Count(t => t.Direction == "received");
+        } catch { }
 
         // ── 街頭商店買賣 ──────────────────────────────────────────
+        try {
         await using var cmd2 = new MySqlCommand(
             @"SELECT sellcdkey, type, name, num, point, buycdkey, buyname,
                      FROM_UNIXTIME(time,'%Y-%m-%d %H:%i:%S') time
@@ -2416,8 +2427,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             });
         }
         await r2.CloseAsync();
+        } catch { }
 
         // ── 速度異常偵測 ──────────────────────────────────────────
+        try {
         await using var cmd3 = new MySqlCommand(
             @"SELECT speedtime, speedcnt,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
@@ -2436,8 +2449,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             });
         }
         await r3.CloseAsync();
+        } catch { }
 
         // ── 消費紀錄 ──────────────────────────────────────────────
+        try {
         await using var cmd4 = new MySqlCommand(
             @"SELECT cdkey, name, point, `check`,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
@@ -2457,8 +2472,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             });
         }
         await r4.CloseAsync();
+        } catch { }
 
         // ── 聲望商城購買紀錄 ──────────────────────────────────────
+        try {
         await using var cmd5 = new MySqlCommand(
             @"SELECT cdkey, name, itemid, itemname, itemnum, oldpoint, newpoint,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
@@ -2482,8 +2499,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             });
         }
         await r5.CloseAsync();
+        } catch { }
 
         // ── VIP 商城購買紀錄 ──────────────────────────────────────
+        try {
         await using var cmd6 = new MySqlCommand(
             @"SELECT cdkey, name, itemid, itemname, itemnum, oldpoint, newpoint,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
@@ -2507,10 +2526,11 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             });
         }
         await r6.CloseAsync();
-        // 依時間排序
+        } catch { }
         result.ShopLogs.Sort((a, b) => string.Compare(b.Time, a.Time, StringComparison.Ordinal));
 
         // ── VIP 點數增減紀錄 ──────────────────────────────────────
+        try {
         await using var cmd7 = new MySqlCommand(
             @"SELECT point, oldpoint, newpoint, buff,
                      DATE_FORMAT(time,'%Y-%m-%d %H:%i:%S') time
@@ -2530,6 +2550,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                 Buff     = r7.IsDBNull(r7.GetOrdinal("buff")) ? "" : r7.GetString("buff"),
             });
         }
+        } catch { }
 
         return result;
     }
@@ -3680,6 +3701,78 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     }
 
     // ── 練寵排行榜 ─────────────────────────────────────────────────
+
+    // ── 寵物總排行榜（petbilling / 動態表）────────────────────
+    public async Task<object> GetPetBillingRankAsync(int limit = 2000)
+    {
+        var candidates = new[] { "petbilling", "petrank", "rankpet", "pet_rank", "petranking",
+                                 "PETNO", "petno", "PetNo", "pet_no" };
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+
+            var existTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var chk = new MySqlCommand("SHOW TABLES", db))
+            await using (var rr = await chk.ExecuteReaderAsync())
+                while (await rr.ReadAsync()) existTables.Add(rr.GetString(0));
+
+            string? found = null;
+            foreach (var c in candidates) if (existTables.Contains(c)) { found = c; break; }
+            if (found == null) return new { tableName = (string?)null, columns = Array.Empty<string>(), rows = Array.Empty<object>() };
+
+            var petCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using (var cc = new MySqlCommand($"SHOW COLUMNS FROM `{found}`", db))
+            await using (var cr = await cc.ExecuteReaderAsync())
+                while (await cr.ReadAsync()) petCols.Add(cr.GetString(0));
+
+            string cdkeyCol = petCols.FirstOrDefault(c =>
+                c.Equals("cdkey", StringComparison.OrdinalIgnoreCase) ||
+                c.Equals("account", StringComparison.OrdinalIgnoreCase) ||
+                c.Equals("userid", StringComparison.OrdinalIgnoreCase)) ?? "";
+
+            bool hasLogin = !string.IsNullOrEmpty(cdkeyCol) && existTables.Contains("csalogin");
+            string sql;
+            if (hasLogin)
+            {
+                var loginCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                await using (var lc = new MySqlCommand("SHOW COLUMNS FROM `csalogin`", db))
+                await using (var lr = await lc.ExecuteReaderAsync())
+                    while (await lr.ReadAsync()) loginCols.Add(lr.GetString(0));
+
+                string nameExpr = loginCols.Contains("OnlineName") ? "l.OnlineName"
+                                : loginCols.Contains("NickName")   ? "l.NickName" : "l.Name";
+                string onlineExpr = loginCols.Contains("Online")
+                    ? "IF(l.Online IS NOT NULL AND l.Online != 0, 1, 0)" : "0";
+
+                sql = $@"SELECT p.*,
+                                COALESCE({nameExpr}, l.Name, p.`{cdkeyCol}`) AS _playerName,
+                                {onlineExpr} AS _online
+                         FROM `{found}` p
+                         LEFT JOIN `csalogin` l ON l.Name = p.`{cdkeyCol}`
+                         LIMIT @n";
+            }
+            else
+            {
+                sql = $"SELECT * FROM `{found}` LIMIT @n";
+            }
+
+            var columns = new List<string>();
+            var rows = new List<Dictionary<string, object?>>();
+            await using var cmd = new MySqlCommand(sql, db);
+            cmd.Parameters.AddWithValue("@n", Math.Clamp(limit, 1, 2000));
+            await using var r = await cmd.ExecuteReaderAsync();
+            for (int i = 0; i < r.FieldCount; i++) columns.Add(r.GetName(i));
+            while (await r.ReadAsync())
+            {
+                var row = new Dictionary<string, object?>();
+                for (int i = 0; i < r.FieldCount; i++)
+                    row[columns[i]] = r.IsDBNull(i) ? null : r.GetValue(i);
+                rows.Add(row);
+            }
+            return new { tableName = found, columns, rows, total = rows.Count };
+        }
+        catch (Exception ex) { return new { tableName = "ERROR", columns = Array.Empty<string>(), rows = Array.Empty<object>(), error = ex.Message }; }
+    }
 
     /// <summary>取得所有曾出現的練寵寵物種類（id + name + 參賽數 + 最高分）</summary>
     public async Task<List<object>> GetPetRankTypesAsync()

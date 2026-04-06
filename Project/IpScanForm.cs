@@ -865,12 +865,13 @@ namespace SQ_Email_Tools
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(48, 55, 72);
             dgv.RowTemplate.Height = 24;
 
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "狀態",    Width = 55,  Name = "status",   ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "帳號",    Width = 140, Name = "account",  ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "角色名",  Width = 120, Name = "charName", ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "主帳號",  Width = 120, Name = "master",   ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "登入 IP", Width = 130, Name = "loginIp",  ReadOnly = true });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "註冊 IP", Width = 130, Name = "regIp",    ReadOnly = true });
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "狀態",    FillWeight = 40,  MinimumWidth = 45,  Name = "status",   ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "帳號",    FillWeight = 120, MinimumWidth = 80,  Name = "account",  ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "角色名",  FillWeight = 100, MinimumWidth = 70,  Name = "charName", ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "主帳號",  FillWeight = 100, MinimumWidth = 70,  Name = "master",   ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "登入 IP", FillWeight = 110, MinimumWidth = 80,  Name = "loginIp",  ReadOnly = true });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "註冊 IP", FillWeight = 110, MinimumWidth = 80,  Name = "regIp",    ReadOnly = true });
             return dgv;
         }
 
