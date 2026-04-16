@@ -186,7 +186,7 @@ export default function PetRankPage() {
             style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 280 }}
           >
             <option value="best">每人最高戰力一筆（名次＝人數）</option>
-            <option value="raw">全部提交列・依戰力（與技術查 DB 同一邏輯）</option>
+            <option value="raw">全部提交列・僅依戰力 sum（WHERE id=本期 + ORDER BY sum）</option>
           </select>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -197,7 +197,7 @@ export default function PetRankPage() {
             <span style={{ fontSize: 12, color: '#888' }}>
               {lbMode === 'best'
                 ? '每位玩家一列：最高戰力；同分取較晚提交。若要對齊技術全表排序請選「全部提交列」。'
-                : '每一筆提交一列，依戰力與時間排序（同一帳號可出現多列）；與「每人一筆」名次意義不同。'}
+                : '每一筆提交一列，僅依戰力 sum 排序（與技術 WHERE id 後按戰力一致）；同分時順序由資料庫決定。'}
             </span>
             {leaderboard.length > 0 && (
               <button onClick={exportCsv} style={{ ...btn('success'), padding: '5px 14px' }}>

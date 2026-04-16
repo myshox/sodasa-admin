@@ -3811,16 +3811,11 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             ? @"
             SELECT c.unicode, c.author, c.cdkey, c.name AS petName,
                    c.lv, c.hp, c.attack, c.def, c.quick, c.sum,
-                   c.`check`, DATE_FORMAT(c.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
-                   ec.entryCount
+                   c.`check`, DATE_FORMAT(c.inserttime,'%Y-%m-%d %H:%i:%s') AS inserttime,
+                   (SELECT COUNT(*) FROM capturepet c2 WHERE c2.id = @pid AND (c2.cdkey <=> c.cdkey)) AS entryCount
             FROM capturepet c
-            INNER JOIN (
-                SELECT cdkey, COUNT(*) AS entryCount
-                FROM capturepet WHERE id = @pid
-                GROUP BY cdkey
-            ) ec ON c.cdkey = ec.cdkey
             WHERE c.id = @pid
-            ORDER BY c.sum DESC, c.inserttime DESC, c.unicode DESC
+            ORDER BY c.sum DESC
             LIMIT @lim"
             : @"
             SELECT c.unicode, c.author, c.cdkey, c.name AS petName,

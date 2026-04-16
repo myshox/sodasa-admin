@@ -4020,7 +4020,8 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         }
 
         /// <summary>
-        /// 練寵表依戰力排序的「全部提交列」（與 PhpMyAdmin / 技術直接 ORDER BY sum 檢視同一邏輯；同一帳號可出現多列）。
+        /// 練寵表「全部提交列」依戰力排序：與技術端常見的 <c>SELECT * FROM capturepet WHERE id=? ORDER BY sum DESC</c> 同一列集合
+        /// （不 INNER JOIN 彙總表，避免 cdkey 為 NULL 等列被吃掉；ORDER 僅 sum 與多數工具按戰力欄排序一致）。
         /// </summary>
         public async Task<List<CaptureRankEntry>> GetCapturePetLeaderboardRawAsync(int petId, int limit = 300)
         {
@@ -4031,18 +4032,13 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                 using var cmd = new MySqlCommand(@"
                     SELECT cp.unicode, cp.author, cp.cdkey, cp.name AS petName, cp.id AS petId,
                            cp.lv, cp.hp, cp.attack, cp.def, cp.quick, cp.sum,
-                           cp.`check`, DATE_FORMAT(cp.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
-                           ec.entryCount,
+                           cp.`check`, DATE_FORMAT(cp.inserttime,'%Y-%m-%d %H:%i:%s') AS inserttime,
+                           (SELECT COUNT(*) FROM capturepet c2 WHERE c2.id=@pid AND (c2.cdkey <=> cp.cdkey)) AS entryCount,
                            IFNULL(c.Online,0) AS isOnline
                     FROM capturepet cp
-                    INNER JOIN (
-                        SELECT cdkey, COUNT(*) AS entryCount
-                        FROM capturepet WHERE id=@pid
-                        GROUP BY cdkey
-                    ) ec ON cp.cdkey = ec.cdkey
                     LEFT JOIN csalogin c ON c.`Name` = cp.cdkey
                     WHERE cp.id=@pid
-                    ORDER BY cp.sum DESC, cp.inserttime DESC, cp.unicode DESC
+                    ORDER BY cp.sum DESC
                     LIMIT @lim", conn);
                 cmd.Parameters.AddWithValue("@pid", petId);
                 cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 2000));

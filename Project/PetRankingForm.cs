@@ -585,7 +585,7 @@ namespace SQ_Email_Tools
             _cmbActivityView.Items.AddRange(new object[]
             {
                 "每人最高戰力一筆（名次＝人數，管理用）",
-                "全部提交列・依戰力排序（與技術 PhpMyAdmin 查 capturepet 同一邏輯）",
+                "全部提交列・僅依戰力 sum 排序（等同 WHERE id=本期 後 ORDER BY sum DESC）",
             });
             _cmbActivityView.SelectedIndex = 0;
             _cmbActivityView.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
@@ -988,8 +988,8 @@ namespace SQ_Email_Tools
             if (raw)
             {
                 _lblActivityStatus.Text =
-                    $"【{petName}】共 {_captureLeaderboard.Count} 筆（全部提交・依戰力與時間排序；同一帳號可出現多列）\r\n" +
-                    "※ 此模式與技術在資料庫直接「WHERE id=本期 AND ORDER BY sum」檢視一致；與左欄「每人一筆」不同。";
+                    $"【{petName}】共 {_captureLeaderboard.Count} 筆（每筆提交一列，僅 ORDER BY sum；時間顯示至秒）\r\n" +
+                    "※ 與技術匯出/排序同一邏輯；若仍不同請確認兩邊是否連同一資料庫、且技術是否只篩本期 id。";
             }
             else
             {
