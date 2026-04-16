@@ -3801,31 +3801,67 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         return list;
     }
 
-    /// <summary>取得指定寵物排行榜（每人只取最高分那筆，相容 MySQL 5.7）</summary>
-    public async Task<List<object>> GetPetLeaderboardAsync(int petId, int limit = 50)
+    /// <param name="mode">best＝每人最高戰力一筆；raw＝全部提交列 ORDER BY sum（與技術直接查表排序一致）</param>
+    public async Task<List<object>> GetPetLeaderboardAsync(int petId, int limit = 50, string mode = "best")
     {
+        bool raw = string.Equals(mode, "raw", StringComparison.OrdinalIgnoreCase);
         await using var db = Open(); await db.OpenAsync();
         var list = new List<object>();
-        await using var cmd = new MySqlCommand(@"
+        string sql = raw
+            ? @"
             SELECT c.unicode, c.author, c.cdkey, c.name AS petName,
                    c.lv, c.hp, c.attack, c.def, c.quick, c.sum,
                    c.`check`, DATE_FORMAT(c.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
                    ec.entryCount
             FROM capturepet c
             INNER JOIN (
-                SELECT cdkey, MAX(sum) AS maxsum
+                SELECT cdkey, COUNT(*) AS entryCount
                 FROM capturepet WHERE id = @pid
                 GROUP BY cdkey
-            ) m ON c.cdkey = m.cdkey AND c.sum = m.maxsum AND c.id = @pid
+            ) ec ON c.cdkey = ec.cdkey
+            WHERE c.id = @pid
+            ORDER BY c.sum DESC, c.inserttime DESC, c.unicode DESC
+            LIMIT @lim"
+            : @"
+            SELECT c.unicode, c.author, c.cdkey, c.name AS petName,
+                   c.lv, c.hp, c.attack, c.def, c.quick, c.sum,
+                   c.`check`, DATE_FORMAT(c.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                   ec.entryCount
+            FROM capturepet c
+            INNER JOIN (
+                SELECT z.cdkey, MAX(z.unicode) AS unicode
+                FROM (
+                    SELECT c1.cdkey, c1.unicode
+                    FROM capturepet c1
+                    INNER JOIN (
+                        SELECT cdkey, MAX(sum) AS maxsum
+                        FROM capturepet WHERE id = @pid
+                        GROUP BY cdkey
+                    ) mx ON mx.cdkey = c1.cdkey AND c1.sum = mx.maxsum AND c1.id = @pid
+                    INNER JOIN (
+                        SELECT c2.cdkey, MAX(c2.inserttime) AS maxtime
+                        FROM capturepet c2
+                        INNER JOIN (
+                            SELECT cdkey, MAX(sum) AS maxsum
+                            FROM capturepet WHERE id = @pid
+                            GROUP BY cdkey
+                        ) mx2 ON mx2.cdkey = c2.cdkey AND c2.sum = mx2.maxsum AND c2.id = @pid
+                        GROUP BY c2.cdkey
+                    ) ti ON ti.cdkey = c1.cdkey AND c1.inserttime = ti.maxtime
+                ) z
+                GROUP BY z.cdkey
+            ) pick ON pick.cdkey = c.cdkey AND pick.unicode = c.unicode AND c.id = @pid
             INNER JOIN (
                 SELECT cdkey, COUNT(*) AS entryCount
                 FROM capturepet WHERE id = @pid
                 GROUP BY cdkey
             ) ec ON c.cdkey = ec.cdkey
             ORDER BY c.sum DESC
-            LIMIT @lim", db);
+            LIMIT @lim";
+        await using var cmd = new MySqlCommand(sql, db);
         cmd.Parameters.AddWithValue("@pid", petId);
-        cmd.Parameters.AddWithValue("@lim", limit);
+        int limCap = raw ? 2000 : 500;
+        cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, limCap));
         await using var r = await cmd.ExecuteReaderAsync();
         int rank = 1;
         while (await r.ReadAsync())

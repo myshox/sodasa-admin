@@ -501,7 +501,12 @@ namespace SQ_Email_Tools
                 var raw = _cartDgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString() ?? "1";
                 if (col == "cQty"  && int.TryParse(raw, out int q)) _cart[e.RowIndex].Qty  = Math.Max(1, q);
                 if (col == "cType" && int.TryParse(raw, out int t)) _cart[e.RowIndex].Type = Math.Max(0, t);
-                RefreshCartDgv();
+                // 不可在此同步 Rows.Clear：仍在 DGV 結束編輯/變更目前儲存格流程內，會觸發 SetCurrentCellAddressCore 可重入例外
+                BeginInvoke(new Action(() =>
+                {
+                    if (IsDisposed || _cartDgv.IsDisposed) return;
+                    RefreshCartDgv();
+                }));
             };
             // 移除按鈕
             _cartDgv.CellClick += (s, e) =>

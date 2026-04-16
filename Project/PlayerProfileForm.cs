@@ -2725,8 +2725,8 @@ namespace SQ_Email_Tools
         public SameIpMacForm(string title, System.Collections.Generic.List<PlayerInfo> accounts)
         {
             Text          = $"🔍 {title}（共 {accounts.Count} 個帳號）";
-            Size          = new Size(680, 440);
-            MinimumSize   = new Size(560, 320);
+            Size          = new Size(820, 500);
+            MinimumSize   = new Size(620, 320);
             BackColor     = Theme.BgPage;
             ForeColor     = Theme.TextPrimary;
             Font          = Theme.FontBody;
@@ -2746,16 +2746,18 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly              = true;
-            dgv.RowTemplate.Height    = 26;
-            dgv.ColumnHeadersHeight   = 28;
+            dgv.RowTemplate.Height    = 30;
+            dgv.ColumnHeadersHeight   = 32;
             dgv.AllowUserToResizeRows = false;
             dgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
-            dgv.CursorChanged        += (s, e) => { };
+            dgv.DefaultCellStyle.Padding = new Padding(6, 4, 6, 4);
+            dgv.AlternatingRowsDefaultCellStyle.Padding = new Padding(6, 4, 6, 4);
 
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cName", HeaderText = "角色名稱", Width = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAcc",  HeaderText = "帳號 (cdkey)", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, SortMode = DataGridViewColumnSortMode.NotSortable });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStat", HeaderText = "狀態", Width = 75, SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTime", HeaderText = "最後登入", Width = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
+            dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cName", HeaderText = "角色名稱",     FillWeight = 130, MinimumWidth = 90  });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAcc",  HeaderText = "帳號 (cdkey)", FillWeight = 160, MinimumWidth = 110 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStat", HeaderText = "狀態",         FillWeight = 55,  MinimumWidth = 55, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTime", HeaderText = "最後登入",     FillWeight = 140, MinimumWidth = 110 });
 
             foreach (var a in accounts)
             {

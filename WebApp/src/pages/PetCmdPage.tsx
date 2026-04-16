@@ -38,6 +38,13 @@ export default function PetCmdPage() {
   const [grDef, setGrDef] = useState(2.1)
   const [grAgi, setGrAgi] = useState(2.0)
 
+  // ── 檔次反推（四育連動）
+  const [grdVig, setGrdVig] = useState(40)
+  const [grdStr, setGrdStr] = useState(42)
+  const [grdTgh, setGrdTgh] = useState(30)
+  const [grdSpd, setGrdSpd] = useState(39)
+  const [grdMul, setGrdMul] = useState(0.045)
+
   const [copied, setCopied] = useState('')
 
   // 多角色：每人一行指令
@@ -46,8 +53,9 @@ export default function PetCmdPage() {
     : `[gm petmake ${petId} ${mkLv} ${mkReb}${useCdkey && cdkey ? ` ${cdkey}` : ''}]`
   const abiCmd = `[gm petmakeabi ${petId} ${hp} ${atk} ${def} ${spd} ${abiLv} ${abiReb}]`
 
-  // 目標面板數值反推計算（1:1 直接對應）
-  const abiCmd2 = `[gm petmakeabi ${petId} ${tgtHp} ${tgtAtk} ${tgtDef} ${tgtAgi} 140 1]`
+  // 目標面板數值反推計算（HP 套用破防公式）
+  const tgtInpHp = Math.round(tgtHp / 0.0764)
+  const abiCmd2 = `[gm petmakeabi ${petId} ${tgtInpHp} ${tgtAtk} ${tgtDef} ${tgtAgi} 140 1]`
   const predAtk   = ((tgtAtk - 19) / 139)
   const predDef   = ((tgtDef - 12) / 139)
   const predAgiV  = ((tgtAgi - 12) / 139)
@@ -60,6 +68,19 @@ export default function PetCmdPage() {
   const grInpHp  = Math.round(grHp / 0.0764)
   const grTotal  = grAtk + grDef + grAgi
   const abiCmd3  = `[gm petmakeabi ${petId} ${grInpHp} ${grTgtAtk} ${grTgtDef} ${grTgtAgi} 140 1]`
+
+  // ── 檔次反推計算 ──
+  const realVig = grdVig - 2
+  const realStr = grdStr - 2
+  const realTgh = grdTgh - 2
+  const realSpd = grdSpd - 2
+  const realTotal = realVig + realStr + realTgh + realSpd
+  const grdTargetHp  = Math.round(((realVig * 4) + realStr + realTgh + realSpd) * grdMul * 139 + 50)
+  const grdTargetAtk = Math.round(((realStr * 1.0) + (realVig * 0.1) + (realTgh * 0.1) + (realSpd * 0.05)) * grdMul * 139 + 19)
+  const grdTargetDef = Math.round(((realTgh * 1.0) + (realVig * 0.1) + (realStr * 0.1) + (realSpd * 0.05)) * grdMul * 139 + 12)
+  const grdTargetAgi = Math.round(((realSpd * 1.0) + (realVig * 0.05) + (realStr * 0.05) + (realTgh * 0.05)) * grdMul * 139 + 12)
+  const grdInputHp = Math.round(grdTargetHp / 0.0764)
+  const abiCmd4 = `[gm petmakeabi ${petId} ${grdInputHp} ${grdTargetAtk} ${grdTargetDef} ${grdTargetAgi} 140 1]`
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text)
@@ -288,7 +309,7 @@ export default function PetCmdPage() {
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10,
           background: 'rgba(255,216,77,.05)', border: '1px solid rgba(255,216,77,.2)',
           borderRadius: 6, padding: '8px 12px' }}>
-          輸入 140 等面板顯示值，1:1 直接帶入指令（無補償係數）
+          HP = round(目標血量 ÷ 0.0764) 破防換算　ATK/DEF/AGI 1:1 直接寫入
         </div>
         <Nud label="目標 HP（血量）" value={tgtHp}  onChange={setTgtHp}  min={1} />
         <Nud label="目標 ATK（攻擊）" value={tgtAtk} onChange={setTgtAtk} min={1} />
@@ -309,6 +330,7 @@ export default function PetCmdPage() {
           <InfoRow label="預測敏捷成長 =" value={predAgiV.toFixed(3)} color="#b982ff" />
           <div style={{ height: 1, background: 'rgba(255,80,80,.2)', margin: '8px 0' }} />
           <InfoRow label="預測總成長 =" value={predTotal.toFixed(3)} color="#ff8080" />
+          <InfoRow label="GM 寫入 HP =" value={tgtInpHp.toLocaleString()} color="#6eff8a" />
         </div>
       </Card>
 
@@ -363,6 +385,79 @@ export default function PetCmdPage() {
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
           ※ HP = round(目標血量 ÷ 0.0764) 破防　ATK/DEF/AGI = round(成長×139+初值) 1:1 直接寫入
         </p>
+      </Card>
+
+      {/* ── 檔次反推終極版（四育連動）────────────────────── */}
+      <Card title="🎯 檔次反推終極版（輸入鑑定檔次，四育連動自動生成）" accent="#ff9f43">
+        <p style={{ fontSize: 12, color: 'rgba(255,159,67,.8)', marginBottom: 12 }}>
+          直接輸入遊戲鑑定面板的「體、腕、耐、速」顯示檔次，自動扣除 2 校正 → 四育連動公式推算 140 等面板 → HP 破防換算 → 產出 GM 指令
+        </p>
+
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14,
+          background: 'rgba(255,159,67,.06)', border: '1px solid rgba(255,159,67,.25)',
+          borderRadius: 6, padding: '8px 12px', lineHeight: 1.7 }}>
+          <strong>公式說明：</strong><br />
+          真實檔次 = 顯示檔次 - 2<br />
+          HP = (體×4 + 腕 + 耐 + 速) × 倍率 × 139 + 50<br />
+          ATK = (腕×1.0 + 體×0.1 + 耐×0.1 + 速×0.05) × 倍率 × 139 + 19<br />
+          DEF = (耐×1.0 + 體×0.1 + 腕×0.1 + 速×0.05) × 倍率 × 139 + 19<br />
+          AGI = (速×1.0 + 體×0.05 + 腕×0.05 + 耐×0.05) × 倍率 × 139 + 12
+        </div>
+
+        <Nud label="體力（顯示檔次）" value={grdVig} onChange={setGrdVig} min={2} max={999} />
+        <Nud label="腕力（顯示檔次）" value={grdStr} onChange={setGrdStr} min={2} max={999} />
+        <Nud label="耐力（顯示檔次）" value={grdTgh} onChange={setGrdTgh} min={2} max={999} />
+        <Nud label="速度（顯示檔次）" value={grdSpd} onChange={setGrdSpd} min={2} max={999} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <span style={{ width: isMobile ? 90 : 110, color: 'var(--text-muted)', fontSize: 13, textAlign: 'right', flexShrink: 0 }}>
+            成長倍率
+          </span>
+          <input type="number" value={grdMul} step={0.001} min={0.001} max={1}
+            onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v > 0) setGrdMul(parseFloat(v.toFixed(4))) }}
+            style={{ width: isMobile ? 72 : 100, textAlign: 'center' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>（預設 0.045，可依伺服器微調）</span>
+        </div>
+
+        <div style={{
+          background: 'rgba(255,159,67,.07)', border: '1px solid rgba(255,159,67,.25)',
+          borderRadius: 8, padding: '12px 14px', marginTop: 8, marginBottom: 12
+        }}>
+          <div style={{ fontSize: 12, color: '#ff9f43', fontWeight: 700, marginBottom: 10 }}>
+            📋 校正後真實檔次
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px', marginBottom: 10 }}>
+            <InfoRow label="體 (VIG)" value={`${grdVig} → ${realVig}`} color="#ff6b6b" />
+            <InfoRow label="腕 (STR)" value={`${grdStr} → ${realStr}`} color="#ffa94d" />
+            <InfoRow label="耐 (TGH)" value={`${grdTgh} → ${realTgh}`} color="#74c0fc" />
+            <InfoRow label="速 (SPD)" value={`${grdSpd} → ${realSpd}`} color="#b197fc" />
+          </div>
+          <InfoRow label="真實總檔次" value={`${realTotal}（顯示 ${realTotal + 8}）`} color="#ffd84d" />
+        </div>
+
+        <div style={{
+          background: 'rgba(128,255,128,.07)', border: '1px solid rgba(128,255,128,.25)',
+          borderRadius: 8, padding: '12px 14px', marginBottom: 12
+        }}>
+          <div style={{ fontSize: 12, color: '#80ff80', fontWeight: 700, marginBottom: 10 }}>
+            🔢 推算 140 等面板 → GM 寫入參數
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 20px' }}>
+            <InfoRow label="面板 HP" value={grdTargetHp.toLocaleString()} color="#ff6b6b" />
+            <InfoRow label="Input HP" value={grdInputHp.toLocaleString()} color="#6eff8a" />
+            <InfoRow label="面板 ATK" value={grdTargetAtk.toString()} color="#ffa94d" />
+            <InfoRow label="Input ATK" value={grdTargetAtk.toString()} color="#6eff8a" />
+            <InfoRow label="面板 DEF" value={grdTargetDef.toString()} color="#74c0fc" />
+            <InfoRow label="Input DEF" value={grdTargetDef.toString()} color="#6eff8a" />
+            <InfoRow label="面板 AGI" value={grdTargetAgi.toString()} color="#b197fc" />
+            <InfoRow label="Input AGI" value={grdTargetAgi.toString()} color="#6eff8a" />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+            ※ HP 經 ÷0.0764 破防換算，ATK/DEF/AGI 為 1:1 直接寫入
+          </div>
+        </div>
+
+        <CmdBar cmd={abiCmd4} ckey="abi4" />
       </Card>
     </div>
   )

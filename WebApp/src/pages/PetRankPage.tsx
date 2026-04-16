@@ -33,12 +33,15 @@ const rankBadge = (rank: number) => {
   return <span style={{ color: '#888', fontWeight: 600 }}>#{rank}</span>
 }
 
+type LeaderboardMode = 'best' | 'raw'
+
 export default function PetRankPage() {
   const [petTypes,    setPetTypes]    = useState<PetRankType[]>([])
   const [selectedPet, setSelectedPet] = useState<PetRankType | null>(null)
   const [leaderboard, setLeaderboard] = useState<PetRankEntry[]>([])
   const [loading,     setLoading]     = useState(false)
   const [msg,         setMsg]         = useState('')
+  const [lbMode,      setLbMode]      = useState<LeaderboardMode>('best')
 
   // 查單一玩家
   const [playerQ,      setPlayerQ]     = useState('')
@@ -55,15 +58,18 @@ export default function PetRankPage() {
     }).catch(() => {})
   }, [])
 
-  // 切換寵物時載入排行
+  // 切換寵物或顯示模式時載入排行
   useEffect(() => {
     if (!selectedPet) return
     setLoading(true)
     setLeaderboard([])
-    api.get<PetRankEntry[]>('/petrank/leaderboard', { params: { petId: selectedPet.id, limit: 50 } })
+    const limit = lbMode === 'raw' ? 500 : 50
+    api.get<PetRankEntry[]>('/petrank/leaderboard', {
+      params: { petId: selectedPet.id, limit, mode: lbMode },
+    })
       .then(r => setLeaderboard(r.data))
       .finally(() => setLoading(false))
-  }, [selectedPet])
+  }, [selectedPet, lbMode])
 
   const flashMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
@@ -172,12 +178,27 @@ export default function PetRankPage() {
 
       {/* ── 排行榜 ── */}
       <div style={card}>
+        <div style={{ marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>顯示：</span>
+          <select
+            value={lbMode}
+            onChange={e => setLbMode(e.target.value as LeaderboardMode)}
+            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minWidth: 280 }}
+          >
+            <option value="best">每人最高戰力一筆（名次＝人數）</option>
+            <option value="raw">全部提交列・依戰力（與技術查 DB 同一邏輯）</option>
+          </select>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
             戰鬥力排行榜 {selectedPet ? `— ${selectedPet.name}` : ''}
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#888' }}>每位玩家僅顯示最高分</span>
+            <span style={{ fontSize: 12, color: '#888' }}>
+              {lbMode === 'best'
+                ? '每位玩家一列：最高戰力；同分取較晚提交。若要對齊技術全表排序請選「全部提交列」。'
+                : '每一筆提交一列，依戰力與時間排序（同一帳號可出現多列）；與「每人一筆」名次意義不同。'}
+            </span>
             {leaderboard.length > 0 && (
               <button onClick={exportCsv} style={{ ...btn('success'), padding: '5px 14px' }}>
                 📥 匯出 CSV
@@ -197,7 +218,7 @@ export default function PetRankPage() {
             <table style={tbl}>
               <thead>
                 <tr>
-                  {['名次','玩家名','帳號','戰鬥力','HP','攻擊','防禦','速度','提交次數','提交時間','審核','操作'].map(h => (
+                  {[(lbMode === 'raw' ? '列#' : '名次'),'玩家名','帳號','戰鬥力','HP','攻擊','防禦','速度','提交次數','提交時間','審核','操作'].map(h => (
                     <th key={h} style={th}>{h}</th>
                   ))}
                 </tr>

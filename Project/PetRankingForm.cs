@@ -108,11 +108,10 @@ namespace SQ_Email_Tools
         private DataGridView   _dgvMain;
 
         // ---- activity tab controls ----
-        private ComboBox     _cmbActivityPet, _cmbActivitySort;
+        private ComboBox     _cmbActivityPet, _cmbActivityView;
         private DataGridView _dgvActivity;
         private Label        _lblActivityStatus;
         private Panel        _activityRankPanel;
-        private TextBox      _txtActivityKeyword;
         private TextBox      _txtPlayerSearch;
         private DataGridView _dgvPlayerEntries;
         private List<Dictionary<string,string>> _activityRows = new();
@@ -544,25 +543,25 @@ namespace SQ_Email_Tools
             // ── 底部狀態列 ──
             _lblActivityStatus = new Label
             {
-                Dock = DockStyle.Bottom, Height = 28,
+                Dock = DockStyle.Bottom, Height = 42,
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 0, 0, 0), BackColor = Theme.BgCard,
+                TextAlign = System.Drawing.ContentAlignment.TopLeft,
+                Padding = new Padding(14, 4, 14, 4), BackColor = Theme.BgCard,
             };
             p.Controls.Add(_lblActivityStatus);
 
-            // ── 上方工具列 ──
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgCard };
+            // ── 上方工具列（兩列：寵物 + 顯示方式）──
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 78, BackColor = Theme.BgCard };
 
             toolbar.Controls.Add(new Label
             {
-                Text = "本期練寵：", Location = new Point(10, 16),
+                Text = "本期練寵：", Location = new Point(10, 14),
                 AutoSize = true, ForeColor = Theme.TextSecondary,
                 Font = new Font(Theme.FontFamily, 9.5f),
             });
             _cmbActivityPet = new ComboBox
             {
-                Location = new Point(82, 12), Size = new Size(240, 28),
+                Location = new Point(82, 10), Size = new Size(240, 28),
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 FlatStyle = FlatStyle.Flat, Font = new Font(Theme.FontFamily, 9.5f),
                 DropDownStyle = ComboBoxStyle.DropDownList,
@@ -570,12 +569,39 @@ namespace SQ_Email_Tools
             _cmbActivityPet.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
             toolbar.Controls.Add(_cmbActivityPet);
 
+            toolbar.Controls.Add(new Label
+            {
+                Text = "顯示：", Location = new Point(10, 50),
+                AutoSize = true, ForeColor = Theme.TextSecondary,
+                Font = new Font(Theme.FontFamily, 9f),
+            });
+            _cmbActivityView = new ComboBox
+            {
+                Location = new Point(52, 46), Size = new Size(420, 28),
+                BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
+                FlatStyle = FlatStyle.Flat, Font = new Font(Theme.FontFamily, 9f),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
+            _cmbActivityView.Items.AddRange(new object[]
+            {
+                "每人最高戰力一筆（名次＝人數，管理用）",
+                "全部提交列・依戰力排序（與技術 PhpMyAdmin 查 capturepet 同一邏輯）",
+            });
+            _cmbActivityView.SelectedIndex = 0;
+            _cmbActivityView.SelectedIndexChanged += async (s, e) => await LoadActivityRankAsync();
+            toolbar.Controls.Add(_cmbActivityView);
+
             // 右側按鈕群組
             var btnResetAct = Theme.MakeButton("清空此排行", Color.FromArgb(110,15,15), Color.FromArgb(255,90,90), 84, 30);
             var btnCsv2     = Theme.MakeButton("📥 CSV匯出", Theme.BgMid, Theme.AccentGreen, 84, 30);
             var btnRef      = Theme.MakePrimaryButton("🔄 重新載入", 90, 30);
             foreach (var b in new[] { btnRef, btnCsv2, btnResetAct }) b.Font = new Font(Theme.FontFamily, 8.5f);
-            btnRef.Click      += async (s, e) => { _capturePetTypes.Clear(); await LoadCapturePetTypesAsync(); await LoadActivityRankAsync(); };
+            btnRef.Click      += async (s, e) =>
+            {
+                _capturePetTypes.Clear();
+                await LoadCapturePetTypesAsync();
+                await LoadActivityRankAsync();
+            };
             btnCsv2.Click     += (s, e) => ExportActivityCsv();
             btnResetAct.Click += async (s, e) => await ResetActivityAsync();
 
@@ -757,7 +783,7 @@ namespace SQ_Email_Tools
                 Margin = Padding.Empty, Padding = Padding.Empty,
                 CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
             };
-            actTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 52f));
+            actTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 78f));
             actTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             actTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             toolbar.Dock = DockStyle.Fill;
@@ -933,6 +959,9 @@ namespace SQ_Email_Tools
         }
 
 
+        private bool ActivityViewIsRaw() =>
+            _cmbActivityView != null && _cmbActivityView.SelectedIndex == 1;
+
         private async Task LoadActivityRankAsync()
         {
             if (IsDisposed) return;
@@ -941,16 +970,33 @@ namespace SQ_Email_Tools
             if (idx < 0 || idx >= _capturePetTypes.Count) return;
 
             var (petId, petName, _, _, _) = _capturePetTypes[idx];
+            bool raw = ActivityViewIsRaw();
             _lblActivityStatus.ForeColor = Theme.AccentOrange;
             _lblActivityStatus.Text = $"載入中…【{petName}】";
 
-            _captureLeaderboard = await DatabaseManager.Instance.GetCapturePetLeaderboardAsync(petId, 100);
+            _captureLeaderboard = raw
+                ? await DatabaseManager.Instance.GetCapturePetLeaderboardRawAsync(petId, 500)
+                : await DatabaseManager.Instance.GetCapturePetLeaderboardAsync(petId, 100);
             if (IsDisposed) return;
 
+            if (_dgvActivity.Columns.Contains("a_rank"))
+                _dgvActivity.Columns["a_rank"].HeaderText = raw ? "列#" : "#";
+
             RefreshActivityDgv();
-            BuildActivityRankCards(_activityRankPanel, _captureLeaderboard, petName);
+            BuildActivityRankCards(_activityRankPanel, _captureLeaderboard, petName, raw);
             _lblActivityStatus.ForeColor = Theme.TextMuted;
-            _lblActivityStatus.Text = $"【{petName}】共 {_captureLeaderboard.Count} 人  |  每人僅顯示最高分";
+            if (raw)
+            {
+                _lblActivityStatus.Text =
+                    $"【{petName}】共 {_captureLeaderboard.Count} 筆（全部提交・依戰力與時間排序；同一帳號可出現多列）\r\n" +
+                    "※ 此模式與技術在資料庫直接「WHERE id=本期 AND ORDER BY sum」檢視一致；與左欄「每人一筆」不同。";
+            }
+            else
+            {
+                _lblActivityStatus.Text =
+                    $"【{petName}】共 {_captureLeaderboard.Count} 人（每人一列：最高戰力；同分取較晚提交）\r\n" +
+                    "※ 數值為提交當下快照；若要對齊技術全表排序，請改選上方「全部提交列」。";
+            }
         }
 
         private void RefreshActivityDgv()
@@ -996,20 +1042,24 @@ namespace SQ_Email_Tools
             _dgvActivity.ResumeLayout();
         }
 
-        private void BuildActivityRankCards(Panel panel, List<CaptureRankEntry> rows, string petName)
+        private void BuildActivityRankCards(Panel panel, List<CaptureRankEntry> rows, string petName, bool rawRows)
         {
             panel.SuspendLayout(); panel.Controls.Clear();
 
             // 標題
             panel.Controls.Add(new Label
             {
-                Text = "練寵排行榜", Dock = DockStyle.None,
+                Text = rawRows ? "練寵（全表排序）" : "練寵排行榜",
+                Dock = DockStyle.None,
                 Font = new Font(Theme.FontFamily, 12, FontStyle.Bold),
                 ForeColor = Theme.AccentOrange, AutoSize = true, Location = new Point(10, 10),
             });
             panel.Controls.Add(new Label
             {
-                Text = "本期：" + petName, Dock = DockStyle.None,
+                Text = rawRows
+                    ? "本期：" + petName + "　·　前 20 筆（與 DB 依戰力順序相同）"
+                    : "本期：" + petName,
+                Dock = DockStyle.None,
                 Font = Theme.FontSmall, ForeColor = Theme.TextMuted,
                 AutoSize = true, Location = new Point(10, 38),
             });
@@ -1095,7 +1145,7 @@ namespace SQ_Email_Tools
             using var dlg = new SaveFileDialog { Filter = "CSV|*.csv", FileName = $"練寵_{petName}_{DateTime.Now:yyyyMMdd_HHmm}.csv" };
             if (dlg.ShowDialog() != DialogResult.OK) return;
             var sb = new StringBuilder();
-            sb.AppendLine("名次,角色名,帳號,寵物名,戰鬥力,HP,攻擊,防禦,速度,提交次數,提交時間,審核");
+            sb.AppendLine((ActivityViewIsRaw() ? "列號" : "名次") + ",角色名,帳號,寵物名,戰鬥力,HP,攻擊,防禦,速度,提交次數,提交時間,審核");
             foreach (var e in _captureLeaderboard)
                 sb.AppendLine($"{e.Rank},{Esc(e.Author)},{Esc(e.Cdkey)},{Esc(e.PetName)},{e.Sum},{e.Hp},{e.Attack},{e.Def},{e.Quick},{e.EntryCount},{Esc(e.InsertTime)},{(e.Check?"已審核":"待審")}");
             File.WriteAllText(dlg.FileName, sb.ToString(), new System.Text.UTF8Encoding(true));

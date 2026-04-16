@@ -3942,7 +3942,10 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             return list;
         }
 
-        /// <summary>取得指定寵物排行榜（每人只取最高分那筆，相容 MySQL 5.7）</summary>
+        /// <summary>
+        /// 取得指定寵物排行榜（每人只取最高分那筆，相容 MySQL 5.7）。
+        /// 同帳號同分多筆時：先取 inserttime 最晚者，再以 unicode 取唯一列（避免舊版 INNER JOIN 產生重複列或與遊戲「取最新一筆」不一致）。
+        /// </summary>
         public async Task<List<CaptureRankEntry>> GetCapturePetLeaderboardAsync(int petId, int limit = 100)
         {
             var list = new List<CaptureRankEntry>();
@@ -3957,20 +3960,92 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                            IFNULL(c.Online,0) AS isOnline
                     FROM capturepet cp
                     INNER JOIN (
-                        SELECT cdkey, MAX(sum) AS maxsum
-                        FROM capturepet WHERE id=@pid
-                        GROUP BY cdkey
-                    ) m ON cp.cdkey=m.cdkey AND cp.sum=m.maxsum AND cp.id=@pid
+                        SELECT z.cdkey, MAX(z.unicode) AS unicode
+                        FROM (
+                            SELECT cp1.cdkey, cp1.unicode
+                            FROM capturepet cp1
+                            INNER JOIN (
+                                SELECT cdkey, MAX(sum) AS maxsum
+                                FROM capturepet WHERE id=@pid
+                                GROUP BY cdkey
+                            ) mx ON mx.cdkey = cp1.cdkey AND cp1.sum = mx.maxsum AND cp1.id = @pid
+                            INNER JOIN (
+                                SELECT cp2.cdkey, MAX(cp2.inserttime) AS maxtime
+                                FROM capturepet cp2
+                                INNER JOIN (
+                                    SELECT cdkey, MAX(sum) AS maxsum
+                                    FROM capturepet WHERE id=@pid
+                                    GROUP BY cdkey
+                                ) mx2 ON mx2.cdkey = cp2.cdkey AND cp2.sum = mx2.maxsum AND cp2.id = @pid
+                                GROUP BY cp2.cdkey
+                            ) ti ON ti.cdkey = cp1.cdkey AND cp1.inserttime = ti.maxtime
+                        ) z
+                        GROUP BY z.cdkey
+                    ) pick ON pick.cdkey = cp.cdkey AND pick.unicode = cp.unicode AND cp.id = @pid
                     INNER JOIN (
                         SELECT cdkey, COUNT(*) AS entryCount
                         FROM capturepet WHERE id=@pid
                         GROUP BY cdkey
-                    ) ec ON cp.cdkey=ec.cdkey
-                    LEFT JOIN csalogin c ON c.`Name`=cp.cdkey
+                    ) ec ON cp.cdkey = ec.cdkey
+                    LEFT JOIN csalogin c ON c.`Name` = cp.cdkey
                     ORDER BY cp.sum DESC
                     LIMIT @lim", conn);
                 cmd.Parameters.AddWithValue("@pid", petId);
                 cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 500));
+                using var r = await cmd.ExecuteReaderAsync();
+                int rank = 1;
+                while (await r.ReadAsync())
+                    list.Add(new CaptureRankEntry
+                    {
+                        Rank       = rank++,
+                        Unicode    = r["unicode"]?.ToString()    ?? "",
+                        Author     = r["author"]?.ToString()     ?? "",
+                        Cdkey      = r["cdkey"]?.ToString()      ?? "",
+                        PetName    = r["petName"]?.ToString()    ?? "",
+                        PetId      = Convert.ToInt32(r["petId"]),
+                        Lv         = r["lv"]     == DBNull.Value ? 0 : Convert.ToInt32(r["lv"]),
+                        Hp         = r["hp"]     == DBNull.Value ? 0 : Convert.ToInt32(r["hp"]),
+                        Attack     = r["attack"] == DBNull.Value ? 0 : Convert.ToInt32(r["attack"]),
+                        Def        = r["def"]    == DBNull.Value ? 0 : Convert.ToInt32(r["def"]),
+                        Quick      = r["quick"]  == DBNull.Value ? 0 : Convert.ToInt32(r["quick"]),
+                        Sum        = r["sum"]    == DBNull.Value ? 0.0 : Convert.ToDouble(r["sum"]),
+                        Check      = r["check"]  != DBNull.Value && Convert.ToBoolean(r["check"]),
+                        InsertTime = r["inserttime"]?.ToString() ?? "",
+                        EntryCount = Convert.ToInt32(r["entryCount"]),
+                        IsOnline   = r["isOnline"] != DBNull.Value && Convert.ToInt32(r["isOnline"]) == 1,
+                    });
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>
+        /// 練寵表依戰力排序的「全部提交列」（與 PhpMyAdmin / 技術直接 ORDER BY sum 檢視同一邏輯；同一帳號可出現多列）。
+        /// </summary>
+        public async Task<List<CaptureRankEntry>> GetCapturePetLeaderboardRawAsync(int petId, int limit = 300)
+        {
+            var list = new List<CaptureRankEntry>();
+            try
+            {
+                using var conn = GetConnection(); await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    SELECT cp.unicode, cp.author, cp.cdkey, cp.name AS petName, cp.id AS petId,
+                           cp.lv, cp.hp, cp.attack, cp.def, cp.quick, cp.sum,
+                           cp.`check`, DATE_FORMAT(cp.inserttime,'%Y-%m-%d %H:%i') AS inserttime,
+                           ec.entryCount,
+                           IFNULL(c.Online,0) AS isOnline
+                    FROM capturepet cp
+                    INNER JOIN (
+                        SELECT cdkey, COUNT(*) AS entryCount
+                        FROM capturepet WHERE id=@pid
+                        GROUP BY cdkey
+                    ) ec ON cp.cdkey = ec.cdkey
+                    LEFT JOIN csalogin c ON c.`Name` = cp.cdkey
+                    WHERE cp.id=@pid
+                    ORDER BY cp.sum DESC, cp.inserttime DESC, cp.unicode DESC
+                    LIMIT @lim", conn);
+                cmd.Parameters.AddWithValue("@pid", petId);
+                cmd.Parameters.AddWithValue("@lim", Math.Clamp(limit, 1, 2000));
                 using var r = await cmd.ExecuteReaderAsync();
                 int rank = 1;
                 while (await r.ReadAsync())

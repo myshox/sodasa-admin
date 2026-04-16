@@ -588,7 +588,7 @@ namespace SQ_Email_Tools
         public bool   Online     { get; set; }
     }
 
-    /// <summary>練寵活動排行單筆（capturepet，每人最高分）</summary>
+    /// <summary>練寵活動排行單筆（capturepet，每人最高戰力一筆；同分取較晚提交）</summary>
     public class CaptureRankEntry
     {
         public int    Rank       { get; set; }

@@ -22,10 +22,10 @@ public class PetRankController : ControllerBase
     public async Task<IActionResult> GetPets() =>
         Ok(await _db.GetPetRankTypesAsync());
 
-    /// <summary>取得指定寵物 id 的排行榜（每人取最高分）</summary>
+    /// <summary>取得指定寵物 id 的排行榜。mode=best 每人最高分一筆；mode=raw 全部提交列依戰力（與技術直接查表排序一致）</summary>
     [HttpGet("leaderboard")]
-    public async Task<IActionResult> GetLeaderboard([FromQuery] int petId, [FromQuery] int limit = 50) =>
-        Ok(await _db.GetPetLeaderboardAsync(petId, limit));
+    public async Task<IActionResult> GetLeaderboard([FromQuery] int petId, [FromQuery] int limit = 50, [FromQuery] string mode = "best") =>
+        Ok(await _db.GetPetLeaderboardAsync(petId, limit, mode));
 
     /// <summary>查詢某玩家（帳號/角色名）的所有練寵記錄</summary>
     [HttpGet("player/{account}")]

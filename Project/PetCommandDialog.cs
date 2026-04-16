@@ -57,6 +57,17 @@ namespace SQ_Email_Tools
         private Label         _lblTgSum  = null!;
         private Label         _lblTgCalc = null!;
 
+        // ── 檔次反推（四育連動）─────────────────────────────────
+        private NumericUpDown _grdVig = null!;
+        private NumericUpDown _grdStr = null!;
+        private NumericUpDown _grdTgh = null!;
+        private NumericUpDown _grdSpd = null!;
+        private NumericUpDown _grdMul = null!;
+        private TextBox       _grdOut = null!;
+        private Label         _lblGrdReal   = null!;
+        private Label         _lblGrdPanel  = null!;
+        private Label         _lblGrdInput  = null!;
+
         public PetCommandDialog(string cdkey, string charName)
         {
             _cdkey    = cdkey;
@@ -255,7 +266,7 @@ namespace SQ_Email_Tools
             // 說明
             card2.Controls.Add(new Label
             {
-                Text      = "  請輸入「目標面板數值」，系統自動換算實際寫入參數（尾數固定 140 1）",
+                Text      = "  輸入「目標面板數值」→ HP自動÷0.0764破防換算 → 生成GM指令（尾數 140 1）",
                 ForeColor = Color.FromArgb(110, 190, 130),
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -283,10 +294,9 @@ namespace SQ_Email_Tools
             cy += 30;
             card2.Controls.AddRange(new Control[] { _abiOut, btnCopy2 });
 
-            // 換算公式提示
             card2.Controls.Add(new Label
             {
-                Text      = "※ 1:1 直接對應：輸入面板數值即為 GM 指令參數，無任何補償係數",
+                Text      = "※ HP = round(目標血量÷0.0764) 破防換算　ATK/DEF/AGI 1:1 直接寫入",
                 ForeColor = Theme.TextMuted,
                 Font      = Theme.FontSmall,
                 Location  = new Point(10, cy),
@@ -463,18 +473,153 @@ namespace SQ_Email_Tools
                 n.ValueChanged += (_, __) => RefreshTotalGrow();
             btnCopy4.Click += (_, __) => DoCopy(_tgOut.Text, btnCopy4);
 
+            // ── 卡片 5：檔次反推終極版（四育連動）─────────────────
+            var card5 = MakeCard("🎯  檔次反推終極版（輸入鑑定檔次，四育連動自動生成）");
+            cy = 36;
+
+            card5.Controls.Add(new Label
+            {
+                Text      = "  輸入遊戲面板「體、腕、耐、速」顯示檔次 → 自動-2校正 → 四育連動推算 → HP破防 → 產生指令",
+                ForeColor = Color.FromArgb(255, 180, 80),
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+
+            // 公式說明
+            var pnlFormula = new Panel
+            {
+                Location    = new Point(10, cy),
+                Size        = new Size(card5.Width - 20, 82),
+                BackColor   = Color.FromArgb(30, 22, 10),
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor      = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            pnlFormula.Controls.Add(new Label
+            {
+                Text      = "HP = (體×4+腕+耐+速) × 倍率 × 139 + 50\n" +
+                            "ATK = (腕×1.0+體×0.1+耐×0.1+速×0.05) × 倍率 × 139 + 19\n" +
+                            "DEF = (耐×1.0+體×0.1+腕×0.1+速×0.05) × 倍率 × 139 + 19\n" +
+                            "AGI = (速×1.0+體×0.05+腕×0.05+耐×0.05) × 倍率 × 139 + 12",
+                ForeColor = Color.FromArgb(200, 160, 80),
+                Font      = Theme.FontSmall,
+                Location  = new Point(8, 4),
+                AutoSize  = true
+            });
+            card5.Controls.Add(pnlFormula);
+            cy += 90;
+
+            _grdVig = MakeNud(2, 999, 40);
+            _grdStr = MakeNud(2, 999, 42);
+            _grdTgh = MakeNud(2, 999, 30);
+            _grdSpd = MakeNud(2, 999, 39);
+            _grdMul = new NumericUpDown
+            {
+                Minimum       = 0.001m,
+                Maximum       = 1m,
+                Value         = 0.045m,
+                DecimalPlaces = 4,
+                Increment     = 0.001m,
+                BackColor     = Theme.BgLight,
+                ForeColor     = Color.FromArgb(255, 200, 100),
+                Font          = Theme.FontBody,
+                Width         = 130,
+                Height        = 26,
+            };
+
+            AddRow(card5, ref cy, "體力（顯示檔次）", _grdVig);
+            AddRow(card5, ref cy, "腕力（顯示檔次）", _grdStr);
+            AddRow(card5, ref cy, "耐力（顯示檔次）", _grdTgh);
+            AddRow(card5, ref cy, "速度（顯示檔次）", _grdSpd);
+            AddRow(card5, ref cy, "成長倍率", _grdMul);
+
+            card5.Controls.Add(new Label
+            {
+                Text      = "預設 0.045，可依伺服器微調",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Location  = new Point(250, cy - 28),
+                AutoSize  = true
+            });
+
+            // 計算結果面板
+            var pnlGrdResult = new Panel
+            {
+                Location    = new Point(10, cy),
+                Size        = new Size(card5.Width - 20, 76),
+                BackColor   = Color.FromArgb(12, 28, 18),
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor      = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+
+            _lblGrdReal = new Label
+            {
+                Text      = "真實檔次：…",
+                ForeColor = Color.FromArgb(255, 180, 80),
+                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                AutoSize  = true,
+                Location  = new Point(8, 6)
+            };
+            _lblGrdPanel = new Label
+            {
+                Text      = "推算面板：…",
+                ForeColor = Color.FromArgb(130, 220, 255),
+                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                AutoSize  = true,
+                Location  = new Point(8, 28)
+            };
+            _lblGrdInput = new Label
+            {
+                Text      = "GM 寫入：…",
+                ForeColor = Color.FromArgb(110, 255, 138),
+                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
+                AutoSize  = true,
+                Location  = new Point(8, 50)
+            };
+            pnlGrdResult.Controls.AddRange(new Control[] { _lblGrdReal, _lblGrdPanel, _lblGrdInput });
+            card5.Controls.Add(pnlGrdResult);
+            cy += 84;
+
+            _grdOut = MakeOut();
+            _grdOut.ForeColor = Color.FromArgb(255, 200, 100);
+            var btnCopy5 = MakeCopyBtn();
+            btnCopy5.Location = new Point(card5.Width - 100, cy);
+            btnCopy5.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
+            _grdOut.Location  = new Point(10, cy);
+            _grdOut.Width     = card5.Width - 118;
+            _grdOut.Anchor    = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            cy += 30;
+            card5.Controls.AddRange(new Control[] { _grdOut, btnCopy5 });
+
+            card5.Controls.Add(new Label
+            {
+                Text      = "※ 真實檔次 = 顯示檔次 - 2　HP經 ÷0.0764 破防換算　ATK/DEF/AGI 1:1 寫入",
+                ForeColor = Theme.TextMuted,
+                Font      = Theme.FontSmall,
+                Location  = new Point(10, cy),
+                AutoSize  = true
+            });
+            cy += 22;
+            card5.Height = cy + 10;
+
+            foreach (var n in new NumericUpDown[] { _grdVig, _grdStr, _grdTgh, _grdSpd, _grdMul })
+                n.ValueChanged += (_, __) => RefreshGrade();
+            btnCopy5.Click += (_, __) => DoCopy(_grdOut.Text, btnCopy5);
+
             // ── 排版 ──────────────────────────────────────────────
             cardPet.Location = new Point(0, bodyY); bodyY += cardPet.Height + 8;
             card1.Location   = new Point(0, bodyY); bodyY += card1.Height + 8;
             card2.Location   = new Point(0, bodyY); bodyY += card2.Height + 8;
             card3.Location   = new Point(0, bodyY); bodyY += card3.Height + 8;
-            card4.Location   = new Point(0, bodyY);
+            card4.Location   = new Point(0, bodyY); bodyY += card4.Height + 8;
+            card5.Location   = new Point(0, bodyY);
 
-            body.Controls.AddRange(new Control[] { cardPet, card1, card2, card3, card4 });
+            body.Controls.AddRange(new Control[] { cardPet, card1, card2, card3, card4, card5 });
             body.Resize += (_, __) =>
             {
                 int w = body.ClientSize.Width - 4;
-                cardPet.Width = w; card1.Width = w; card2.Width = w; card3.Width = w; card4.Width = w;
+                cardPet.Width = w; card1.Width = w; card2.Width = w; card3.Width = w; card4.Width = w; card5.Width = w;
                 _txtSearch.Width = Math.Max(200, w - 120);
                 _lstPet.Width    = Math.Max(200, w - 120);
             };
@@ -512,7 +657,7 @@ namespace SQ_Email_Tools
         // ── 指令刷新 ──────────────────────────────────────────────
         private int CurrentPetId => (int)_nudPetId.Value;
 
-        private void RefreshAll()  { RefreshMk(); RefreshAbi(); RefreshGrow(); RefreshTotalGrow(); }
+        private void RefreshAll()  { RefreshMk(); RefreshAbi(); RefreshGrow(); RefreshTotalGrow(); RefreshGrade(); }
 
         private void RefreshTotalGrow()
         {
@@ -568,10 +713,10 @@ namespace SQ_Email_Tools
             long tDef = (long)_abiDef.Value;
             long tAgi = (long)_abiSpd.Value;
 
-            // 1:1 直接寫入（無補償係數）
-            _abiOut.Text = $"[gm petmakeabi {CurrentPetId} {tHp} {tAtk} {tDef} {tAgi} 140 1]";
+            long iHp = (long)Math.Round(tHp / 0.0764);
 
-            // 預測成長率（平均初值估算）
+            _abiOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {tAtk} {tDef} {tAgi} 140 1]";
+
             if (_lblPredAtk == null) return;
             double pAtk   = (tAtk - 19.0) / 139.0;
             double pDef   = (tDef - 12.0) / 139.0;
@@ -581,7 +726,33 @@ namespace SQ_Email_Tools
             _lblPredAtk.Text   = $"攻擊成長：{pAtk:F3}";
             _lblPredDef.Text   = $"防禦成長：{pDef:F3}";
             _lblPredAgi.Text   = $"敏捷成長：{pAgi:F3}";
-            _lblPredTotal.Text = $"預測總成長：{pTotal:F3}";
+            _lblPredTotal.Text = $"預測總成長：{pTotal:F3}　　GM寫入 HP = {iHp:#,0}";
+        }
+
+        private void RefreshGrade()
+        {
+            if (_grdOut == null) return;
+
+            int vig = (int)_grdVig.Value - 2;
+            int str = (int)_grdStr.Value - 2;
+            int tgh = (int)_grdTgh.Value - 2;
+            int spd = (int)_grdSpd.Value - 2;
+            double mul = (double)_grdMul.Value;
+
+            long tHp  = (long)Math.Round(((vig * 4.0) + str + tgh + spd) * mul * 139 + 50);
+            long tAtk = (long)Math.Round(((str * 1.0) + (vig * 0.1) + (tgh * 0.1) + (spd * 0.05)) * mul * 139 + 19);
+            long tDef = (long)Math.Round(((tgh * 1.0) + (vig * 0.1) + (str * 0.1) + (spd * 0.05)) * mul * 139 + 12);
+            long tAgi = (long)Math.Round(((spd * 1.0) + (vig * 0.05) + (str * 0.05) + (tgh * 0.05)) * mul * 139 + 12);
+            long iHp  = (long)Math.Round(tHp / 0.0764);
+
+            _grdOut.Text = $"[gm petmakeabi {CurrentPetId} {iHp} {tAtk} {tDef} {tAgi} 140 1]";
+
+            if (_lblGrdReal != null)
+                _lblGrdReal.Text = $"真實檔次：體 {vig}　腕 {str}　耐 {tgh}　速 {spd}　　總 {vig + str + tgh + spd}（顯示 {vig + str + tgh + spd + 8}）";
+            if (_lblGrdPanel != null)
+                _lblGrdPanel.Text = $"推算面板：HP {tHp:#,0}　ATK {tAtk}　DEF {tDef}　AGI {tAgi}";
+            if (_lblGrdInput != null)
+                _lblGrdInput.Text = $"GM 寫入：HP {iHp:#,0}　ATK {tAtk}　DEF {tDef}　AGI {tAgi}";
         }
 
         // ── 複製並短暫變色 ────────────────────────────────────────
