@@ -1,6 +1,15 @@
+using System.Text.Json.Serialization;
+
 namespace WebApi.Models;
 
-public record LoginRequest(string Username, string Password);
+/// <summary>明確綁定 camelCase，避免部分環境 JSON 選項與 record 位置參數不相容導致帳密為空。</summary>
+public class LoginRequest
+{
+    [JsonPropertyName("username")]
+    public string Username { get; set; } = "";
+    [JsonPropertyName("password")]
+    public string Password { get; set; } = "";
+}
 public record LoginResponse(string Token, string Username, string Role);
 
 public class PlayerRow

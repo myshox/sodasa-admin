@@ -360,13 +360,8 @@ namespace SQ_Email_Tools
             return ok;
         }
 
-        /// <summary>批量「僅在線」：Online=1 或 LoginTime 6 小時內，再加同主帳號（MasterId）所有角色（不限 IP）。</summary>
-        private static async Task<List<string>> LoadOnlineBatchAccountNamesAsync(MySqlConnection conn)
-        {
-            const string sql = @"
-SELECT DISTINCT c.`Name`
-FROM csalogin c
-WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
+        /// <summary>批量發送「僅線上」與批量金幣載入「同批量發送線上條件」共用（csalogin 別名 c）。</summary>
+        private const string CsaloginBatchMailOnlinePredicate = @"(c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
    OR (
         c.MasterId IS NOT NULL
         AND EXISTS (
@@ -375,6 +370,14 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             AND o.MasterId = c.MasterId
         )
       )";
+
+        /// <summary>批量「僅在線」：Online=1 或 LoginTime 6 小時內，再加同主帳號（MasterId）所有角色（不限 IP）。</summary>
+        private static async Task<List<string>> LoadOnlineBatchAccountNamesAsync(MySqlConnection conn)
+        {
+            string sql = $@"
+SELECT DISTINCT c.`Name`
+FROM csalogin c
+WHERE {CsaloginBatchMailOnlinePredicate}";
             var list = new List<string>();
             try
             {
@@ -399,7 +402,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             HashSet<string>? excludeSet = null,
             bool onlineOnly = false)
         {
-            // 取帳號清單（onlineOnly：Online=1 ＋ 同 MasterId＋同 IP 之所有角色，與 WebApi 一致）
+            // 取帳號清單（onlineOnly：與 CsaloginBatchMailOnlinePredicate 一致，與 WebApi 對齊）
             var allAccounts = new List<string>();
             using (var connA = GetConnection())
             {
@@ -2849,6 +2852,81 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                     MasterName = r["MasterName"]?.ToString() ?? "",
                     PayTotal   = Convert.ToInt64(r["PayTotal"])
                 });
+            return list;
+        }
+
+        /// <summary>
+        /// 與 <see cref="BatchSendMailAsync"/> 勾選「僅線上玩家」時相同對象（線上／近 6 小時登入／同 MasterId 下角色），供批量金幣載入清單與發送範圍一致。
+        /// </summary>
+        public async Task<List<PlayerInfo>> GetOnlineTargetsMatchingBatchMailAsync()
+        {
+            var list = new List<PlayerInfo>();
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            bool hasId = await CsaloginHasIdAsync(conn);
+            string idCol = hasId ? ", c.`id` AS CharDbId" : ", 0 AS CharDbId";
+            string nameUtf8  = "CONVERT(CONVERT(c.`Name` USING binary) USING utf8mb4)";
+            string onameUtf8 = "CONVERT(CONVERT(c.OnlineName USING binary) USING utf8mb4)";
+            string mnameUtf8 = "IFNULL(CONVERT(CONVERT(m.`Name` USING binary) USING utf8mb4),'')";
+            string sql = $@"SELECT c.MasterId, {nameUtf8} AS `Name`, {onameUtf8} AS OnlineName, c.Online, c.LoginTime, c.ServerId,
+                           IFNULL(p.point, 0)   AS PayTotal,
+                           IFNULL(pet.cnt, 0)   AS PetCount,
+                           {mnameUtf8}  AS MasterName
+                           {idCol}
+                    FROM csalogin c
+                    LEFT JOIN paydata p          ON p.cdkey = c.`Name`
+                    LEFT JOIN csaloginmaster m   ON m.Id    = c.MasterId
+                    LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
+                           ON pet.cdkey = c.`Name`
+                    WHERE {CsaloginBatchMailOnlinePredicate}
+                    ORDER BY c.Online DESC, c.LoginTime DESC";
+
+            void AddRows(MySqlDataReader reader)
+            {
+                while (reader.Read())
+                {
+                    list.Add(new PlayerInfo
+                    {
+                        MasterId   = reader["MasterId"] == DBNull.Value ? 0 : reader.GetInt32("MasterId"),
+                        Account    = reader["Name"]?.ToString() ?? "",
+                        OnlineName = reader["OnlineName"]?.ToString() ?? "",
+                        IsOnline   = reader["Online"] != DBNull.Value && reader.GetInt32("Online") == 1,
+                        LoginTime  = reader["LoginTime"]?.ToString() ?? "",
+                        ServerId   = reader["ServerId"]?.ToString() ?? "",
+                        PayTotal   = reader["PayTotal"] == DBNull.Value ? 0 : Convert.ToInt64(reader["PayTotal"]),
+                        PetCount   = reader["PetCount"] == DBNull.Value ? 0 : Convert.ToInt32(reader["PetCount"]),
+                        MasterName = reader["MasterName"]?.ToString() ?? "",
+                        CharDbId   = reader["CharDbId"] == DBNull.Value ? 0 : Convert.ToInt32(reader["CharDbId"])
+                    });
+                }
+            }
+
+            try
+            {
+                using var cmd = new MySqlCommand(sql, conn);
+                using var reader = await cmd.ExecuteReaderAsync();
+                AddRows(reader);
+            }
+            catch
+            {
+                list.Clear();
+                string sqlFb = $@"SELECT c.MasterId, {nameUtf8} AS `Name`, {onameUtf8} AS OnlineName, c.Online, c.LoginTime, c.ServerId,
+                           IFNULL(p.point, 0)   AS PayTotal,
+                           IFNULL(pet.cnt, 0)   AS PetCount,
+                           {mnameUtf8}  AS MasterName
+                           {idCol}
+                    FROM csalogin c
+                    LEFT JOIN paydata p          ON p.cdkey = c.`Name`
+                    LEFT JOIN csaloginmaster m   ON m.Id    = c.MasterId
+                    LEFT JOIN (SELECT cdkey, COUNT(*) AS cnt FROM capturepet GROUP BY cdkey) pet
+                           ON pet.cdkey = c.`Name`
+                    WHERE c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR)
+                    ORDER BY c.Online DESC, c.LoginTime DESC";
+                using var cmd = new MySqlCommand(sqlFb, conn);
+                using var reader = await cmd.ExecuteReaderAsync();
+                AddRows(reader);
+            }
+
             return list;
         }
 

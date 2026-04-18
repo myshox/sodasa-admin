@@ -301,7 +301,7 @@ namespace SQ_Email_Tools
             };
 
             var btnBatchGold = MakeNavBtn("💰", "批量金幣", ref y);
-            navTip.SetToolTip(btnBatchGold, "對多位玩家同時加減金幣，支援全服、在線、自訂");
+            navTip.SetToolTip(btnBatchGold, "對多位玩家同時加減金幣；全服／線上範圍與「批量發送」一致，可關鍵字自訂");
             btnBatchGold.Click += (s, e) =>
             {
                 SetActiveNav(btnBatchGold);

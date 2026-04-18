@@ -377,6 +377,30 @@ namespace SQ_Email_Tools
             rb.Cursor      = Cursors.Hand;
         }
 
+        /// <summary>
+        /// 單選改為「分段按鈕」外觀：已選取有明顯底色，避免系統圓點在深色底對比過低、看不出選了哪一項。
+        /// </summary>
+        public static void StyleRadioButtonSegment(RadioButton rb, int widthPx, Color? fg = null)
+        {
+            rb.Appearance = Appearance.Button;
+            rb.FlatStyle  = FlatStyle.Flat;
+            rb.UseVisualStyleBackColor = false;
+            rb.AutoSize   = false;
+            rb.Width      = Math.Max(48, widthPx);
+            rb.Height     = 36;
+            rb.TextAlign  = ContentAlignment.MiddleLeft;
+            rb.Padding    = new Padding(12, 0, 8, 0);
+            rb.Font       = FontBody;
+            rb.Cursor     = Cursors.Hand;
+            rb.ForeColor  = fg ?? TextPrimary;
+            rb.BackColor  = BgMid;
+            rb.FlatAppearance.BorderSize         = 1;
+            rb.FlatAppearance.BorderColor        = Border;
+            rb.FlatAppearance.MouseOverBackColor = BgLight;
+            rb.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 50, 88);
+            rb.FlatAppearance.CheckedBackColor   = Color.FromArgb(36, 58, 96);
+        }
+
         /// <summary>Soft UI 次要按鈕（取消/清除類）</summary>
         public static Button MakeGhostButton(string text, int w = 96, int h = 40)
         {

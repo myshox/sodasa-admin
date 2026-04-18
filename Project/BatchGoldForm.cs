@@ -58,20 +58,20 @@ namespace SQ_Email_Tools
             var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
             header.Controls.Add(new Label
             {
-                Text      = "  💰  批量金幣修改  —  搜尋玩家，勾選目標後發放或扣除金幣",
-                ForeColor = Theme.AccentOrange, Font = Theme.FontBody,
+                Text      = "  💰  批量金幣修改  ·  載入名單 → 勾選對象 → 選擇加／減金額 → 執行",
+                ForeColor = Theme.AccentOrange, Font = Theme.FontHeader,
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
+                Padding = new Padding(12, 0, 12, 0)
             });
 
             // ── 狀態列 ──────────────────────────────────────────
             var statusBar = new Panel { Dock = DockStyle.Bottom, Height = 28, BackColor = Theme.BgDark };
             _statusLbl = new Label
             {
-                Text = "請選擇目標範圍，載入玩家後勾選要操作的對象",
+                Text = "① 左側選範圍後按「載入玩家清單」② 右側勾選要操作的帳號 ③ 設定金額後執行",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 0, 0)
+                Padding = new Padding(12, 0, 12, 0)
             };
             statusBar.Controls.Add(_statusLbl);
 
@@ -86,7 +86,7 @@ namespace SQ_Email_Tools
             split.HandleCreated += (_, __) =>
             {
                 if (split.Width >= 760)
-                    try { split.SplitterDistance = Math.Max(300, Math.Min(split.Width - 460, 340)); } catch { }
+                    try { split.SplitterDistance = Math.Max(312, Math.Min(split.Width - 480, 380)); } catch { }
             };
 
             BuildLeftPanel(split.Panel1);
@@ -110,8 +110,8 @@ namespace SQ_Email_Tools
             // ── STEP 1：選擇載入範圍 ──────────────────────────
             AddSection(scroll, "STEP 1 — 載入玩家範圍", ref y, x);
 
-            _rbAll = MakeRadio(scroll, "🌐 全服所有玩家", x, ref y, true);
-            _rbOnline = MakeRadio(scroll, "🟢 僅在線玩家", x, ref y);
+            _rbAll = MakeRadio(scroll, "🌐 全服（與批量發送相同）", x, ref y, true);
+            _rbOnline = MakeRadio(scroll, "🟢 同批量發送「僅線上」條件", x, ref y);
             _rbSearch = MakeRadio(scroll, "🔍 依關鍵字搜尋", x, ref y);
 
             // 搜尋框
@@ -166,32 +166,35 @@ namespace SQ_Email_Tools
             // ── STEP 2：金額設定 ──────────────────────────────
             AddSection(scroll, "STEP 2 — 設定金幣金額", ref y, x);
 
-            scroll.Controls.Add(new Label { Text = "操作：", Location = new Point(x, y + 4), ForeColor = Theme.TextSecondary, AutoSize = true });
-            _rbAdd = new RadioButton { Text = "➕ 發放（增加）", Location = new Point(x + 56, y), ForeColor = Theme.AccentGreen, AutoSize = true, Checked = true, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
-            _rbSub = new RadioButton { Text = "➖ 扣除（減少）", Location = new Point(x + 210, y), ForeColor = Theme.AccentRed, AutoSize = true, FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent };
+            scroll.Controls.Add(new Label { Text = "操作：", Location = new Point(x, y), ForeColor = Theme.TextSecondary, AutoSize = true });
+            y += 22;
+            _rbAdd = new RadioButton { Text = "發放（增加金幣）", Location = new Point(x, y), Checked = true };
+            _rbSub = new RadioButton { Text = "扣除（減少金幣）", Location = new Point(x, y + 40) };
+            Theme.StyleRadioButtonSegment(_rbAdd, 290, Theme.AccentGreen);
+            Theme.StyleRadioButtonSegment(_rbSub, 290, Theme.AccentRed);
             scroll.Controls.AddRange(new Control[] { _rbAdd, _rbSub });
-            y += 36;
+            y += 88;
 
             scroll.Controls.Add(new Label { Text = "金幣數量：", Location = new Point(x, y + 4), ForeColor = Theme.TextSecondary, AutoSize = true });
             _nudAmount = new NumericUpDown
             {
-                Location = new Point(x + 80, y), Width = 180, Height = 28,
+                Location = new Point(x + 80, y), Width = 200, Height = 28,
                 Minimum = 1, Maximum = 10_000_000, Value = 1000, Increment = 1000,
-                BackColor = Theme.BgLight, ForeColor = Theme.TextPrimary,
-                Font = Theme.FontBody, ThousandsSeparator = true
+                ThousandsSeparator = true
             };
+            Theme.StyleNumericUpDown(_nudAmount);
             scroll.Controls.Add(_nudAmount);
             y += 50;
 
             // ── STEP 3：確認執行 ──────────────────────────────
             AddSection(scroll, "STEP 3 — 確認執行", ref y, x);
 
-            var warnPanel = new Panel { Location = new Point(x, y), Size = new Size(300, 44), BackColor = Color.FromArgb(60, 30, 10) };
+            var warnPanel = new Panel { Location = new Point(x, y), Size = new Size(300, 52), BackColor = Color.FromArgb(52, 28, 12), BorderStyle = BorderStyle.FixedSingle };
             warnPanel.Controls.Add(new Label
             {
-                Text = "⚠  此操作無法撤銷，請確認勾選名單和金額！",
-                ForeColor = Theme.AccentOrange, Font = Theme.FontSmall,
-                Location = new Point(8, 6), AutoSize = true
+                Text = "⚠  此操作無法撤銷。\n請再次確認：右側已勾選的帳號、以及金幣加／減與數量。",
+                ForeColor = Color.FromArgb(255, 210, 160), Font = Theme.FontSmall,
+                Location = new Point(10, 8), Size = new Size(280, 40), AutoSize = false
             });
             scroll.Controls.Add(warnPanel);
             y += 54;
@@ -225,27 +228,27 @@ namespace SQ_Email_Tools
         private void BuildRightPanel(Panel p)
         {
             // ── 頂部工具列（兩列）──────────────────────────────────
-            var toolbarWrap = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(20, 24, 36) };
+            var toolbarWrap = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Color.FromArgb(20, 24, 36) };
 
             // 第一列：標題 + 全選操作
-            var toolbar = new Panel { Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(20, 24, 36), Padding = new Padding(8, 5, 8, 0) };
+            var toolbar = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.FromArgb(20, 24, 36), Padding = new Padding(10, 8, 10, 0) };
             var titleLbl = new Label
             {
-                Text = "📋  玩家清單  — 勾選要操作的對象",
-                ForeColor = Theme.AccentBlue, Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
-                Dock = DockStyle.Left, Width = 220, TextAlign = ContentAlignment.MiddleLeft
+                Text = "📋  玩家清單",
+                ForeColor = Theme.AccentBlue, Font = Theme.FontHeader,
+                Dock = DockStyle.Left, AutoSize = true, TextAlign = ContentAlignment.MiddleLeft
             };
-            _btnSelAll    = Theme.MakeSecondaryButton("全選",    52, 24);
-            _btnSelNone   = Theme.MakeSecondaryButton("取消全選", 68, 24);
-            _btnSelInvert = Theme.MakeSecondaryButton("反選",    52, 24);
+            _btnSelAll    = Theme.MakeSecondaryButton("全選",    56, 26);
+            _btnSelNone   = Theme.MakeSecondaryButton("取消全選", 76, 26);
+            _btnSelInvert = Theme.MakeSecondaryButton("反選",    56, 26);
             _btnSelAll.Dock    = DockStyle.Left; _btnSelAll.Margin    = new Padding(0, 0, 4, 0);
             _btnSelNone.Dock   = DockStyle.Left; _btnSelNone.Margin   = new Padding(0, 0, 4, 0);
             _btnSelInvert.Dock = DockStyle.Left; _btnSelInvert.Margin = new Padding(0, 0, 4, 0);
             _lblSelected = new Label
             {
-                Text = "請先載入玩家", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
-                Dock = DockStyle.Right, Width = 130, TextAlign = ContentAlignment.MiddleRight,
-                Padding = new Padding(0, 0, 4, 0)
+                Text = "請先載入玩家", ForeColor = Theme.TextMuted, Font = Theme.FontBody,
+                Dock = DockStyle.Right, Width = 200, TextAlign = ContentAlignment.MiddleRight,
+                Padding = new Padding(0, 0, 8, 0)
             };
             _btnSelAll.Click    += (s, e) => SetAllChecked(true);
             _btnSelNone.Click   += (s, e) => SetAllChecked(false);
@@ -256,22 +259,42 @@ namespace SQ_Email_Tools
             toolbar.Controls.Add(_btnSelInvert);
             toolbar.Controls.Add(_lblSelected);
 
-            // 第二列：群組操作 + 匯出
-            var toolbar2 = new Panel { Dock = DockStyle.Bottom, Height = 34, BackColor = Color.FromArgb(16, 20, 32), Padding = new Padding(8, 4, 8, 4) };
-            var btnSaveGrp = Theme.MakeSecondaryButton("💾 儲存群組", 88, 24);
-            var btnLoadGrp = Theme.MakeSecondaryButton("📂 載入群組", 88, 24);
-            var btnExport  = Theme.MakeSecondaryButton("📥 匯出 Excel", 100, 24);
-            btnSaveGrp.Dock = DockStyle.Left; btnSaveGrp.Margin = new Padding(0, 0, 6, 0);
-            btnLoadGrp.Dock = DockStyle.Left; btnLoadGrp.Margin = new Padding(0, 0, 6, 0);
-            btnExport.Dock  = DockStyle.Left; btnExport.Margin  = new Padding(0, 0, 6, 0);
+            // 第二列：說明 + 群組／匯出
+            var toolbar2 = new Panel { Dock = DockStyle.Bottom, Height = 38, BackColor = Color.FromArgb(16, 20, 32), Padding = new Padding(10, 4, 10, 6) };
+            var hintRight = new Label
+            {
+                Text = "點「角色名稱／帳號」可切換勾選　·　表頭可排序",
+                ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                AutoSize = true, TextAlign = ContentAlignment.MiddleLeft
+            };
+            var btnSaveGrp = Theme.MakeSecondaryButton("💾 儲存群組", 92, 26);
+            var btnLoadGrp = Theme.MakeSecondaryButton("📂 載入群組", 92, 26);
+            var btnExport  = Theme.MakeSecondaryButton("📥 匯出 Excel", 108, 26);
 
             btnSaveGrp.Click += (s, e) => SaveGroup();
             btnLoadGrp.Click += (s, e) => LoadGroup();
             btnExport.Click  += (s, e) => ExportResultsExcel();
 
+            void LayoutToolbar2()
+            {
+                int midY = (toolbar2.ClientSize.Height - btnSaveGrp.Height) / 2;
+                int rx = toolbar2.ClientSize.Width - 10;
+                foreach (var b in new[] { btnExport, btnLoadGrp, btnSaveGrp })
+                {
+                    rx -= b.Width;
+                    b.Location = new Point(rx, midY);
+                    rx -= 8;
+                }
+                hintRight.Location = new Point(10, (toolbar2.ClientSize.Height - hintRight.PreferredHeight) / 2);
+                hintRight.MaximumSize = new Size(Math.Max(180, rx - 24), 0);
+            }
+
+            toolbar2.Controls.Add(hintRight);
             toolbar2.Controls.Add(btnSaveGrp);
             toolbar2.Controls.Add(btnLoadGrp);
             toolbar2.Controls.Add(btnExport);
+            toolbar2.Resize += (_, __) => LayoutToolbar2();
+            LayoutToolbar2();
 
             toolbarWrap.Controls.Add(toolbar2);
             toolbarWrap.Controls.Add(toolbar);
@@ -281,18 +304,38 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(_listDgv);
             _listDgv.ReadOnly            = false;
             _listDgv.AllowUserToAddRows  = false;
-            _listDgv.RowTemplate.Height  = 28;
-            _listDgv.ColumnHeadersHeight = 28;
             _listDgv.MultiSelect         = true;
             _listDgv.Tag                 = "picker_no_copy";
+            _listDgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            _listDgv.RowTemplate.Height       = 40;
+            _listDgv.ColumnHeadersHeight      = 40;
+            _listDgv.DefaultCellStyle.Font = Theme.FontBody;
 
-            var colChk = new DataGridViewCheckBoxColumn { Name = "cChk", HeaderText = "✓", Width = 42 };
+            var colChk = new DataGridViewCheckBoxColumn
+            {
+                Name = "cChk", HeaderText = "選取", Width = 52,
+                SortMode = DataGridViewColumnSortMode.NotSortable,
+                ToolTipText = "打勾的帳號才會被批次加／減金幣"
+            };
             colChk.DefaultCellStyle.Alignment  = DataGridViewContentAlignment.MiddleCenter;
             colChk.HeaderCell.Style.Alignment  = DataGridViewContentAlignment.MiddleCenter;
-            var colSt  = new DataGridViewTextBoxColumn { Name = "cSt",  HeaderText = "狀", Width = 42, ReadOnly = true };
+            var colSt = new DataGridViewTextBoxColumn
+            {
+                Name = "cSt", HeaderText = "在線", Width = 56, ReadOnly = true,
+                ToolTipText = "載入當下是否在線（參考用）"
+            };
             colSt.DefaultCellStyle.Alignment   = DataGridViewContentAlignment.MiddleCenter;
-            var colName = new DataGridViewTextBoxColumn { Name = "cName",    HeaderText = "角色名稱", Width = 140, ReadOnly = true };
-            var colAcc  = new DataGridViewTextBoxColumn { Name = "cAcc",     HeaderText = "帳號",    AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 120, ReadOnly = true };
+            var colName = new DataGridViewTextBoxColumn
+            {
+                Name = "cName", HeaderText = "角色名稱", Width = 168, ReadOnly = true,
+                ToolTipText = "遊戲內顯示名稱"
+            };
+            var colAcc = new DataGridViewTextBoxColumn
+            {
+                Name = "cAcc", HeaderText = "主帳號（cdkey）", ReadOnly = true,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 160,
+                ToolTipText = "資料庫帳號欄位，實際加減金幣的對象"
+            };
             _listDgv.Columns.AddRange(new DataGridViewColumn[] { colChk, colSt, colName, colAcc });
 
             // 單擊勾選框 → 立即提交（CellContentClick 是 WinForms 勾選框的正確事件）
@@ -342,14 +385,16 @@ namespace SQ_Email_Tools
             // ── 執行日誌 ──────────────────────────────────────
             _logBox = new RichTextBox
             {
-                Dock = DockStyle.Bottom, Height = 140,
-                BackColor = Color.FromArgb(14, 14, 20), ForeColor = Theme.TextPrimary,
-                Font = new Font("Consolas", 9f), ReadOnly = true, BorderStyle = BorderStyle.None
+                Dock = DockStyle.Bottom, Height = 132,
+                BackColor = Color.FromArgb(22, 26, 36), ForeColor = Theme.TextSecondary,
+                Font = new Font(Theme.FontFamily, 9.5f), ReadOnly = true,
+                BorderStyle = BorderStyle.FixedSingle,
+                Text = "（尚無執行紀錄）\n執行後會逐筆顯示 ✓ 成功 或 ✗ 失敗；可捲動檢視。\n"
             };
-            var logHdr = new Panel { Dock = DockStyle.Bottom, Height = 22, BackColor = Theme.BgDark };
+            var logHdr = new Panel { Dock = DockStyle.Bottom, Height = 26, BackColor = Theme.BgDark };
             logHdr.Controls.Add(new Label
             {
-                Text = "  執行日誌", ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
+                Text = "  執行日誌（即時）", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
                 Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft
             });
 
@@ -368,9 +413,9 @@ namespace SQ_Email_Tools
             {
                 List<PlayerInfo> players;
                 if (_rbAll.Checked)
-                    players = await DatabaseManager.Instance.SearchPlayersAsync("");
+                    players = await DatabaseManager.Instance.SearchPlayersAsync("", limit: 0);
                 else if (_rbOnline.Checked)
-                    players = await DatabaseManager.Instance.GetOnlinePlayersAsync();
+                    players = await DatabaseManager.Instance.GetOnlineTargetsMatchingBatchMailAsync();
                 else
                 {
                     string q = _txtSearch.Text.Trim();
@@ -385,9 +430,8 @@ namespace SQ_Email_Tools
                 _listDgv.SuspendLayout();
                 foreach (var pl in players)
                 {
-                    int ri = _listDgv.Rows.Add(true, pl.IsOnline ? "🟢" : "⚫", pl.OnlineName, pl.Account);
-                    // 預設全選，高亮標示
-                    _listDgv.Rows[ri].DefaultCellStyle.BackColor = Color.FromArgb(22, 103, 194, 58);
+                    int ri = _listDgv.Rows.Add(true, pl.IsOnline ? "在線" : "離線", pl.OnlineName ?? "", pl.Account);
+                    ApplyRowStyle(_listDgv.Rows[ri], true);
                 }
                 _listDgv.ResumeLayout();
 
@@ -439,9 +483,17 @@ namespace SQ_Email_Tools
 
         private static void ApplyRowStyle(DataGridViewRow row, bool selected)
         {
-            row.DefaultCellStyle.BackColor = selected
-                ? Color.FromArgb(22, 103, 194, 58)
-                : Color.Empty;
+            if (selected)
+            {
+                row.DefaultCellStyle.BackColor = Color.FromArgb(36, 52, 44);
+                row.DefaultCellStyle.ForeColor = Color.FromArgb(230, 255, 238);
+            }
+            else
+            {
+                bool alt = row.Index >= 0 && (row.Index % 2 == 1);
+                row.DefaultCellStyle.BackColor = alt ? Theme.BgMid : Theme.BgCard;
+                row.DefaultCellStyle.ForeColor = Theme.TextPrimary;
+            }
         }
 
         private void UpdateSelectedCount()
@@ -560,12 +612,13 @@ namespace SQ_Email_Tools
         {
             var rb = new RadioButton
             {
-                Text = text, Location = new Point(x, y),
-                ForeColor = Theme.TextPrimary, AutoSize = true, Checked = check,
-                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent
+                Text = text,
+                Location = new Point(x, y),
+                Checked = check
             };
+            Theme.StyleRadioButtonSegment(rb, 290);
             parent.Controls.Add(rb);
-            y += 28;
+            y += 40;
             return rb;
         }
 
@@ -666,8 +719,8 @@ namespace SQ_Email_Tools
                     string cname = i < grp.CharNames.Count ? grp.CharNames[i] : "";
                     if (!existing.Contains(acc))
                     {
-                        int ri = _listDgv.Rows.Add(true, "", cname, acc);
-                        _listDgv.Rows[ri].DefaultCellStyle.BackColor = Color.FromArgb(22, 103, 194, 58);
+                        int ri = _listDgv.Rows.Add(true, "—", cname, acc);
+                        ApplyRowStyle(_listDgv.Rows[ri], true);
                         added++;
                     }
                 }

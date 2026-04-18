@@ -11,7 +11,9 @@ api.interceptors.request.use(cfg => {
 })
 
 api.interceptors.response.use(r => r, err => {
-  if (err.response?.status === 401) {
+  // 登入失敗的 401 不導頁，否則無法在登入頁顯示錯誤訊息
+  const url = String(err.config?.url ?? '')
+  if (err.response?.status === 401 && !url.includes('/auth/login')) {
     localStorage.removeItem('gm_token')
     window.location.href = '/login'
   }

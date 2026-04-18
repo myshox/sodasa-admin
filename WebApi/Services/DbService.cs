@@ -1518,6 +1518,93 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     }
 
     // ── GM 工具帳號（admin_users）────────────────────────────────
+
+    /// <summary>
+    /// 若不存在則建立 <c>admin_users</c>（MySQL／MariaDB）。WebApi 啟動時呼叫，避免手動在錯誤引擎建表。
+    /// </summary>
+    public async Task EnsureAdminUsersTableAsync()
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            const string sql = @"
+CREATE TABLE IF NOT EXISTS `admin_users` (
+  `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username`   VARCHAR(64)  NOT NULL,
+  `password`   VARCHAR(128) NOT NULL,
+  `nickname`   VARCHAR(128) NOT NULL DEFAULT '',
+  `status`     TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP    NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+            await using var cmd = new MySqlCommand(sql, db);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("[EnsureAdminUsersTable] " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 若 <c>admin_users</c> 尚無任何列（例如 Zeabur 新庫），建立 <c>admin</c>／密碼 <c>1234</c>（MD5），登入後請立刻改密碼。
+    /// </summary>
+    public async Task SeedDefaultAdminWhenTableEmptyAsync()
+    {
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            long n;
+            await using (var cntCmd = new MySqlCommand("SELECT COUNT(*) FROM admin_users", db))
+                n = Convert.ToInt64(await cntCmd.ExecuteScalarAsync() ?? 0L);
+            if (n > 0) return;
+
+            string hash = HashAdminPassword("1234");
+            await using var ins = new MySqlCommand(
+                "INSERT INTO admin_users (username, password, nickname, status) VALUES ('admin', @p, 'bootstrap', 1)", db);
+            ins.Parameters.AddWithValue("@p", hash);
+            await ins.ExecuteNonQueryAsync();
+            Console.WriteLine("[GM] admin_users was empty: created user admin / password 1234 — change it in GM panel.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[SeedDefaultAdmin] " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 環境變數 <c>GM_BOOTSTRAP_ADMIN=1</c> 時，將 <c>admin</c> 密碼設為 <c>GM_BOOTSTRAP_PASSWORD</c>（預設 1234），供雲端救援一次；設完請刪除此變數並改密碼。
+    /// </summary>
+    public async Task ApplyBootstrapAdminFromEnvAsync()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("GM_BOOTSTRAP_ADMIN")?.Trim(), "1", StringComparison.Ordinal))
+            return;
+        string plain = Environment.GetEnvironmentVariable("GM_BOOTSTRAP_PASSWORD")?.Trim();
+        if (string.IsNullOrEmpty(plain)) plain = "1234";
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            string hash = HashAdminPassword(plain);
+            await using var upd = new MySqlCommand(
+                "UPDATE admin_users SET password=@p, `status`=1 WHERE LOWER(TRIM(username))='admin'", db);
+            upd.Parameters.AddWithValue("@p", hash);
+            int rows = await upd.ExecuteNonQueryAsync();
+            if (rows == 0)
+            {
+                await using var ins = new MySqlCommand(
+                    "INSERT INTO admin_users (username, password, nickname, status) VALUES ('admin', @p, 'bootstrap', 1)", db);
+                ins.Parameters.AddWithValue("@p", hash);
+                await ins.ExecuteNonQueryAsync();
+            }
+            Console.WriteLine("[GM] GM_BOOTSTRAP_ADMIN=1 applied for user admin (see GM_BOOTSTRAP_PASSWORD). Remove this env after login.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[BootstrapAdminEnv] " + ex.Message);
+        }
+    }
+
     public async Task<List<AdminUserDto>> GetAdminUsersAsync()
     {
         var list = new List<AdminUserDto>();
@@ -1545,8 +1632,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     {
         if (string.IsNullOrWhiteSpace(username)) return (false, "帳號不可為空");
         await using var db = Open(); await db.OpenAsync();
-        string hash = Convert.ToHexString(
-            System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(password ?? ""))).ToLower();
+        string hash = HashAdminPassword(password);
         await using var cmd = new MySqlCommand(
             "INSERT INTO admin_users (username, password, nickname, status) VALUES (@u,@p,@n,1)", db);
         cmd.Parameters.AddWithValue("@u", username.Trim());
@@ -1577,12 +1663,55 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     {
         if (string.IsNullOrWhiteSpace(newPassword)) return false;
         await using var db = Open(); await db.OpenAsync();
-        string hash = Convert.ToHexString(
-            System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(newPassword))).ToLower();
+        string hash = HashAdminPassword(newPassword);
         await using var cmd = new MySqlCommand("UPDATE admin_users SET password=@p WHERE id=@id", db);
         cmd.Parameters.AddWithValue("@p", hash);
         cmd.Parameters.AddWithValue("@id", id);
         return await cmd.ExecuteNonQueryAsync() > 0;
+    }
+
+    /// <summary>與 <see cref="AddAdminUserAsync"/>／EXE 相同：UTF-8 明文 → MD5 十六進位（小寫）。</summary>
+    public static string HashAdminPassword(string? plain) =>
+        Convert.ToHexString(
+            System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(plain ?? ""))).ToLowerInvariant();
+
+    /// <summary>
+    /// 驗證 <c>admin_users</c>（GM 管理／EXE）；帳號不分大小寫、密碼支援 MD5 十六進位（不分大小寫）或歷史明文欄位。
+    /// <c>status</c> 為 NULL 時視為啟用。
+    /// </summary>
+    public async Task<(bool ok, string username, string role)> TryValidateAdminUsersLoginAsync(string username, string? password)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return (false, "", "gm");
+        string uq = username.Trim();
+        string pw = password ?? "";
+        string hash = HashAdminPassword(pw);
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                @"SELECT username, password FROM admin_users
+                  WHERE LOWER(TRIM(username)) = LOWER(TRIM(@u))
+                    AND IFNULL(`status`, 1) = 1
+                  LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@u", uq);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return (false, "", "gm");
+            string dbUser = (r["username"]?.ToString() ?? "").Trim();
+            string stored = (r["password"]?.ToString() ?? "").Trim();
+            if (dbUser.Length == 0) return (false, "", "gm");
+
+            bool pwdOk =
+                string.Equals(stored, hash, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stored, pw, StringComparison.Ordinal);
+            if (!pwdOk) return (false, "", "gm");
+
+            string role = dbUser.Equals("admin", StringComparison.OrdinalIgnoreCase) ? "superadmin" : "gm";
+            return (true, dbUser, role);
+        }
+        catch
+        {
+            return (false, "", "gm");
+        }
     }
 
     // ── 唯讀 SQL（僅允許 SELECT / SHOW / DESCRIBE）─────────────

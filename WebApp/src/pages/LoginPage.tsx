@@ -44,8 +44,19 @@ export default function LoginPage() {
         localStorage.removeItem(REMEMBER_KEY)
       }
       nav('/')
-    } catch {
-      setErr(S.loginErr)
+    } catch (e: unknown) {
+      const ax = e as {
+        response?: { status?: number; data?: { message?: string; detail?: string } }
+      }
+      const data = ax.response?.data
+      const msg = typeof data?.message === 'string' ? data.message.trim() : ''
+      const detail = typeof data?.detail === 'string' ? data.detail.trim() : ''
+      if (!ax.response)
+        setErr('無法連線伺服器，請確認網址與後端是否已啟動。')
+      else if (msg)
+        setErr(detail ? `${msg}\n${detail}` : msg)
+      else
+        setErr(S.loginErr)
     } finally {
       setLoading(false)
     }

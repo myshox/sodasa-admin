@@ -26,6 +26,20 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
     p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
+
+// 在遊戲用 MySQL 上自動建立 admin_users（若尚不存在）；勿在 PostgreSQL 執行手動腳本。
+try
+{
+    var dbSvc = app.Services.GetRequiredService<DbService>();
+    await dbSvc.EnsureAdminUsersTableAsync();
+    await dbSvc.SeedDefaultAdminWhenTableEmptyAsync();
+    await dbSvc.ApplyBootstrapAdminFromEnvAsync();
+}
+catch (Exception ex)
+{
+    Console.WriteLine("[Startup] EnsureAdminUsersTable: " + ex.Message);
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
