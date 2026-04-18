@@ -70,8 +70,8 @@ public class AuthController : ControllerBase
             var secret = _cfg["Jwt:Secret"];
             if (string.IsNullOrWhiteSpace(secret))
                 return StatusCode(503, new { message = "伺服器未設定 Jwt:Secret，無法簽發登入權杖，請檢查 appsettings 或環境變數。" });
-            if (secret.Length < 16)
-                return StatusCode(503, new { message = "Jwt:Secret 過短（建議至少 32 字元隨機字串），請更新設定後重啟服務。" });
+            if (Encoding.UTF8.GetByteCount(secret) < 32)
+                return StatusCode(503, new { message = "Jwt:Secret 位元組長度不足（.NET 8 HMAC-SHA256 要求金鑰至少 256 bits，即 32 個 ASCII 字元或更多）。請在環境變數或 appsettings 更新後重啟。" });
 
             var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

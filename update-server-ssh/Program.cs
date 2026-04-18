@@ -16,6 +16,25 @@ class Program
         Console.WriteLine("=== 連線成功，開始更新... ===\n");
 
         var args = Environment.GetCommandLineArgs();
+        if (args.Length > 1 && args[1] == "diag")
+        {
+            var dcmds = new[]
+            {
+                "dotnet --list-runtimes",
+                "dotnet --list-sdks",
+                "systemctl cat gmtool 2>/dev/null | head -60",
+                "journalctl -u gmtool -n 80 --no-pager",
+            };
+            foreach (var c in dcmds)
+            {
+                Console.WriteLine($"\n===== {c} =====");
+                var rr = client.RunCommand(c);
+                Console.WriteLine(rr.Result.Trim());
+                if (!string.IsNullOrWhiteSpace(rr.Error)) Console.WriteLine("[stderr] " + rr.Error.Trim());
+            }
+            client.Disconnect();
+            return;
+        }
         if (args.Length > 1 && args[1] == "check")
         {
             var checks = new[]
@@ -64,11 +83,32 @@ class Program
             return;
         }
 
+        var serviceUnit = @"[Unit]
+Description=SodaGM Web Tool
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/gmtool/publish
+ExecStart=/usr/bin/dotnet --roll-forward LatestMajor /opt/gmtool/publish/WebApi.dll
+Restart=always
+RestartSec=5
+Environment=ASPNETCORE_ENVIRONMENT=Development
+Environment=GmAccounts__0__Username=admin
+Environment=GmAccounts__0__Password=1234
+Environment=GmAccounts__0__Role=superadmin
+
+[Install]
+WantedBy=multi-user.target
+";
+            var writeUnitCmd = $"cat > /etc/systemd/system/gmtool.service <<'EOF'\n{serviceUnit}EOF\nsystemctl daemon-reload; echo unit-updated";
+
         var cmds = new List<(string desc, string cmd)>
         {
-            ("git pull", "cd /opt/gmtool; git pull origin master 2>&1 | tail -5"),
-            ("dotnet publish", "cd /opt/gmtool/WebApi; dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
-            ("restart", "systemctl restart gmtool; sleep 2; systemctl is-active gmtool"),
+            ("write service unit (dev+GmAccounts)", writeUnitCmd),
+            ("restart", "systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
+            ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://localhost:5050/"),
+            ("login test", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'"),
+            ("journal last 40 (look for Exception)", "journalctl -u gmtool -n 60 --no-pager | tail -50"),
         };
 
         foreach (var (desc, cmd) in cmds)
