@@ -29,6 +29,9 @@ export interface ImportItemResult {
   detectedColumns: string
 }
 
+/** UI 點擊加入購物車的預設 Type（道具郵件，與 BatchOpsPage 一致） */
+export const DEFAULT_MAIL_TYPE = 1
+
 /** 寬鬆整數解析：接受 "1,234,567"、"1001.0"、前置 '、科學記號 */
 function looseInt(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null
@@ -158,7 +161,7 @@ function parseDelimited(text: string): ImportItemResult {
       continue
     }
     const qty  = cols.qty  >= 0 ? Math.max(1, looseInt(cells[cols.qty])  ?? 1) : 1
-    const type = cols.type >= 0 ? Math.max(0, looseInt(cells[cols.type]) ?? 0) : 0
+    const type = cols.type >= 0 ? Math.max(0, looseInt(cells[cols.type]) ?? DEFAULT_MAIL_TYPE) : DEFAULT_MAIL_TYPE
     const name = cols.name >= 0 ? cells[cols.name] : undefined
     rows.push({ itemId: id, qty, type, name })
   }
@@ -250,7 +253,7 @@ function parseXlsxSheet(ws: XLSX.WorkSheet, sheetName: string): ImportItemResult
       continue
     }
     const qty  = cols.qty  >= 0 ? Math.max(1, looseInt(rawCells[cols.qty])  ?? 1) : 1
-    const type = cols.type >= 0 ? Math.max(0, looseInt(rawCells[cols.type]) ?? 0) : 0
+    const type = cols.type >= 0 ? Math.max(0, looseInt(rawCells[cols.type]) ?? DEFAULT_MAIL_TYPE) : DEFAULT_MAIL_TYPE
     const name = cols.name >= 0 ? String(rawCells[cols.name] ?? '').trim() || undefined : undefined
     rows.push({ itemId: id, qty, type, name })
   }

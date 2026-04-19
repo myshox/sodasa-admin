@@ -12,16 +12,21 @@ namespace SQ_Email_Tools
     /// 從 CSV / TXT / TSV / XLSX / XLS 解析「道具清單」。
     /// 可辨識的欄位：id / qty / type / name
     ///   - 標題列偵測：等值或包含關鍵字（id, 編號, qty, 數量, type, 類型, name, 名稱…）
-    ///   - 找不到標題 → 第 1 欄=Id，第 2 欄=Qty（缺則 1），第 3 欄=Type（缺則 0）
+    ///   - 找不到標題 → 第 1 欄=Id，第 2 欄=Qty（缺則 1），第 3 欄=Type（缺則 預設值）
     /// ID/Qty/Type 解析寬鬆：可接受千分位逗號、小數點 (1001.0)、前置 '、科學記號。
+    /// 注意：Row.Type 預設 1（與 SendForm UI 預設一致：1=道具郵件）；
+    ///       檔案有明確 type 欄則尊重檔案。
     /// </summary>
     internal static class ItemListImporter
     {
+        /// <summary>UI 點擊加入購物車的預設 Type（道具郵件）</summary>
+        public const int DefaultMailType = 1;
+
         public class Row
         {
             public int Id   { get; set; }
             public int Qty  { get; set; } = 1;
-            public int Type { get; set; } = 0;
+            public int Type { get; set; } = DefaultMailType;
             public string Name { get; set; }
         }
 
@@ -190,7 +195,7 @@ namespace SQ_Email_Tools
                 if (colQty >= 0 && colQty < cells.Length && TryParseLooseInt(cells[colQty], out int q))
                     qty = Math.Max(1, q);
 
-                int type = 0;
+                int type = DefaultMailType;
                 if (colType >= 0 && colType < cells.Length && TryParseLooseInt(cells[colType], out int t))
                     type = Math.Max(0, t);
 
@@ -348,7 +353,7 @@ namespace SQ_Email_Tools
                 if (colQty >= 0 && TryParseLooseInt(ReadXlsxCell(ws, r, colQty + 1), out int q))
                     qty = Math.Max(1, q);
 
-                int type = 0;
+                int type = DefaultMailType;
                 if (colType >= 0 && TryParseLooseInt(ReadXlsxCell(ws, r, colType + 1), out int t))
                     type = Math.Max(0, t);
 
