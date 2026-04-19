@@ -950,8 +950,8 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                      costPoint, costCheck };
     }
 
-    // ── 給予儲值（與 EXE 一致：paydata 循環 25,000、csalogin.PayTotal/VipPoint）────────
-    private const long CYCLE_MAX = 25_000L;
+    // ── 給予儲值（與 EXE 一致：paydata 循環 20,000、csalogin.PayTotal/VipPoint）────────
+    private const long CYCLE_MAX = 20_000L;
 
     public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold, bool updatePaydata = true)
     {

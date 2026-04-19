@@ -55,6 +55,13 @@ namespace SQ_Email_Tools
             _btnRefresh.Click += (s, e) => _ = LoadAllAsync();
             header.Controls.Add(_btnRefresh);
 
+            // 🔧 批量修復循環（換季調整 25k→20k 後一次性遷移）
+            var btnBatchFix = Theme.MakeButton("🔧 批量修復循環", Color.FromArgb(220, 130, 30), Color.White, 150, 32);
+            btnBatchFix.Dock   = DockStyle.Right;
+            btnBatchFix.Margin = new Padding(0, 10, 8, 10);
+            btnBatchFix.Click += async (s, e) => await BatchFixCycleAsync();
+            header.Controls.Add(btnBatchFix);
+
             // ── KPI 卡片列 ──────────────────────────────────────
             var kpiPanel = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.BgMid };
             kpiPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
@@ -310,6 +317,60 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════
         // 載入資料
         // ═══════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════
+        // 批量修復循環（換季 25k→20k 後一次性遷移）
+        //   流程：先 dry-run 顯示影響筆數 → 確認後 → 再執行 → 最後顯示結果
+        // ══════════════════════════════════════════════════════════════
+        private async Task BatchFixCycleAsync()
+        {
+            try
+            {
+                // STEP 1：預檢
+                var (_, preview, maxPt) = await DatabaseManager.Instance.BatchFixAllPaydataAsync(dryRun: true);
+
+                if (preview == 0)
+                {
+                    MessageBox.Show(
+                        "✅ 目前沒有任何玩家的 paydata.point 超過新的循環上限（20,000）。\n\n不需要進行批量修復。",
+                        "🔧 批量修復循環", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // STEP 2：確認
+                var ans = MessageBox.Show(
+                    $"🔧 換季調整偵測：\n\n" +
+                    $"  • 受影響玩家：{preview:N0} 人\n" +
+                    $"  • 目前最大 point：NT$ {maxPt:N0}\n" +
+                    $"  • 新循環上限：NT$ 20,000\n\n" +
+                    $"執行內容：\n" +
+                    $"  ✓ 將 point > 20,000 的玩家自動進位到正確輪次\n" +
+                    $"  ✓ totalcheck 同步累加\n" +
+                    $"  ✓ check 歸零（讓玩家可在新輪次重新領取）\n" +
+                    $"  ✗ 不影響 lifetime_total（歷史總額）\n\n" +
+                    $"確定要執行嗎？此操作會立即更新 {preview:N0} 筆資料。",
+                    "🔧 批量修復循環確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (ans != DialogResult.Yes) return;
+
+                // STEP 3：執行
+                var (affected, _, _) = await DatabaseManager.Instance.BatchFixAllPaydataAsync(dryRun: false);
+
+                MessageBox.Show(
+                    $"✅ 批量修復完成！\n\n" +
+                    $"  • 實際修復：{affected:N0} 筆\n" +
+                    $"  • 所有玩家 paydata.point 現在均 ≤ 20,000\n" +
+                    $"  • totalcheck 已同步累加\n" +
+                    $"  • lifetime_total 保留原值",
+                    "🔧 批量修復循環", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                _ = LoadAllAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ 批量修復失敗：\n\n{ex.Message}", "錯誤",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private async Task LoadAllAsync()
         {
             _btnRefresh.Enabled = false;

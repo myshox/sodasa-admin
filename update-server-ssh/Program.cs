@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Renci.SshNet;
 
 class Program
@@ -16,6 +17,360 @@ class Program
         Console.WriteLine("=== 連線成功，開始更新... ===\n");
 
         var args = Environment.GetCommandLineArgs();
+        if (args.Length > 1 && args[1] == "binlog")
+        {
+            var getCs = client.RunCommand(
+                "cat /opt/gmtool/publish/appsettings.json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"ConnectionStrings\"][\"Default\"])' 2>/dev/null || " +
+                "grep -Po 'Environment=ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service"
+            ).Result.Trim();
+            string H="",U="",P="",D="",Port="3306";
+            foreach (var part in getCs.Split(';', StringSplitOptions.RemoveEmptyEntries)) {
+                var kv = part.Split('=', 2); if (kv.Length<2) continue;
+                var k=kv[0].Trim().ToLowerInvariant(); var v=kv[1].Trim();
+                if (k=="server"||k=="host") H=v;
+                else if (k=="port") Port=v;
+                else if (k=="user"||k=="uid"||k=="user id") U=v;
+                else if (k=="password"||k=="pwd") P=v;
+                else if (k=="database"||k=="db") D=v;
+            }
+            string Q(string sql) =>
+                client.RunCommand($"mysql -h{H} -P{Port} -u{U} -p'{P}' {D} --protocol=tcp -e \"{sql.Replace("\"","\\\"")}\" 2>&1 | grep -v 'password on the command line'").Result.Trim();
+
+            Console.WriteLine("== 1) log_bin 狀態 ==");
+            Console.WriteLine(Q("SHOW VARIABLES LIKE 'log_bin';"));
+            Console.WriteLine("\n== 2) binlog_format & expire_logs_days ==");
+            Console.WriteLine(Q("SHOW VARIABLES WHERE Variable_name IN ('binlog_format','expire_logs_days','binlog_expire_logs_seconds','log_bin_basename');"));
+            Console.WriteLine("\n== 3) 所有 binary log 檔案 (需要 REPLICATION CLIENT 權限) ==");
+            Console.WriteLine(Q("SHOW BINARY LOGS;"));
+            Console.WriteLine("\n== 4) 當前使用者權限 ==");
+            Console.WriteLine(Q("SHOW GRANTS FOR CURRENT_USER;"));
+            Console.WriteLine("\n== 5) 伺服器時區與現在時間 ==");
+            Console.WriteLine(Q("SELECT @@global.time_zone, @@session.time_zone, NOW(), UTC_TIMESTAMP();"));
+            Console.WriteLine("\n== 6) cat1987 主帳號下最近的角色更新時間 (看還活著的殘骸) ==");
+            Console.WriteLine(Q("SELECT Id, Name, OnlineName, RegTime, LoginTime, updated_at FROM csalogin WHERE MasterId=1507 ORDER BY Id;"));
+            Console.WriteLine("\n== 7) 附近 Id 範圍確認 (4115~4125) ==");
+            Console.WriteLine(Q("SELECT Id, MasterId, Name, OnlineName FROM csalogin WHERE Id BETWEEN 4115 AND 4125 ORDER BY Id;"));
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "master")
+        {
+            var ids = args.Length > 2 ? args[2] : "1507,1987,1988";
+            var list = ids.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            var getCs = client.RunCommand(
+                "cat /opt/gmtool/publish/appsettings.json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"ConnectionStrings\"][\"Default\"])' 2>/dev/null || " +
+                "grep -Po 'Environment=ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service"
+            ).Result.Trim();
+            string H="",U="",P="",D="",Port="3306";
+            foreach (var part in getCs.Split(';', StringSplitOptions.RemoveEmptyEntries)) {
+                var kv = part.Split('=', 2); if (kv.Length<2) continue;
+                var k=kv[0].Trim().ToLowerInvariant(); var v=kv[1].Trim();
+                if (k=="server"||k=="host") H=v;
+                else if (k=="port") Port=v;
+                else if (k=="user"||k=="uid"||k=="user id") U=v;
+                else if (k=="password"||k=="pwd") P=v;
+                else if (k=="database"||k=="db") D=v;
+            }
+            string Q(string sql) =>
+                client.RunCommand($"mysql -h{H} -P{Port} -u{U} -p'{P}' {D} --protocol=tcp -e \"{sql.Replace("\"","\\\"")}\" 2>&1 | grep -v 'password on the command line'").Result.Trim();
+
+            Console.WriteLine("== csaloginmaster 欄位 ==");
+            Console.WriteLine(Q("DESC csaloginmaster;"));
+            foreach (var id in list)
+            {
+                Console.WriteLine($"\n============ MasterId = {id} ============");
+                Console.WriteLine("-- csaloginmaster (主帳號) --");
+                Console.WriteLine(Q($"SELECT * FROM csaloginmaster WHERE Id={id} OR id={id};"));
+                Console.WriteLine("-- csalogin (該主帳號下現存角色) --");
+                Console.WriteLine(Q($"SELECT Id, Name, OnlineName, LoginTime FROM csalogin WHERE MasterId={id} ORDER BY Id;"));
+                Console.WriteLine("-- csalogin_recycle (該主帳號下曾被 GM Tool 刪除的角色) --");
+                Console.WriteLine(Q($"SELECT recycle_id, deleted_at, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) AS Name, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.OnlineName')) AS OnlineName FROM csalogin_recycle WHERE JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId'))='{id}' ORDER BY deleted_at DESC;"));
+            }
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "backups")
+        {
+            var cmds2 = new[]
+            {
+                "find / -name '*.sql' -size +1M 2>/dev/null | head -30",
+                "find / -name '*.sql.gz' 2>/dev/null | head -30",
+                "find / -name '*.dump' 2>/dev/null | head -20",
+                "find /root /home /var /opt -name 'backup*' -type d 2>/dev/null | head -20",
+                "ls -la /var/lib/mysql 2>/dev/null | head -5; ls -la /var/log/mysql 2>/dev/null | head -5",
+                "systemctl list-units | grep -i backup",
+                "crontab -l 2>/dev/null",
+            };
+            foreach (var c in cmds2)
+            {
+                Console.WriteLine("\n>>> " + c);
+                var r = client.RunCommand(c);
+                Console.WriteLine(r.Result.Trim());
+            }
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "hunt")
+        {
+            // 全資料庫所有文字欄位搜尋關鍵字
+            var key = args.Length > 2 ? args[2] : "CAT1987";
+            var getCs = client.RunCommand(
+                "cat /opt/gmtool/publish/appsettings.json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"ConnectionStrings\"][\"Default\"])' 2>/dev/null || " +
+                "grep -Po 'Environment=ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service"
+            ).Result.Trim();
+            string H="",U="",P="",D="",Port="3306";
+            foreach (var part in getCs.Split(';', StringSplitOptions.RemoveEmptyEntries)) {
+                var kv = part.Split('=', 2); if (kv.Length<2) continue;
+                var k=kv[0].Trim().ToLowerInvariant(); var v=kv[1].Trim();
+                if (k=="server"||k=="host") H=v;
+                else if (k=="port") Port=v;
+                else if (k=="user"||k=="uid"||k=="user id") U=v;
+                else if (k=="password"||k=="pwd") P=v;
+                else if (k=="database"||k=="db") D=v;
+            }
+            string Q(string sql) =>
+                client.RunCommand($"mysql -h{H} -P{Port} -u{U} -p'{P}' {D} --protocol=tcp -N -e \"{sql.Replace("\"","\\\"")}\" 2>&1 | grep -v 'password on the command line'").Result.Trim();
+
+            Console.WriteLine("== 所有 table ==");
+            Console.WriteLine(Q("SHOW TABLES;"));
+
+            Console.WriteLine("\n== 取得所有文字欄位（全庫） ==");
+            var all = Q("SELECT TABLE_NAME, COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND DATA_TYPE IN ('varchar','char','text','longtext','mediumtext','tinytext');");
+            var entries = new List<(string tbl, string col)>();
+            foreach (var line in all.Split('\n'))
+            {
+                var t = line.Split('\t');
+                if (t.Length >= 2 && !string.IsNullOrWhiteSpace(t[0])) entries.Add((t[0].Trim(), t[1].Trim()));
+            }
+            Console.WriteLine($"共 {entries.Count} 個文字欄位要掃");
+
+            // 每一欄位 UNION 組在一起（可能 SQL 太長，分批）
+            Console.WriteLine($"\n== 全庫搜尋含 '{key}' 的紀錄 ==");
+            int batch = 40, total = 0;
+            for (int i=0; i < entries.Count; i += batch)
+            {
+                var segs = entries.Skip(i).Take(batch)
+                    .Select(e => $"SELECT '{e.tbl}' AS tbl, '{e.col}' AS col, COUNT(*) AS cnt FROM `{e.tbl}` WHERE `{e.col}` LIKE '%{key}%'");
+                var sql = string.Join(" UNION ALL ", segs);
+                var rs = Q(sql + ";");
+                foreach (var ln in rs.Split('\n'))
+                {
+                    var tt = ln.Split('\t');
+                    if (tt.Length >= 3 && int.TryParse(tt[2], out var n) && n > 0)
+                    {
+                        Console.WriteLine($"HIT ► {tt[0]}.{tt[1]} = {n} 筆");
+                        total += n;
+                    }
+                }
+            }
+            if (total == 0) Console.WriteLine($"全庫掃過，完全沒有含 '{key}' 的紀錄");
+            else Console.WriteLine($"\n共 {total} 筆符合。");
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "schema")
+        {
+            var getCs = client.RunCommand(
+                "cat /opt/gmtool/publish/appsettings.json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"ConnectionStrings\"][\"Default\"])' 2>/dev/null || " +
+                "grep -Po 'Environment=ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service"
+            ).Result.Trim();
+            string H="",U="",P="",D="",Port="3306";
+            foreach (var part in getCs.Split(';', StringSplitOptions.RemoveEmptyEntries)) {
+                var kv = part.Split('=', 2); if (kv.Length<2) continue;
+                var k=kv[0].Trim().ToLowerInvariant(); var v=kv[1].Trim();
+                if (k=="server"||k=="host") H=v;
+                else if (k=="port") Port=v;
+                else if (k=="user"||k=="uid"||k=="user id") U=v;
+                else if (k=="password"||k=="pwd") P=v;
+                else if (k=="database"||k=="db") D=v;
+            }
+            string Q(string sql) {
+                return client.RunCommand($"mysql -h{H} -P{Port} -u{U} -p'{P}' {D} --protocol=tcp -e \"{sql.Replace("\"","\\\"")}\" 2>&1 | grep -v 'password on the command line'").Result.Trim();
+            }
+            var key = args.Length > 2 ? args[2] : "CAT1987";
+            Console.WriteLine("== csalogin 欄位 ==");
+            Console.WriteLine(Q("DESC csalogin;"));
+            Console.WriteLine("\n== csalogin 各欄位中凡含 'CAT' 前綴者（抽樣前 5 個文字欄位） ==");
+            // 找出所有可能的字串欄位，然後各查一遍
+            var colsRaw = Q("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='csalogin' AND DATA_TYPE IN ('varchar','char','text');");
+            Console.WriteLine("文字欄位：");
+            Console.WriteLine(colsRaw);
+            // 取欄位名
+            var textCols = new List<string>();
+            foreach (var line in colsRaw.Split('\n')) {
+                var tabs = line.Split('\t');
+                if (tabs.Length >= 2 && tabs[0] != "COLUMN_NAME") textCols.Add(tabs[0]);
+            }
+            // 用單一 UNION 查詢避免多次 shell 逃逸問題
+            var unionSql = string.Join(" UNION ALL ", textCols.Select(c =>
+                $"SELECT '{c}' AS col, COUNT(*) AS cnt FROM csalogin WHERE {c} LIKE '%{key}%'"));
+            Console.WriteLine("-- 各文字欄位中含 '" + key + "' 的筆數 --");
+            Console.WriteLine(Q(unionSql + ";"));
+
+            Console.WriteLine("\n-- 直接列出 Name LIKE 'CAT%' 的 20 筆 --");
+            Console.WriteLine(Q($"SELECT Id, Name, OnlineName, MasterId, LoginTime FROM csalogin WHERE Name LIKE '{key}%' LIMIT 20;"));
+            Console.WriteLine("\n-- 直接列出 OnlineName LIKE 'CAT%' 的 20 筆 --");
+            Console.WriteLine(Q($"SELECT Id, Name, OnlineName, MasterId, LoginTime FROM csalogin WHERE OnlineName LIKE '{key}%' LIMIT 20;"));
+            Console.WriteLine("\n== 回收桶中 JSON 含 'CAT' 的記錄 ==");
+            Console.WriteLine(Q($"SELECT recycle_id, deleted_at, LEFT(original_data, 200) AS preview FROM csalogin_recycle WHERE original_data LIKE '%{key}%' ORDER BY deleted_at DESC LIMIT 20;"));
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "finddb")
+        {
+            var target = args.Length > 2 ? args[2] : "CAT1987 CAT1988";
+            var keys = target.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            // 確保 mysql-client 裝了
+            var hasMy = client.RunCommand("which mysql || echo NO").Result.Trim();
+            if (hasMy.EndsWith("NO"))
+            {
+                Console.WriteLine("[install mysql-client] ...");
+                var ins = client.RunCommand("DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-client 2>&1 | tail -3");
+                Console.WriteLine(ins.Result.Trim());
+            }
+
+            // 從 appsettings.json (非 example) 或 systemd 讀連線字串
+            var getCs = client.RunCommand(
+                "cat /opt/gmtool/publish/appsettings.json 2>/dev/null | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[\"ConnectionStrings\"][\"Default\"])' 2>/dev/null || " +
+                "grep -Po 'Environment=ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service"
+            ).Result.Trim();
+            Console.WriteLine("[connstr] " + (getCs.Length > 0 ? getCs.Replace("Password=", "Password=***").Substring(0, Math.Min(getCs.Length, 120)) : "EMPTY"));
+
+            string dbHost2 = "", dbUser2 = "", dbPass2 = "", dbName2 = "", dbPort2 = "3306";
+            foreach (var p in getCs.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = p.Split('=', 2); if (kv.Length < 2) continue;
+                var k = kv[0].Trim().ToLowerInvariant(); var v = kv[1].Trim();
+                if (k == "server" || k == "host") dbHost2 = v;
+                else if (k == "port") dbPort2 = v;
+                else if (k == "user" || k == "uid" || k == "user id") dbUser2 = v;
+                else if (k == "password" || k == "pwd") dbPass2 = v;
+                else if (k == "database" || k == "db") dbName2 = v;
+            }
+            if (dbHost2.Length == 0) { Console.WriteLine("找不到連線字串，請提供。"); client.Disconnect(); return; }
+
+            string MyQ(string sql) {
+                var cmd = $"mysql -h{dbHost2} -P{dbPort2} -u{dbUser2} -p'{dbPass2}' {dbName2} --protocol=tcp -e \"{sql.Replace("\"", "\\\"")}\" 2>&1";
+                return client.RunCommand(cmd).Result.Trim();
+            }
+
+            Console.WriteLine("\n== 回收桶表是否存在？ ==");
+            Console.WriteLine(MyQ("SHOW TABLES LIKE 'csalogin_recycle';"));
+            Console.WriteLine("\n== 回收桶目前筆數 ==");
+            Console.WriteLine(MyQ("SELECT COUNT(*) AS total FROM csalogin_recycle;"));
+            Console.WriteLine("\n== 回收桶最近 10 筆 ==");
+            Console.WriteLine(MyQ("SELECT recycle_id, deleted_at, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) AS Name, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.OnlineName')) AS OnlineName, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId')) AS MasterId FROM csalogin_recycle ORDER BY deleted_at DESC LIMIT 10;"));
+
+            foreach (var key in keys)
+            {
+                var k2 = key.Replace("'", "''");
+                Console.WriteLine("\n============= 搜尋 " + key + " =============");
+                Console.WriteLine("-- 回收桶 (MasterId / Name 完全符合或前綴) --");
+                Console.WriteLine(MyQ(
+                    "SELECT recycle_id, deleted_at, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) AS Name, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.OnlineName')) AS OnlineName, JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId')) AS MasterId " +
+                    "FROM csalogin_recycle WHERE " +
+                    $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId'))='{k2}' OR " +
+                    $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name'))='{k2}' OR " +
+                    $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) LIKE '{k2}%' " +
+                    "ORDER BY deleted_at DESC LIMIT 20;"));
+                Console.WriteLine("-- csalogin (目前仍存在的角色) --");
+                Console.WriteLine(MyQ(
+                    $"SELECT id, Name, OnlineName, MasterId, LoginTime FROM csalogin WHERE MasterId='{k2}' OR Name='{k2}' OR Name LIKE '{k2}%' ORDER BY LoginTime DESC LIMIT 20;"));
+            }
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "findapi")
+        {
+            var target = args.Length > 2 ? args[2] : "CAT1987 CAT1988";
+            var keys = target.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            // 用本機 curl 透過 WebApi 登入並查回收桶
+            var loginCmd = "curl -s -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'";
+            var loginRes = client.RunCommand(loginCmd).Result.Trim();
+            Console.WriteLine("[login] " + loginRes);
+            var tokenIdx = loginRes.IndexOf("\"token\":\"");
+            if (tokenIdx < 0) { Console.WriteLine("登入失敗"); client.Disconnect(); return; }
+            tokenIdx += "\"token\":\"".Length;
+            var tokenEnd = loginRes.IndexOf('"', tokenIdx);
+            var token = loginRes.Substring(tokenIdx, tokenEnd - tokenIdx);
+
+            Console.WriteLine("\n=== 抓取回收桶 ===");
+            var rb = client.RunCommand($"curl -s -H 'Authorization: Bearer {token}' http://localhost:5050/api/recycle").Result;
+            foreach (var key in keys)
+            {
+                Console.WriteLine("\n--- 搜尋 \"" + key + "\" 的結果 ---");
+                int found = 0;
+                var lines = rb.Split(new[] { '}', '{' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    if (line.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        Console.WriteLine(line.Trim());
+                        found++;
+                    }
+                }
+                if (found == 0) Console.WriteLine("(回收桶裡沒找到含 \"" + key + "\" 的記錄)");
+            }
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "find")
+        {
+            // 讀取 appsettings 取連線字串，然後搜尋回收桶與 csalogin
+            var target = args.Length > 2 ? args[2] : "CAT1987 CAT1988";
+            var keys = target.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+            // 取連線字串：嘗試讀 systemd env + appsettings.json
+            var cs = client.RunCommand(
+                "grep -Po 'ConnectionStrings__Default=\\K.*' /etc/systemd/system/gmtool.service 2>/dev/null; " +
+                "[ -z \"$cs\" ] && grep -Po '\"Default\"\\s*:\\s*\"\\K[^\"]+' /opt/gmtool/publish/appsettings*.json 2>/dev/null | head -1"
+            ).Result.Trim();
+            Console.WriteLine("[conn] " + (string.IsNullOrEmpty(cs) ? "(not found inline; will try mysql default)" : cs.Substring(0, Math.Min(cs.Length, 80)) + "..."));
+
+            // 從連線字串萃取 DB 連線資訊
+            var parts = cs.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            string dbHost = "", dbUser = "", dbPass = "", dbName = "";
+            foreach (var p in parts)
+            {
+                var kv = p.Split('=', 2);
+                if (kv.Length < 2) continue;
+                var k = kv[0].Trim().ToLowerInvariant();
+                var v = kv[1].Trim();
+                if (k == "server" || k == "host") dbHost = v;
+                else if (k == "user" || k == "uid" || k == "user id") dbUser = v;
+                else if (k == "password" || k == "pwd") dbPass = v;
+                else if (k == "database" || k == "db") dbName = v;
+            }
+
+            foreach (var key in keys)
+            {
+                Console.WriteLine("\n=========== 搜尋 " + key + " ===========");
+                var safeKey = key.Replace("'", "''");
+
+                // 回收桶
+                Console.WriteLine("-- csalogin_recycle (回收桶) --");
+                var q1 = $"SELECT recycle_id, deleted_at, deleted_by, " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) AS Name, " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.OnlineName')) AS OnlineName, " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId')) AS MasterId " +
+                         $"FROM csalogin_recycle WHERE " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.MasterId')) = '{safeKey}' OR " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name'))     = '{safeKey}' OR " +
+                         $"JSON_UNQUOTE(JSON_EXTRACT(original_data,'$.Name')) LIKE '{safeKey}%' " +
+                         $"ORDER BY deleted_at DESC LIMIT 20;";
+                var r1 = client.RunCommand($"mysql -h{dbHost} -u{dbUser} -p'{dbPass}' {dbName} -e \"{q1}\" 2>&1");
+                Console.WriteLine(r1.Result.Trim());
+
+                // 現有 csalogin (以防只是找不到，實際還在)
+                Console.WriteLine("-- csalogin (目前仍存在的角色) --");
+                var q2 = $"SELECT id, Name, OnlineName, MasterId, LoginTime FROM csalogin WHERE " +
+                         $"MasterId = '{safeKey}' OR Name = '{safeKey}' OR Name LIKE '{safeKey}%' " +
+                         $"ORDER BY LoginTime DESC LIMIT 20;";
+                var r2 = client.RunCommand($"mysql -h{dbHost} -u{dbUser} -p'{dbPass}' {dbName} -e \"{q2}\" 2>&1");
+                Console.WriteLine(r2.Result.Trim());
+            }
+            client.Disconnect();
+            return;
+        }
         if (args.Length > 1 && args[1] == "diag")
         {
             var dcmds = new[]
@@ -92,10 +447,13 @@ WorkingDirectory=/opt/gmtool/publish
 ExecStart=/usr/bin/dotnet --roll-forward LatestMajor /opt/gmtool/publish/WebApi.dll
 Restart=always
 RestartSec=5
-Environment=ASPNETCORE_ENVIRONMENT=Development
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
 Environment=GmAccounts__0__Username=admin
 Environment=GmAccounts__0__Password=1234
 Environment=GmAccounts__0__Role=superadmin
+Environment=Jwt__Secret=kQ7nRwXz3YpM8fH2sL4vBt6cE1gJuA9dNhT5bVaKoXeFmP0rCyZqDsIlUwGhJxNv
+Environment=Jwt__ExpiryHours=12
 
 [Install]
 WantedBy=multi-user.target
@@ -104,11 +462,12 @@ WantedBy=multi-user.target
 
         var cmds = new List<(string desc, string cmd)>
         {
-            ("write service unit (dev+GmAccounts)", writeUnitCmd),
+            ("write service unit (prod+GmAccounts+Jwt)", writeUnitCmd),
+            ("git pull", "cd /opt/gmtool && git pull origin master 2>&1 | tail -3"),
+            ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
             ("restart", "systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
             ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://localhost:5050/"),
-            ("login test", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'"),
-            ("journal last 40 (look for Exception)", "journalctl -u gmtool -n 60 --no-pager | tail -50"),
+            ("login admin/1234", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'"),
         };
 
         foreach (var (desc, cmd) in cmds)

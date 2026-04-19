@@ -757,23 +757,23 @@ namespace SQ_Email_Tools
             RowDouble("充值點：", $"{_detail.PayPoint:N0}",
                       "R幣：",    $"{_detail.RmbPoint:N0}");
 
-            // ── 累積充值（台幣）—— paydata.point 單位為 NT$，1循環 = NT$25,000 ────
-            const long CYCLE = 25_000L;   // NT$25,000 / cycle（對應遊戲面板 0→25000）
+            // ── 累積充值（台幣）—— paydata.point 單位為 NT$，1循環 = NT$20,000 ────
+            const long CYCLE = 20_000L;   // NT$20,000 / cycle（對應遊戲面板 0→20000）
             long  payPt      = _detail.PayTotal;         // NT$（paydata.point，遊戲直接讀取）
             long  lifetimePt = _detail.LifetimePayTotal; // NT$（永不歸零的歷史總額）
             long  cycle      = payPt / CYCLE;            // 已完成循環數
             long  inCycle    = payPt % CYCLE;            // 本循環已累積（NT$）
             long  remain     = CYCLE - inCycle;          // 距下一循環還差多少（NT$）
             int   pct        = (int)(inCycle * 100 / CYCLE);
-            // 循環說明文字（與遊戲面板邏輯相同：遊戲顯示 inCycle / 25000）
+            // 循環說明文字（與遊戲面板邏輯相同：遊戲顯示 inCycle / 20000）
             string cycleLabel = cycle == 0
                 ? $"第 1 循環"
                 : $"第 {cycle + 1} 循環（已完成 {cycle} 次）";
 
             y += 4;
-            Section($"💳  累積充值（台幣）  —  {cycleLabel} · NT${inCycle:N0} / $25,000  ·  歷史總計 NT${payPt:N0}", Color.FromArgb(255, 200, 80));
+            Section($"💳  累積充值（台幣）  —  {cycleLabel} · NT${inCycle:N0} / $20,000  ·  歷史總計 NT${payPt:N0}", Color.FromArgb(255, 200, 80));
             RowEditable("當前循環進度：",
-                $"NT$ {inCycle:N0} / 25,000　（遊戲面板顯示值）　|　歷史總計 NT$ {payPt:N0}",
+                $"NT$ {inCycle:N0} / 20,000　（遊戲面板顯示值）　|　歷史總計 NT$ {payPt:N0}",
                 Color.FromArgb(255, 200, 80), async () =>
             {
                 using var dlg = new AdjustRechargeDialog(_player.OnlineName, _detail.PayTotal, _detail.LifetimePayTotal,
@@ -908,7 +908,7 @@ namespace SQ_Email_Tools
                     if (MessageBox.Show(
                         $"🎁 確定要發放「{_player.OnlineName}」第 {_detail.TotalCheck} 輪的累積獎勵？\n\n" +
                         "  · paydata.check 將設為 1（已領）\n" +
-                        "  · 下次累積滿 NT$25,000 才能再次領獎\n\n" +
+                        "  · 下次累積滿 NT$20,000 才能再次領獎\n\n" +
                         "確認執行？",
                         "🎁 發放累積獎勵",
                         MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
@@ -1016,7 +1016,7 @@ namespace SQ_Email_Tools
                 // 進度數字（大字，遊戲面板顯示的就是這個）
                 var valMain = new Label
                 {
-                    Text      = $"NT$ {inCycle:N0}  /  25,000",
+                    Text      = $"NT$ {inCycle:N0}  /  20,000",
                     ForeColor = pct >= 80 ? Color.FromArgb(80, 230, 140)
                               : pct >= 40 ? Color.FromArgb(255, 200, 80)
                               : Color.FromArgb(100, 180, 255),
@@ -1821,13 +1821,13 @@ namespace SQ_Email_Tools
     // ══════════════════════════════════════════════════════════════
     // 調整累積充值對話框（雙軌制 + 強制選擇防呆）
     //
-    //   ✦ paydata.point 單位：NT$（台幣），1循環 = NT$25,000
+    //   ✦ paydata.point 單位：NT$（台幣），1循環 = NT$20,000
     //   ✦ 快選套餐自動依加成率換算金幣；手動輸入依 TIERS 分段匯率（與 RechargeForm / 網頁一致）
     //   ✦ 操作類型強制二擇一，預設空白，送出前彈防呆確認視窗
     // ══════════════════════════════════════════════════════════════
     public class AdjustRechargeDialog : Form
     {
-        private const long CYCLE = 25_000L;  // NT$25,000 / cycle
+        private const long CYCLE = 20_000L;  // NT$20,000 / cycle
 
         private NumericUpDown _nudTwd;          // 台幣輸入
         private Label         _lblGoldCalc;     // 對應金幣預覽
@@ -1960,8 +1960,8 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 48)
             });
             string curCycStr = curCycle == 0
-                ? $"第 1 循環 · 本循環 NT${curIn:N0} / $25,000 · 還差 NT${curRemain:N0}"
-                : $"第 {curCycle + 1} 循環（完成 {curCycle} 次）· 本循環 NT${curIn:N0} / $25,000 · 還差 NT${curRemain:N0}";
+                ? $"第 1 循環 · 本循環 NT${curIn:N0} / $20,000 · 還差 NT${curRemain:N0}"
+                : $"第 {curCycle + 1} 循環（完成 {curCycle} 次）· 本循環 NT${curIn:N0} / $20,000 · 還差 NT${curRemain:N0}";
             infoBox.Controls.Add(new Label
             {
                 Text = curCycStr, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 66)
@@ -2264,8 +2264,8 @@ namespace SQ_Email_Tools
                 long newIn  = newTot % CYCLE;
                 long gained = newCyc - (_currentTotal / CYCLE);
                 string cycNote = gained > 0
-                    ? $"\n🎉 完成 {gained} 個循環，進入第 {newCyc + 1} 循環（本循環 NT${newIn:N0} / $25,000）"
-                    : $"\n   累積後：第 {newCyc + 1} 循環，本循環 NT${newIn:N0} / $25,000";
+                    ? $"\n🎉 完成 {gained} 個循環，進入第 {newCyc + 1} 循環（本循環 NT${newIn:N0} / $20,000）"
+                    : $"\n   累積後：第 {newCyc + 1} 循環，本循環 NT${newIn:N0} / $20,000";
 
                 string modeTitle, modeDetail, icon;
                 if (_opMode == 0)
@@ -2391,8 +2391,8 @@ namespace SQ_Email_Tools
             int  pct      = (int)(newIn * 100 / CYCLE);
 
             _lblCycleAfter.Text = gained > 0
-                ? $"🎉 完成 {gained} 個循環！  →  第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $25,000"
-                : $"第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $25,000  |  還差 NT${CYCLE - newIn:N0}";
+                ? $"🎉 完成 {gained} 個循環！  →  第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $20,000"
+                : $"第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $20,000  |  還差 NT${CYCLE - newIn:N0}";
             _lblCycleAfter.ForeColor = gained > 0 ? Theme.AccentGreen : Theme.AccentBlue;
 
             if (_barFillAfter?.Parent != null)

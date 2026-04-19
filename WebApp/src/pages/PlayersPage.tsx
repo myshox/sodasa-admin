@@ -5,7 +5,7 @@ import type { PlayerRow, PlayerDetail, PetInfo, SharedIpAccount, BanLogEntry, Pl
 import { S } from '../strings'
 import useIsMobile from '../hooks/useIsMobile'
 
-const CYCLE = 25_000
+const CYCLE = 20_000
 
 const VIP_LABEL = ['', '黃金 VIP', '鑽石 VIP']
 const VIP_COLOR = ['', 'var(--accent-orange)', '#4dd0e1']
@@ -615,7 +615,7 @@ export default function PlayersPage() {
             <SectionLabel label="💳 累積儲值進度" />
             <div style={{ marginBottom: 12, background: 'var(--bg-input)', borderRadius: 8, padding: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                <span style={{ color: 'var(--text-muted)' }}>本輪進度（每 NT$25,000 一輪）</span>
+                <span style={{ color: 'var(--text-muted)' }}>本輪進度（每 NT$20,000 一輪）</span>
                 <span style={{ color: 'var(--accent-orange)', fontWeight: 600 }}>
                   NT$ {(detail.paydataPoint ?? 0).toLocaleString()} / {CYCLE.toLocaleString()}
                 </span>

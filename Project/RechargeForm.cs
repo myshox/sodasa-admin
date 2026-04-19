@@ -27,7 +27,7 @@ namespace SQ_Email_Tools
             ("NT$10K",  "130萬", 10_000, 1_300_000),
         };
         private static readonly int[] BONUSES = { 0, 5, 10, 15, 20 };
-        private const long CYCLE = 25_000L;
+        private const long CYCLE = 20_000L;
 
         // ── 玩家狀態 ───────────────────────────────────────────────
         private PlayerDetail _detail;           // null 表示尚未搜尋
@@ -249,14 +249,14 @@ namespace SQ_Email_Tools
 
             _pnlPlayerInfo.Controls.Add(new Label
             {
-                Text = $"累積儲值進度（第 {cycNum + 1} 輪）  ·  每累積 NT$25,000 完成一輪，可領大獎",
+                Text = $"累積儲值進度（第 {cycNum + 1} 輪）  ·  每累積 NT$20,000 完成一輪，可領大獎",
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 AutoSize = true, Location = new Point(x, y)
             });
             y += 18;
             _lblCycleNum = new Label
             {
-                Text = $"NT${pt:N0} / $25,000",
+                Text = $"NT${pt:N0} / $20,000",
                 ForeColor = Color.FromArgb(180, 210, 255), Font = Theme.FontSmall,
                 AutoSize = true, Location = new Point(x, y)
             };
@@ -300,7 +300,7 @@ namespace SQ_Email_Tools
                 _btnClaim.Location = new Point(0, 2);
                 _btnClaim.Click += async (s, e) =>
                 {
-                    if (MessageBox.Show($"確定要發放「{_detail.OnlineName}」第 {_detail.TotalCheck} 輪的累積獎勵？\n\n  · check 設為 1（已領）\n  · 下次達成 NT$25,000 才能再領",
+                    if (MessageBox.Show($"確定要發放「{_detail.OnlineName}」第 {_detail.TotalCheck} 輪的累積獎勵？\n\n  · check 設為 1（已領）\n  · 下次達成 NT$20,000 才能再領",
                         "🎁 發放累積獎勵", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                     var (status, cycle) = await DatabaseManager.Instance.ClaimPaydataRewardAsync(_account);
                     if (status == "ok") { ShowMsg($"✅ 第 {cycle} 輪獎勵已發放", true); await RefreshDetailAsync(); }
@@ -802,8 +802,8 @@ namespace SQ_Email_Tools
             _lblPreviewTwd.Text   = $"台幣金額：NT${twd:N0}（累積進度 +NT${twd:N0}，優惠贈金不納入）";
             _lblPreviewGold.Text  = _giveGold ? $"金幣入帳：+{gold:N0} 元寶" + (_bonusPct > 0 ? $"（含 +{_bonusPct}% 優惠）" : "") : "本次不發放金幣（僅更新累儲進度）";
             string cycleNote = gained > 0
-                ? $"循環：{curPt:N0} → {aftIn:N0}/25,000　（完成 {gained} 輪！）"
-                : $"循環：{curPt:N0} → {afterPt:N0}/25,000";
+                ? $"循環：{curPt:N0} → {aftIn:N0}/20,000　（完成 {gained} 輪！）"
+                : $"循環：{curPt:N0} → {afterPt:N0}/20,000";
             _lblPreviewCycle.Text = cycleNote;
 
             _barBeforeFill.Width   = Math.Max(2, (int)(520 * bPct / 100.0));

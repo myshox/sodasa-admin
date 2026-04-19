@@ -16,7 +16,7 @@ const TIERS = [
   { label: 'NT$10K',  subLabel: '130萬',  twd: 10_000, gold: 1_300_000 },
 ]
 const BONUSES = [0, 5, 10, 15, 20]
-const CYCLE_MAX = 25_000
+const CYCLE_MAX = 20_000
 
 function twdToGold(twd: number): { baseGold: number; rate: number; tierLabel: string } {
   if (twd <= 0) return { baseGold: 0, rate: 100, tierLabel: '—' }
@@ -296,10 +296,10 @@ export default function RechargePage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
                     <span>NT${info.paydataPoint.toLocaleString()}</span>
-                    <span>目標 NT$25,000</span>
+                    <span>目標 NT$20,000</span>
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
-                    每累積儲值 NT$25,000 完成一輪 → 可領取累積大獎 ｜ 已完成 {info.totalCheck} 輪
+                    每累積儲值 NT$20,000 完成一輪 → 可領取累積大獎 ｜ 已完成 {info.totalCheck} 輪
                   </div>
                 </div>
 
@@ -458,7 +458,7 @@ export default function RechargePage() {
                     <BarCompare label="充值後" pct={afterCycPct} color="#fb923c" />
                   </div>
                   <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    <span>循環進度：{currentCycle.toLocaleString()} → {(completedExtra > 0 ? afterPoint : afterCycle).toLocaleString()} / 25,000</span>
+                    <span>循環進度：{currentCycle.toLocaleString()} → {(completedExtra > 0 ? afterPoint : afterCycle).toLocaleString()} / 20,000</span>
                     {completedExtra > 0 && <span style={{ color: '#60a5fa', fontWeight: 700 }}>🎉 完成 {completedExtra} 輪！</span>}
                     {afterVip !== (info?.vipLevel ?? 0) && <span style={{ color: vipColor(afterVip), fontWeight: 700 }}>↑ 升級至 {vipLabel(afterVip)}</span>}
                   </div>
