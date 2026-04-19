@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -409,43 +410,62 @@ namespace SQ_Email_Tools
 
             int y = 12, x = 14;
 
-            // ── STEP 2 購物車標題列 ─────────────────────────────────
-            var cartHdrPanel = new Panel
+            // ── STEP 2 購物車標題列（TableLayoutPanel：左 Label + 右兩顆按鈕）──
+            var cartHdrPanel = new TableLayoutPanel
             {
-                Location  = new Point(x, y),
-                Size      = new Size(460, 30),
-                BackColor = Theme.BgDark
+                Location    = new Point(x, y),
+                Size        = new Size(460, 32),
+                BackColor   = Theme.BgDark,
+                ColumnCount = 3,
+                RowCount    = 1,
+                Margin      = new Padding(0),
+                Padding     = new Padding(0, 2, 4, 2),
             };
-            cartHdrPanel.Controls.Add(new Label
+            cartHdrPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            cartHdrPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            cartHdrPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            cartHdrPanel.RowStyles   .Add(new RowStyle(SizeType.Percent, 100));
+
+            var lblCartTitle = new Label
             {
                 Text      = "  🛒  STEP 2 — 雙擊左側道具加入清單（可加多個不同道具）",
                 ForeColor = Color.FromArgb(100, 180, 255),
                 Font      = Theme.FontCell9Bold,
                 Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft
-            });
-            var btnClearCart = Theme.MakeButton("🗑 清空", Theme.AccentRed, Color.White, 62, 24);
-            btnClearCart.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin    = new Padding(0),
+            };
+            var btnUploadItems = Theme.MakeButton("📤 上傳道具", Theme.AccentBlue, Color.White, 96, 26);
+            btnUploadItems.Font   = Theme.FontSmall;
+            btnUploadItems.Margin = new Padding(2, 1, 2, 1);
+            btnUploadItems.Click += (s, e) => UploadItemsToCart();
+
+            var btnClearCart = Theme.MakeButton("🗑 清空", Theme.AccentRed, Color.White, 64, 26);
             btnClearCart.Font   = Theme.FontSmall;
+            btnClearCart.Margin = new Padding(2, 1, 2, 1);
             btnClearCart.Click += (s, e) =>
             {
                 if (_cart.Count == 0) return;
                 if (!Theme.Confirm("確定要清空購物車嗎？", "確認", defaultButtonNo: true)) return;
                 _cart.Clear(); RefreshCartDgv();
             };
-            var btnUploadItems = Theme.MakeButton("📤 上傳道具", Theme.AccentBlue, Color.White, 86, 24);
-            btnUploadItems.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnUploadItems.Font   = Theme.FontSmall;
-            btnUploadItems.Click += (s, e) => UploadItemsToCart();
-            cartHdrPanel.Controls.Add(btnClearCart);
-            cartHdrPanel.Controls.Add(btnUploadItems);
-            cartHdrPanel.Resize += (s, e) =>
-            {
-                btnClearCart  .Left = cartHdrPanel.ClientSize.Width - 4  - btnClearCart.Width;
-                btnUploadItems.Left = btnClearCart.Left          - 4 - btnUploadItems.Width;
-            };
+
+            cartHdrPanel.Controls.Add(lblCartTitle,   0, 0);
+            cartHdrPanel.Controls.Add(btnUploadItems, 1, 0);
+            cartHdrPanel.Controls.Add(btnClearCart,   2, 0);
             scroll.Controls.Add(cartHdrPanel);
-            y += 32;
+            y += 36;
+
+            // ── 醒目的「上傳道具清單」大按鈕（標題下方獨立一條，絕對看得到）──
+            var btnUploadHint = Theme.MakeButton(
+                "📤  上傳道具清單到購物車（CSV / TXT / Excel）",
+                Color.FromArgb(36, 96, 200), Color.White, 460, 30);
+            btnUploadHint.Location  = new Point(x, y);
+            btnUploadHint.Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold);
+            btnUploadHint.TextAlign = ContentAlignment.MiddleCenter;
+            btnUploadHint.Click    += (s, e) => UploadItemsToCart();
+            scroll.Controls.Add(btnUploadHint);
+            y += 36;
 
             // ── 購物車 DataGridView ─────────────────────────────────
             _cartDgv = new DataGridView
@@ -744,6 +764,7 @@ namespace SQ_Email_Tools
             {
                 int w = Math.Max(260, p.Width - 28);
                 cartHdrPanel.Width = w;
+                btnUploadHint.Width = w;
                 _cartDgv.Width    = w;
                 sendPanel.Width   = w;
                 _txtTitle.Width   = Math.Max(100, w - 100);
@@ -870,8 +891,12 @@ namespace SQ_Email_Tools
             };
             if (ofd.ShowDialog(this) != DialogResult.OK) return;
 
+            // 多分頁 Excel → 跳分頁選擇器（單一分頁或非 Excel 不會跳）
+            string sheetSel = SheetPickerDialog.AskIfMultiSheet(this, ofd.FileName);
+            if (sheetSel == "") return;
+
             ItemListImporter.ParseResult parsed;
-            try { parsed = ItemListImporter.ParseFile(ofd.FileName); }
+            try { parsed = ItemListImporter.ParseFile(ofd.FileName, sheetSel); }
             catch (Exception ex)
             {
                 MessageBox.Show("檔案解析失敗：\n" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -930,16 +955,44 @@ namespace SQ_Email_Tools
             }
             RefreshCartDgv();
 
-            string summary =
-                $"✓ 上傳完成：新增 {added} 種、累加 {merged} 種";
+            ShowItemUploadReport(parsed, added, merged, missing, missingIds);
+            ShowStatus($"✓ 上傳完成：新增 {added} 種、累加 {merged} 種、未匹配 {missing}", null);
+        }
+
+        // 友善的上傳結果報告（含欄位偵測 + 跳過明細）
+        private void ShowItemUploadReport(ItemListImporter.ParseResult parsed, int added, int merged, int missing, List<int> missingIds)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"來源：{parsed.DetectedSource}");
+            if (!string.IsNullOrEmpty(parsed.DetectedColumns))
+                sb.AppendLine($"欄位：{parsed.DetectedColumns}");
+            sb.AppendLine();
+            sb.AppendLine($"✓ 成功讀入 {parsed.Rows.Count} 筆 → 新增 {added} 種、累加 {merged} 種");
+
+            if (parsed.Skipped > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"⚠ 跳過 {parsed.Skipped} 列（ID 解析失敗 / 空白）：");
+                foreach (var s in parsed.SkippedDetails.Take(15))
+                {
+                    string raw = s.Raw ?? "";
+                    if (raw.Length > 80) raw = raw.Substring(0, 80) + "…";
+                    sb.AppendLine($"  · 第 {s.LineNo} 列：{s.Reason}  ｜  {raw}");
+                }
+                if (parsed.SkippedDetails.Count > 15)
+                    sb.AppendLine($"  … 另有 {parsed.SkippedDetails.Count - 15} 列");
+            }
+
             if (missing > 0)
             {
-                string sample = string.Join(", ", missingIds.Take(10));
-                if (missingIds.Count > 10) sample += " …";
-                summary += $"\n⚠ {missing} 個 ID 在 items.xlsx 找不到：{sample}";
+                sb.AppendLine();
+                string sample = string.Join(", ", missingIds.Take(20));
+                if (missingIds.Count > 20) sample += " …";
+                sb.AppendLine($"⚠ {missing} 個 ID 在 items.xlsx 找不到：{sample}");
             }
-            MessageBox.Show(summary, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            ShowStatus(summary.Replace("\n", "  "), null);
+
+            MessageBox.Show(sb.ToString(), "上傳結果", MessageBoxButtons.OK,
+                parsed.Skipped > 0 || missing > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         // ═══════════════════════════════════════════════════════════

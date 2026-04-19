@@ -17,6 +17,7 @@ import {
 import {
   ITEM_FILE_INPUT_ACCEPT,
   importItemListFromFile,
+  getXlsxSheetNames,
   type ImportItemResult,
 } from '../utils/itemListImporter'
 
@@ -60,6 +61,49 @@ function mergeImportedItems(
     }
   }
   return { merged: next, added, updated, missingIds }
+}
+
+/**
+ * 若 Excel 有 ≥ 2 個分頁，跳出簡單選單讓使用者挑分頁或合併全部。
+ *   - 回傳 string  → 指定分頁名稱（'*' = 全部合併）
+ *   - 回傳 null    → 用預設第一個分頁（單一分頁或非 Excel）
+ *   - 回傳 ''      → 使用者取消
+ */
+async function pickSheetIfNeeded(file: File): Promise<string | null | ''> {
+  const sheets = await getXlsxSheetNames(file)
+  if (sheets.length < 2) return null
+  const list = sheets.map((s, i) => `  ${i + 1}. ${s}`).join('\n')
+  const ans = window.prompt(
+    `Excel 內有 ${sheets.length} 個分頁，請選擇要讀的分頁：\n\n${list}\n\n` +
+    `輸入：\n  數字 1~${sheets.length} = 該分頁\n  0 = 全部合併\n  其他 = 取消`,
+    '1',
+  )
+  if (ans === null) return ''
+  const n = parseInt(ans.trim(), 10)
+  if (n === 0) return '*'
+  if (n >= 1 && n <= sheets.length) return sheets[n - 1]
+  return ''
+}
+
+// 把上傳結果（含跳過明細、欄位偵測、未匹配 ID）格式化成單一訊息字串
+function buildItemUploadReport(parsed: ImportItemResult, added: number, updated: number, missingIds: number[]): string {
+  const lines: string[] = []
+  lines.push(`✓ 成功讀入 ${parsed.rows.length} 筆 → 新增 ${added} 種、累加 ${updated} 種`)
+  lines.push(`來源：${parsed.detectedSource}`)
+  if (parsed.detectedColumns) lines.push(`欄位：${parsed.detectedColumns}`)
+  if (parsed.skipped > 0) {
+    lines.push(`⚠ 跳過 ${parsed.skipped} 列：`)
+    for (const s of parsed.skippedDetails.slice(0, 8)) {
+      const raw = (s.raw || '').length > 60 ? (s.raw || '').slice(0, 60) + '…' : (s.raw || '')
+      lines.push(`  · 第 ${s.lineNo} 列：${s.reason}｜${raw}`)
+    }
+    if (parsed.skippedDetails.length > 8) lines.push(`  …另有 ${parsed.skippedDetails.length - 8} 列`)
+  }
+  if (missingIds.length > 0) {
+    const sample = missingIds.slice(0, 15).join(', ') + (missingIds.length > 15 ? ' …' : '')
+    lines.push(`⚠ ${missingIds.length} 個 ID 未在道具表：${sample}`)
+  }
+  return lines.join('\n')
 }
 
 // 詢問道具上傳的「覆蓋 / 追加 / 取消」
@@ -301,8 +345,10 @@ function SingleSendTab() {
   // 一鍵上傳道具清單到購物車（CSV / TXT / Excel）
   const itemFileRef = useRef<HTMLInputElement | null>(null)
   const handleItemFile = async (file: File) => {
+    const sheetSel = await pickSheetIfNeeded(file)
+    if (sheetSel === '') return
     let parsed: ImportItemResult
-    try { parsed = await importItemListFromFile(file) }
+    try { parsed = await importItemListFromFile(file, sheetSel) }
     catch (err) { setResult('道具檔案解析失敗：' + (err instanceof Error ? err.message : String(err))); return }
     if (parsed.rows.length === 0) { setResult(`檔案內無有效道具編號（${parsed.detectedSource}）`); return }
     const mode = askItemImportMode(parsed, cart.length)
@@ -311,12 +357,7 @@ function SingleSendTab() {
     const lookup = (id: number) => { const it = items.find(i => i.id === id); return it ? { name: it.name, desc: it.desc } : undefined }
     const { merged, added, updated, missingIds } = mergeImportedItems(cart, parsed, mode, lookup)
     setCart(merged)
-    let msg = `✓ 上傳完成：新增 ${added} 種、累加 ${updated} 種`
-    if (missingIds.length > 0) {
-      const sample = missingIds.slice(0, 10).join(', ') + (missingIds.length > 10 ? ' …' : '')
-      msg += `（⚠ ${missingIds.length} 個 ID 未在道具表中：${sample}）`
-    }
-    setResult(msg)
+    setResult(buildItemUploadReport(parsed, added, updated, missingIds))
   }
 
   const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-history`); setMailHistory(r.data); setShowHistory(true) } catch { } finally { setHistoryLoading(false) } }
@@ -346,7 +387,7 @@ function SingleSendTab() {
     <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
       <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
       <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
-        {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13 }}>{result}</div>}
+        {result && <div style={{ background: result.includes('失敗') || result.includes('請') ? 'rgba(245,101,101,.1)' : 'rgba(86,196,118,.15)', border: `1px solid ${result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 12, color: result.includes('失敗') || result.includes('請') ? 'var(--accent-red)' : 'var(--accent-green)', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{result}</div>}
         <Card title={`STEP 1 — 指定玩家（已選 ${recipients.length} 人）`}>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
             搜尋後可<strong style={{ color: 'var(--accent-blue)' }}>勾選多個</strong>，點「確認選取」加入；多筆結果時可用「全選」。僅 1 筆時點該列即可加入。
@@ -651,8 +692,10 @@ function BatchSendTab() {
   // 一鍵上傳道具清單到購物車
   const itemFileRef = useRef<HTMLInputElement | null>(null)
   const handleItemFile = async (file: File) => {
+    const sheetSel = await pickSheetIfNeeded(file)
+    if (sheetSel === '') return
     let parsed: ImportItemResult
-    try { parsed = await importItemListFromFile(file) }
+    try { parsed = await importItemListFromFile(file, sheetSel) }
     catch (err) { setResult('道具檔案解析失敗：' + (err instanceof Error ? err.message : String(err))); setResultOk(false); return }
     if (parsed.rows.length === 0) { setResult(`檔案內無有效道具編號（${parsed.detectedSource}）`); setResultOk(false); return }
     const mode = askItemImportMode(parsed, cart.length)
@@ -661,12 +704,8 @@ function BatchSendTab() {
     const lookup = (id: number) => { const it = items.find(i => i.id === id); return it ? { name: it.name, desc: it.desc } : undefined }
     const { merged, added, updated, missingIds } = mergeImportedItems(cart, parsed, mode, lookup)
     setCart(merged)
-    let msg = `✓ 上傳完成：新增 ${added} 種、累加 ${updated} 種`
-    if (missingIds.length > 0) {
-      const sample = missingIds.slice(0, 10).join(', ') + (missingIds.length > 10 ? ' …' : '')
-      msg += `（⚠ ${missingIds.length} 個 ID 未在道具表中：${sample}）`
-    }
-    setResult(msg); setResultOk(true)
+    const msg = buildItemUploadReport(parsed, added, updated, missingIds)
+    setResult(msg); setResultOk(parsed.skipped === 0 && missingIds.length === 0)
   }
 
   const toggleSelect = (acc: string) => { const s = new Set(selected); s.has(acc) ? s.delete(acc) : s.add(acc); setSelected(s) }
@@ -901,7 +940,7 @@ function BatchSendTab() {
             ))}</div>
               <button onClick={() => setCart([])} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8, padding: 0 }}>清空</button></>}
         </Card>
-        {result && <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)', border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`, color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)' }}>{result}</div>}
+        {result && <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, background: resultOk ? 'rgba(86,196,118,.12)' : 'rgba(245,101,101,.1)', border: `1px solid ${resultOk ? 'var(--accent-green)' : 'var(--accent-red)'}`, color: resultOk ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{result}</div>}
         <button onClick={send} disabled={loading} style={{ minHeight: 48, width: '100%', background: 'var(--accent-blue)', color: '#fff', padding: '12px 16px', fontSize: 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: loading ? 'wait' : 'pointer' }}>
           {loading ? '發送中…' : '📤 批量發送'}
         </button>
