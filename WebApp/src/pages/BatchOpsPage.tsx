@@ -14,6 +14,11 @@ import {
   importPlayerListFromFile,
   type ImportResult,
 } from '../utils/playerListImporter'
+import {
+  ITEM_FILE_INPUT_ACCEPT,
+  importItemListFromFile,
+  type ImportItemResult,
+} from '../utils/itemListImporter'
 
 // ── 共用：把已解析的玩家清單合併到既有「行對行 textarea」字串 ────
 function mergeImportedToText(existing: string, imported: ImportResult, mode: 'replace' | 'append'): string {
@@ -23,6 +28,58 @@ function mergeImportedToText(existing: string, imported: ImportResult, mode: 're
     if (k) exist.add(k)
   }
   return Array.from(exist).join('\n')
+}
+
+// 將上傳的道具清單合併到既有 cart（同 itemId+type 累加 qty；不存在則新增）
+// 自動從 getApiItems()/getApiPets() 補上名稱與描述
+function mergeImportedItems(
+  existing: CartItem[],
+  imported: ImportItemResult,
+  mode: 'replace' | 'append',
+  itemLookup: (id: number) => { name?: string; desc?: string } | undefined,
+): { merged: CartItem[]; added: number; updated: number; missingIds: number[] } {
+  const next: CartItem[] = mode === 'replace' ? [] : [...existing]
+  let added = 0, updated = 0
+  const missingIds: number[] = []
+  for (const r of imported.rows) {
+    const meta = itemLookup(r.itemId)
+    if (!meta) missingIds.push(r.itemId)
+    const idx = next.findIndex(c => c.itemId === r.itemId && c.type === r.type)
+    if (idx >= 0) {
+      next[idx] = { ...next[idx], qty: Math.max(1, next[idx].qty + r.qty) }
+      updated++
+    } else {
+      next.push({
+        itemId: r.itemId,
+        qty:    Math.max(1, r.qty),
+        type:   r.type,
+        name:   meta?.name ?? r.name,
+        buff3:  meta?.desc,
+      })
+      added++
+    }
+  }
+  return { merged: next, added, updated, missingIds }
+}
+
+// 詢問道具上傳的「覆蓋 / 追加 / 取消」
+function askItemImportMode(parsed: ImportItemResult, currentCount: number): 'replace' | 'append' | null {
+  if (currentCount === 0) return 'append'
+  const preview = parsed.rows.slice(0, 5)
+    .map(r => `  • #${r.itemId}${r.name ? `（${r.name}）` : ''} × ${r.qty}${r.type ? ` (T${r.type})` : ''}`)
+    .join('\n') + (parsed.rows.length > 5 ? `\n  …（共 ${parsed.rows.length} 筆）` : '')
+  const ans = window.prompt(
+    `道具清單：已從檔案讀到 ${parsed.rows.length} 筆\n` +
+    `來源：${parsed.detectedSource}\n` +
+    (parsed.skipped > 0 ? `略過列：${parsed.skipped}\n` : '') +
+    `\n預覽：\n${preview}\n\n` +
+    `購物車目前有 ${currentCount} 種道具。\n` +
+    `輸入：\n  1 = 覆蓋（清空後加入）\n  2 = 追加（合併、同 ID 累加）\n  其他 = 取消`,
+    '2',
+  )
+  if (ans === '1') return 'replace'
+  if (ans === '2') return 'append'
+  return null
 }
 
 // 詢問「覆蓋 / 追加 / 取消」共用對話框
@@ -241,6 +298,27 @@ function SingleSendTab() {
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
 
+  // 一鍵上傳道具清單到購物車（CSV / TXT / Excel）
+  const itemFileRef = useRef<HTMLInputElement | null>(null)
+  const handleItemFile = async (file: File) => {
+    let parsed: ImportItemResult
+    try { parsed = await importItemListFromFile(file) }
+    catch (err) { setResult('道具檔案解析失敗：' + (err instanceof Error ? err.message : String(err))); return }
+    if (parsed.rows.length === 0) { setResult(`檔案內無有效道具編號（${parsed.detectedSource}）`); return }
+    const mode = askItemImportMode(parsed, cart.length)
+    if (!mode) return
+    const items = [...getApiItems(), ...getApiPets()]
+    const lookup = (id: number) => { const it = items.find(i => i.id === id); return it ? { name: it.name, desc: it.desc } : undefined }
+    const { merged, added, updated, missingIds } = mergeImportedItems(cart, parsed, mode, lookup)
+    setCart(merged)
+    let msg = `✓ 上傳完成：新增 ${added} 種、累加 ${updated} 種`
+    if (missingIds.length > 0) {
+      const sample = missingIds.slice(0, 10).join(', ') + (missingIds.length > 10 ? ' …' : '')
+      msg += `（⚠ ${missingIds.length} 個 ID 未在道具表中：${sample}）`
+    }
+    setResult(msg)
+  }
+
   const loadHistory = async () => { if (!selectedAccount) return; setHistoryLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-history`); setMailHistory(r.data); setShowHistory(true) } catch { } finally { setHistoryLoading(false) } }
   const loadRaw = async () => { if (!selectedAccount) return; setRawLoading(true); try { const r = await api.get(`/players/${encodeURIComponent(selectedAccount)}/mail-raw`); setMailRaw(r.data); setShowRaw(true) } catch { } finally { setRawLoading(false) } }
 
@@ -316,6 +394,14 @@ function SingleSendTab() {
         </Card>
         <Card title="STEP 2 — 加入道具 / 寵物">
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.4 }}>👉 左側雙擊道具加入購物車 · 標題／範例在 STEP 3 · 發送按鈕在右側購物車下方</p>
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'flex-end' }}>
+            <input ref={itemFileRef} type="file" accept={ITEM_FILE_INPUT_ACCEPT} style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleItemFile(f); e.target.value = '' }} />
+            <button type="button" onClick={() => itemFileRef.current?.click()} title="從 CSV/TXT/Excel 一鍵塞道具到購物車（支援 編號/數量/Type 欄）"
+              style={{ fontSize: 12, padding: '6px 12px', background: 'rgba(74,158,255,.12)', border: '1px solid var(--accent-blue)', borderRadius: 6, cursor: 'pointer', color: 'var(--accent-blue)' }}>
+              📤 上傳道具清單
+            </button>
+          </div>
           <div style={{ marginBottom: 10 }}><div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>名稱搜尋</div><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
           <Divider />
           <div className="batchops-step2-manual" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -561,6 +647,28 @@ function BatchSendTab() {
   const addToCart = (item: CartItem) => setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
+
+  // 一鍵上傳道具清單到購物車
+  const itemFileRef = useRef<HTMLInputElement | null>(null)
+  const handleItemFile = async (file: File) => {
+    let parsed: ImportItemResult
+    try { parsed = await importItemListFromFile(file) }
+    catch (err) { setResult('道具檔案解析失敗：' + (err instanceof Error ? err.message : String(err))); setResultOk(false); return }
+    if (parsed.rows.length === 0) { setResult(`檔案內無有效道具編號（${parsed.detectedSource}）`); setResultOk(false); return }
+    const mode = askItemImportMode(parsed, cart.length)
+    if (!mode) return
+    const items = [...getApiItems(), ...getApiPets()]
+    const lookup = (id: number) => { const it = items.find(i => i.id === id); return it ? { name: it.name, desc: it.desc } : undefined }
+    const { merged, added, updated, missingIds } = mergeImportedItems(cart, parsed, mode, lookup)
+    setCart(merged)
+    let msg = `✓ 上傳完成：新增 ${added} 種、累加 ${updated} 種`
+    if (missingIds.length > 0) {
+      const sample = missingIds.slice(0, 10).join(', ') + (missingIds.length > 10 ? ' …' : '')
+      msg += `（⚠ ${missingIds.length} 個 ID 未在道具表中：${sample}）`
+    }
+    setResult(msg); setResultOk(true)
+  }
+
   const toggleSelect = (acc: string) => { const s = new Set(selected); s.has(acc) ? s.delete(acc) : s.add(acc); setSelected(s) }
   const invertSelect = () => setSelected(new Set(searchList.map(p => p.account).filter(a => !selected.has(a))))
   const addExclude = (p: PlayerRow) => { if (!excluded.find(e => e.account === p.account)) setExcluded(prev => [...prev, { account: p.account, name: p.onlineName || p.account }]); setExcludeQ('') }
@@ -736,6 +844,14 @@ function BatchSendTab() {
           )}
         </Card>
         <Card title="STEP 2 — 加入道具">
+          <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'flex-end' }}>
+            <input ref={itemFileRef} type="file" accept={ITEM_FILE_INPUT_ACCEPT} style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleItemFile(f); e.target.value = '' }} />
+            <button type="button" onClick={() => itemFileRef.current?.click()} title="從 CSV/TXT/Excel 一鍵塞道具到購物車（支援 編號/數量/Type 欄）"
+              style={{ fontSize: 12, padding: '6px 12px', background: 'rgba(74,158,255,.12)', border: '1px solid var(--accent-blue)', borderRadius: 6, cursor: 'pointer', color: 'var(--accent-blue)' }}>
+              📤 上傳道具清單
+            </button>
+          </div>
           <div style={{ marginBottom: 10 }}><ItemAutocomplete mode="both" onSelect={addFromAutocomplete} /></div>
           <Divider />
           <div className="batchops-step2-manual" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>

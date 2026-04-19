@@ -329,8 +329,17 @@ namespace SQ_Email_Tools
                 if (!Theme.Confirm("確定要清空購物車嗎？", "確認", defaultButtonNo: true)) return;
                 _cart.Clear(); RefreshCartDgv();
             };
+            var btnUploadItems = Theme.MakeButton("📤 上傳道具", Theme.AccentBlue, Color.White, 86, 24);
+            btnUploadItems.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnUploadItems.Font   = Theme.FontSmall;
+            btnUploadItems.Click += (s, e) => UploadItemsToCart();
             cartHdrPanel.Controls.Add(btnClear);
-            cartHdrPanel.Resize += (s, e) => btnClear.Left = cartHdrPanel.ClientSize.Width - 4 - btnClear.Width;
+            cartHdrPanel.Controls.Add(btnUploadItems);
+            cartHdrPanel.Resize += (s, e) =>
+            {
+                btnClear      .Left = cartHdrPanel.ClientSize.Width - 4 - btnClear.Width;
+                btnUploadItems.Left = btnClear.Left          - 4 - btnUploadItems.Width;
+            };
             scroll.Controls.Add(cartHdrPanel);
             y += 32;
 
@@ -756,6 +765,78 @@ namespace SQ_Email_Tools
                 _cart.Add(new CartEntry { Item = item, Qty = 1 });
             }
             RefreshCartDgv();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 一鍵上傳道具清單到購物車（CSV / TXT / Excel）
+        // ═══════════════════════════════════════════════════════════
+        private void UploadItemsToCart()
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title  = "選擇道具清單檔案",
+                Filter = ItemListImporter.DialogFilter,
+            };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            ItemListImporter.ParseResult parsed;
+            try { parsed = ItemListImporter.ParseFile(ofd.FileName); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("檔案解析失敗：\n" + ex.Message, "錯誤", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (parsed.Rows.Count == 0)
+            {
+                MessageBox.Show($"檔案內沒有有效的道具編號。\n來源：{parsed.DetectedSource}", "上傳道具", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var gm = GameDataManager.Instance;
+            if (!gm.ItemsLoaded)
+            {
+                MessageBox.Show("尚未載入 items.xlsx，請先到「⚙ 資料設定」載入道具資料。", "資料未載入", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string mode = "append";
+            if (_cart.Count > 0)
+            {
+                var dr = MessageBox.Show(
+                    $"購物車目前有 {_cart.Count} 種道具。\n\n" +
+                    $"檔案中讀到 {parsed.Rows.Count} 筆。\n" +
+                    $"來源：{parsed.DetectedSource}\n\n" +
+                    $"【是】=覆蓋（清空後加入）\n" +
+                    $"【否】=追加（合併、同 ID 累加數量）\n" +
+                    $"【取消】=取消上傳",
+                    "上傳道具清單", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (dr == DialogResult.Cancel) return;
+                mode = dr == DialogResult.Yes ? "replace" : "append";
+            }
+            if (mode == "replace") _cart.Clear();
+
+            int added = 0, merged = 0, missing = 0;
+            var missingIds = new List<int>();
+            foreach (var r in parsed.Rows)
+            {
+                ItemInfo info = r.Type == 2 ? gm.GetPetById(r.Id) : gm.GetItemById(r.Id);
+                if (info == null) info = gm.FindItemById(r.Id);
+                if (info == null) { missing++; missingIds.Add(r.Id); continue; }
+
+                var existing = _cart.FirstOrDefault(c => c.Item.Id == r.Id);
+                if (existing != null) { existing.Qty = Math.Max(1, existing.Qty + r.Qty); merged++; }
+                else                  { _cart.Add(new CartEntry { Item = info, Qty = Math.Max(1, r.Qty) }); added++; }
+            }
+            RefreshCartDgv();
+
+            string summary = $"✓ 上傳完成：新增 {added} 種、累加 {merged} 種";
+            if (missing > 0)
+            {
+                string sample = string.Join(", ", missingIds.Take(10));
+                if (missingIds.Count > 10) sample += " …";
+                summary += $"\n⚠ {missing} 個 ID 在 items.xlsx 找不到：{sample}";
+            }
+            MessageBox.Show(summary, "上傳完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void RefreshCartDgv()
