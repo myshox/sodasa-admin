@@ -1185,6 +1185,73 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             return rows > 0;
         }
 
+        /// <summary>
+        /// 【全服批量】清除所有玩家累積儲值金額（換季用）：
+        ///   - paydata.point      → 0  （當前輪進度歸零）
+        ///   - paydata.totalcheck → 0  （已完成輪數歸零）
+        ///   - paydata.check      → 0  （領取旗標歸零）
+        ///   - csalogin.PayTotal  → 0  （遊戲面板顯示的「本季累儲」歸零）
+        ///   - paydata.lifetime_total → 保留不動（永久歷史記錄）
+        ///
+        /// dryRun=true：只回傳預檢統計，不寫入。
+        /// 回傳：(paydata 受影響筆數, csalogin 受影響筆數, 預檢: 有累儲記錄玩家數, 預檢: 累儲總額)
+        /// </summary>
+        public async Task<(int paydataAffected, int csaloginAffected, int previewPlayers, long previewTotalNT)> BatchResetAllPaydataAsync(bool dryRun)
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            // ── 預檢 ───────────────────────────────────────────────
+            int  previewPlayers  = 0;
+            long previewTotalNT  = 0;
+            using (var cmd = new MySqlCommand(
+                "SELECT COUNT(*) AS cnt, IFNULL(SUM(point),0) AS sumpt FROM paydata WHERE point > 0 OR totalcheck > 0 OR `check` > 0", conn))
+            {
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    previewPlayers = Convert.ToInt32(r["cnt"]);
+                    previewTotalNT = Convert.ToInt64(r["sumpt"]);
+                }
+            }
+
+            if (dryRun)
+                return (0, 0, previewPlayers, previewTotalNT);
+
+            // ── 真正執行：兩張表分別 UPDATE，使用 transaction 保證一致性 ──
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                int payAffected = 0, loginAffected = 0;
+
+                using (var cmdPay = new MySqlCommand(@"
+                    UPDATE paydata
+                    SET point = 0, totalcheck = 0, `check` = 0
+                    WHERE point > 0 OR totalcheck > 0 OR `check` > 0", conn, (MySqlTransaction)tx))
+                {
+                    payAffected = await cmdPay.ExecuteNonQueryAsync();
+                }
+
+                using (var cmdLogin = new MySqlCommand(
+                    "UPDATE csalogin SET PayTotal = 0 WHERE PayTotal > 0", conn, (MySqlTransaction)tx))
+                {
+                    loginAffected = await cmdLogin.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+
+                await GmLogger.Instance.LogAsync("全服清除累儲", "ALL",
+                    $"paydata 重置 {payAffected} 筆 / csalogin 重置 {loginAffected} 筆；累計清掉 NT${previewTotalNT:N0} 進度；lifetime_total 保留", payAffected > 0 || loginAffected > 0);
+
+                return (payAffected, loginAffected, previewPlayers, previewTotalNT);
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
         // ══════════════════════════════════════════════════════════
         // 發放累積獎勵（check: 0=待領, 1=已領）含防呆
         // ══════════════════════════════════════════════════════════

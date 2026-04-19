@@ -62,6 +62,13 @@ namespace SQ_Email_Tools
             btnBatchFix.Click += async (s, e) => await BatchFixCycleAsync();
             header.Controls.Add(btnBatchFix);
 
+            // 🗑 全服清除累儲（換季用，超高風險，三段確認）
+            var btnBatchReset = Theme.MakeButton("🗑 全服清除累儲", Color.FromArgb(200, 50, 50), Color.White, 150, 32);
+            btnBatchReset.Dock   = DockStyle.Right;
+            btnBatchReset.Margin = new Padding(0, 10, 8, 10);
+            btnBatchReset.Click += async (s, e) => await BatchResetAllPaydataAsync();
+            header.Controls.Add(btnBatchReset);
+
             // ── KPI 卡片列 ──────────────────────────────────────
             var kpiPanel = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.BgMid };
             kpiPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
@@ -317,6 +324,78 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════
         // 載入資料
         // ═══════════════════════════════════════════════
+        // ══════════════════════════════════════════════════════════════
+        // 全服清除累積儲值金額（換季用，極高風險）
+        //   三段確認流程：
+        //     1) dry-run 預檢，顯示受影響玩家數 + 累計清掉的金額
+        //     2) 警告對話框：說明會清掉什麼、保留什麼
+        //     3) 強制輸入「全服清零」字樣才能執行
+        // ══════════════════════════════════════════════════════════════
+        private async Task BatchResetAllPaydataAsync()
+        {
+            try
+            {
+                // STEP 1：預檢
+                var (_, _, players, sumPt) = await DatabaseManager.Instance.BatchResetAllPaydataAsync(dryRun: true);
+
+                if (players == 0)
+                {
+                    MessageBox.Show(
+                        "✅ 全服已經沒有任何玩家有累積儲值進度可清除（point/totalcheck/check 都已是 0）。",
+                        "🗑 全服清除累儲", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // STEP 2：警告
+                var ans = MessageBox.Show(
+                    $"⚠️ 你即將執行【全服清除累積儲值金額】！\n\n" +
+                    $"📊 預檢結果：\n" +
+                    $"  • 受影響玩家：{players:N0} 人\n" +
+                    $"  • 累計將清掉：NT$ {sumPt:N0}（本輪進度總和）\n\n" +
+                    $"❌ 將會清零的欄位：\n" +
+                    $"  • paydata.point        → 0  （當前輪進度）\n" +
+                    $"  • paydata.totalcheck   → 0  （已完成輪數）\n" +
+                    $"  • paydata.check        → 0  （領取旗標）\n" +
+                    $"  • csalogin.PayTotal    → 0  （遊戲面板顯示的本季累儲）\n\n" +
+                    $"✅ 將會保留的欄位：\n" +
+                    $"  • paydata.lifetime_total（永久歷史總額）\n\n" +
+                    $"⚠️ 此操作【不可復原】！建議先在 VPS 備份 paydata 與 csalogin 兩張表。\n\n" +
+                    $"確定要繼續嗎？",
+                    "⚠️ 全服清除累儲 — 高風險確認",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+                if (ans != DialogResult.Yes) return;
+
+                // STEP 3：強制輸入確認字串
+                using var dlg = new ConfirmTextDialog("🗑 全服清除累儲 — 最終確認",
+                    $"請輸入「全服清零」四個字才能執行：\n\n（影響 {players:N0} 位玩家）",
+                    "全服清零");
+                if (dlg.ShowDialog(this) != DialogResult.OK)
+                {
+                    MessageBox.Show("已取消操作。", "🗑 全服清除累儲", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // STEP 4：執行
+                var (payAff, loginAff, _, totalNT) = await DatabaseManager.Instance.BatchResetAllPaydataAsync(dryRun: false);
+
+                MessageBox.Show(
+                    $"✅ 全服清除累儲完成！\n\n" +
+                    $"  • paydata 重置：{payAff:N0} 筆\n" +
+                    $"  • csalogin.PayTotal 重置：{loginAff:N0} 筆\n" +
+                    $"  • 累計清掉：NT$ {totalNT:N0}\n" +
+                    $"  • lifetime_total 已保留（歷史總額不變）\n\n" +
+                    $"所有玩家的當季累積儲值已歸零，新賽季開始！",
+                    "✅ 全服清除累儲", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                _ = LoadAllAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"❌ 全服清除失敗：\n\n{ex.Message}", "錯誤",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         // ══════════════════════════════════════════════════════════════
         // 批量修復循環（換季 25k→20k 後一次性遷移）
         //   流程：先 dry-run 顯示影響筆數 → 確認後 → 再執行 → 最後顯示結果
