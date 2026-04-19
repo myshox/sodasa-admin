@@ -359,6 +359,15 @@ namespace SQ_Email_Tools
                 SwitchToHub(new DashboardForm());
             };
 
+            var btnRechargeAnalytics = MakeNavBtn("💰", "儲值趨勢", ref y);
+            navTip.SetToolTip(btnRechargeAnalytics, "儲值趨勢圖表 · 月/日營收 · 付費玩家分層 · 🔧批量修復循環 · 🗑全服清除累儲（換季用）");
+            btnRechargeAnalytics.Click += (s, e) =>
+            {
+                SetActiveNav(btnRechargeAnalytics);
+                if (!CheckConnected()) return;
+                SwitchToHub(new RechargeAnalyticsForm());
+            };
+
             var btnShopStats = MakeNavBtn("🏪", "商城熱賣", ref y);
             navTip.SetToolTip(btnShopStats, "金幣／聲望／石壁／戰點商店：熱賣道具 TOP、玩家消費排行（與網頁商城分析相同資料）");
             btnShopStats.Click += (s, e) =>
