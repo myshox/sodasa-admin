@@ -267,10 +267,12 @@ namespace SQ_Email_Tools
                 ForeColor = Theme.TextMuted, Font = Theme.FontSmall,
                 AutoSize = true, TextAlign = ContentAlignment.MiddleLeft
             };
+            var btnUpload  = Theme.MakeButton("📤 上傳清單", Theme.AccentBlue, Color.White, 100, 26);
             var btnSaveGrp = Theme.MakeSecondaryButton("💾 儲存群組", 92, 26);
             var btnLoadGrp = Theme.MakeSecondaryButton("📂 載入群組", 92, 26);
             var btnExport  = Theme.MakeSecondaryButton("📥 匯出 Excel", 108, 26);
 
+            btnUpload.Click  += (s, e) => UploadAndCheckList();
             btnSaveGrp.Click += (s, e) => SaveGroup();
             btnLoadGrp.Click += (s, e) => LoadGroup();
             btnExport.Click  += (s, e) => ExportResultsExcel();
@@ -279,7 +281,7 @@ namespace SQ_Email_Tools
             {
                 int midY = (toolbar2.ClientSize.Height - btnSaveGrp.Height) / 2;
                 int rx = toolbar2.ClientSize.Width - 10;
-                foreach (var b in new[] { btnExport, btnLoadGrp, btnSaveGrp })
+                foreach (var b in new[] { btnExport, btnLoadGrp, btnSaveGrp, btnUpload })
                 {
                     rx -= b.Width;
                     b.Location = new Point(rx, midY);
@@ -293,6 +295,7 @@ namespace SQ_Email_Tools
             toolbar2.Controls.Add(btnSaveGrp);
             toolbar2.Controls.Add(btnLoadGrp);
             toolbar2.Controls.Add(btnExport);
+            toolbar2.Controls.Add(btnUpload);
             toolbar2.Resize += (_, __) => LayoutToolbar2();
             LayoutToolbar2();
 
@@ -737,6 +740,105 @@ namespace SQ_Email_Tools
                 dgv.Rows.RemoveAt(dgv.CurrentRow.Index);
             };
             dlg.ShowDialog(this);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // 上傳檔案 → 自動勾選對應玩家
+        //   檔案內容（CSV / TXT / XLSX）支援：
+        //     1) 標題列含 Name/cdkey/識別編號 與 OnlineName/角色名稱
+        //     2) 沒標題時：第 1 欄 = 識別編號，第 2 欄 = 角色名稱
+        //   行為：
+        //     - DGV 中已有的玩家 → 直接勾選
+        //     - DGV 中沒有的玩家 → 加為新列（在線狀態 = 「？」）
+        //     - 不會自動跑 SQL 對帳；執行批量金幣時若 cdkey 不存在 DB，
+        //       BatchGiveGoldAsync 內部會 fail 該筆，使用者會在執行日誌看到 ✗
+        // ═══════════════════════════════════════════════════════
+        private void UploadAndCheckList()
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title  = "上傳玩家清單（自動勾選）",
+                Filter = PlayerListImporter.DialogFilter
+            };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            PlayerListImporter.ParseResult parsed;
+            try { parsed = PlayerListImporter.ParseFile(ofd.FileName); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("解析失敗：" + ex.Message, "上傳失敗",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (parsed.Rows.Count == 0)
+            {
+                MessageBox.Show($"檔案內沒有有效資料。\n\n{parsed.DetectedSource}",
+                    "無資料", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // 預覽
+            var preview = string.Join("\n", parsed.Rows.Take(5).Select(r =>
+                string.IsNullOrEmpty(r.OnlineName) ? $"  • {r.Cdkey}" : $"  • {r.Cdkey}（{r.OnlineName}）"));
+            if (parsed.Rows.Count > 5) preview += $"\n  …（共 {parsed.Rows.Count} 筆）";
+
+            string msg =
+                $"已從檔案讀到 {parsed.Rows.Count} 筆。\n" +
+                $"來源：{parsed.DetectedSource}\n" +
+                (parsed.Skipped > 0 ? $"略過空白列：{parsed.Skipped}\n" : "") +
+                $"\n預覽：\n{preview}\n\n" +
+                $"目前清單已有 {_listDgv.Rows.Count} 位玩家、勾選 " +
+                $"{_listDgv.Rows.Cast<DataGridViewRow>().Count(r => r.Cells["cChk"].Value is bool b && b)} 位。\n\n" +
+                "要如何處理？\n" +
+                "[是] = 覆蓋（清空清單，只保留檔案內的玩家並全部勾選）\n" +
+                "[否] = 追加（保留現有清單，將檔案內的玩家加入並勾選；已存在者只勾選不重複新增）\n" +
+                "[取消] = 不動作";
+            var rsp = MessageBox.Show(msg, "上傳玩家清單",
+                MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (rsp == DialogResult.Cancel) return;
+
+            _listDgv.SuspendLayout();
+            if (rsp == DialogResult.Yes) _listDgv.Rows.Clear();
+
+            // 建立 cdkey → row 的快速對照表
+            var byCdkey = _listDgv.Rows.Cast<DataGridViewRow>()
+                .ToDictionary(
+                    r => (r.Cells["cAcc"].Value?.ToString() ?? "").Trim().ToLowerInvariant(),
+                    r => r,
+                    StringComparer.OrdinalIgnoreCase);
+
+            // 先取消所有原本的勾選（覆蓋模式上面已清空，這裡只影響追加模式）
+            // ※ 追加模式下：不主動取消既有勾選，保留既有勾選 + 新增的全部勾選
+            int newRows = 0, alreadyExisted = 0, skipped = 0;
+            foreach (var r in parsed.Rows)
+            {
+                string cdkey = (r.Cdkey ?? "").Trim();
+                if (string.IsNullOrEmpty(cdkey)) { skipped++; continue; }
+
+                string key = cdkey.ToLowerInvariant();
+                if (byCdkey.TryGetValue(key, out var existing))
+                {
+                    existing.Cells["cChk"].Value = true;
+                    ApplyRowStyle(existing, true);
+                    alreadyExisted++;
+                }
+                else
+                {
+                    int ri = _listDgv.Rows.Add(true, "？", r.OnlineName ?? "", cdkey);
+                    ApplyRowStyle(_listDgv.Rows[ri], true);
+                    byCdkey[key] = _listDgv.Rows[ri];
+                    newRows++;
+                }
+            }
+            _listDgv.ResumeLayout();
+            UpdateSelectedCount();
+
+            string verb = rsp == DialogResult.Yes ? "覆蓋" : "追加";
+            _statusLbl.Text = $"✓ 已{verb}：新增 {newRows} 人、原已存在自動勾選 {alreadyExisted} 人" +
+                              (skipped > 0 ? $"、空白略過 {skipped}" : "");
+            AppendLog($"📤 上傳清單：{verb}模式，新增 {newRows}、勾選原有 {alreadyExisted}\n",
+                Color.FromArgb(100, 180, 255));
         }
 
         // ═══════════════════════════════════════════════════════

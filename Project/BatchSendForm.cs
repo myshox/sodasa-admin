@@ -39,7 +39,13 @@ namespace SQ_Email_Tools
         // ── 發送對象 ──
         private CheckBox _chkOnlineOnly;
 
-        // ── 排除名單 ──
+        // ── 指定名單（白名單，與 onlineOnly 互斥；非空時只發給名單裡的人）──
+        private readonly HashSet<string> _includeSet = new(StringComparer.OrdinalIgnoreCase);
+        private ListBox  _includeListBox;
+        private TextBox  _includeSearchBox;
+        private Label    _includeCountLbl;
+
+        // ── 排除名單（黑名單）──
         private readonly HashSet<string> _excludeSet = new(StringComparer.OrdinalIgnoreCase);
         private ListBox  _excludeListBox;
         private TextBox  _excludeSearchBox;
@@ -558,111 +564,39 @@ namespace SQ_Email_Tools
             scroll.Controls.Add(settingPanel);
             y += settingPanel.Height + 10;
 
-            // ── 排除名單區塊 ──
-            var excludePanel = new Panel
-            {
-                Location    = new Point(x, y),
-                Size        = new Size(460, 180),
-                BackColor   = Theme.BgCard,
-                BorderStyle = BorderStyle.FixedSingle
-            };
+            // ── 指定名單區塊（白名單；非空時只發給名單裡的人，可再被排除名單剃除）──
+            var includePanel = BuildAccountListSection(
+                title: "🎯  指定發送名單（0 人）— 非空時只發給名單裡的人",
+                titleColor: Theme.AccentGreen,
+                headerBg:  Color.FromArgb(20, 56, 36),
+                listBg:    Color.FromArgb(16, 30, 22),
+                placeholder: "輸入帳號加入指定…",
+                set: _includeSet,
+                setListBox: lb => _includeListBox = lb,
+                setCountLbl: lb => _includeCountLbl = lb,
+                setSearchBox: tb => _includeSearchBox = tb,
+                refreshTitle: cnt => _includeCountLbl.Text = $"🎯  指定發送名單（{cnt} 人）" + (cnt > 0 ? "  ※ 將忽略「全服/僅線上」設定，只發給此清單" : ""),
+                onChanged: RefreshIncludeList);
+            includePanel.Location = new Point(x, y);
+            includePanel.Size     = new Size(460, 180);
+            scroll.Controls.Add(includePanel);
+            y += 190;
 
-            var excludeHdr = new Panel { Dock = DockStyle.Top, Height = 28, BackColor = Color.FromArgb(60, 30, 30) };
-            _excludeCountLbl = new Label
-            {
-                Text      = "🚫  排除名單（0 人）",
-                ForeColor = Theme.AccentRed,
-                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
-                Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(6, 0, 0, 0)
-            };
-            var btnClearExclude = Theme.MakeButton("全部移除", Theme.AccentRed, Color.White, 72, 22);
-            btnClearExclude.Font   = Theme.FontSmall;
-            btnClearExclude.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnClearExclude.Click += (s, e) => { _excludeSet.Clear(); RefreshExcludeList(); };
-            excludeHdr.Controls.Add(_excludeCountLbl);
-            excludeHdr.Controls.Add(btnClearExclude);
-            excludeHdr.Resize += (s, e) => btnClearExclude.Left = excludeHdr.ClientSize.Width - 4 - btnClearExclude.Width;
-            excludePanel.Controls.Add(excludeHdr);
-
-            // 搜尋帳號加入排除
-            var exSearchRow = new Panel { Top = 30, Left = 0, Height = 30, Dock = DockStyle.None };
-            _excludeSearchBox = new TextBox
-            {
-                PlaceholderText = "輸入帳號加入排除…",
-                BackColor       = Theme.BgLight,
-                ForeColor       = Theme.TextPrimary,
-                BorderStyle     = BorderStyle.FixedSingle,
-                Font            = Theme.FontBody,
-                Location        = new Point(6, 4),
-                Height          = 24
-            };
-            var btnAddExclude = Theme.MakeButton("＋ 加入", Theme.AccentOrange, Color.White, 70, 24);
-            btnAddExclude.Font     = Theme.FontSmall;
-            btnAddExclude.Location = new Point(0, 4);
-            btnAddExclude.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
-
-            void AddExcludeAccount()
-            {
-                var acc = _excludeSearchBox.Text.Trim();
-                if (string.IsNullOrEmpty(acc)) return;
-                _excludeSet.Add(acc);
-                _excludeSearchBox.Clear();
-                RefreshExcludeList();
-            }
-            btnAddExclude.Click       += (s, e) => AddExcludeAccount();
-            _excludeSearchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { AddExcludeAccount(); e.Handled = true; } };
-
-            var exRow = new Panel
-            {
-                Top    = 30,
-                Left   = 0,
-                Height = 30,
-                Dock   = DockStyle.None
-            };
-            excludePanel.Controls.Add(exRow);
-            // 用 Resize 動態排版
-            excludePanel.Controls.Add(_excludeSearchBox);
-            excludePanel.Controls.Add(btnAddExclude);
-            _excludeSearchBox.Top  = 32;
-            _excludeSearchBox.Left = 6;
-            btnAddExclude.Top      = 32;
-
-            _excludeListBox = new ListBox
-            {
-                Top             = 62,
-                Left            = 6,
-                Height          = 100,
-                BackColor       = Color.FromArgb(28, 18, 18),
-                ForeColor       = Theme.TextPrimary,
-                Font            = Theme.FontSmall,
-                BorderStyle     = BorderStyle.None,
-                SelectionMode   = SelectionMode.MultiExtended
-            };
-            var btnRemoveSelected = Theme.MakeButton("移除選中", Theme.AccentRed, Color.White, 80, 24);
-            btnRemoveSelected.Font     = Theme.FontSmall;
-            btnRemoveSelected.Top      = 62;
-            btnRemoveSelected.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
-            btnRemoveSelected.Click   += (s, e) =>
-            {
-                foreach (var item in _excludeListBox.SelectedItems.Cast<string>().ToList())
-                    _excludeSet.Remove(item);
-                RefreshExcludeList();
-            };
-
-            excludePanel.Controls.Add(_excludeListBox);
-            excludePanel.Controls.Add(btnRemoveSelected);
-
-            excludePanel.Resize += (s, e) =>
-            {
-                int pw = excludePanel.ClientSize.Width;
-                btnAddExclude.Left       = pw - 6 - btnAddExclude.Width;
-                _excludeSearchBox.Width  = Math.Max(60, btnAddExclude.Left - 12);
-                _excludeListBox.Width    = Math.Max(60, pw - 12 - btnRemoveSelected.Width - 6);
-                btnRemoveSelected.Left   = pw - 6 - btnRemoveSelected.Width;
-            };
-
+            // ── 排除名單區塊（黑名單）──
+            var excludePanel = BuildAccountListSection(
+                title: "🚫  排除名單（0 人）",
+                titleColor: Theme.AccentRed,
+                headerBg:  Color.FromArgb(60, 30, 30),
+                listBg:    Color.FromArgb(28, 18, 18),
+                placeholder: "輸入帳號加入排除…",
+                set: _excludeSet,
+                setListBox: lb => _excludeListBox = lb,
+                setCountLbl: lb => _excludeCountLbl = lb,
+                setSearchBox: tb => _excludeSearchBox = tb,
+                refreshTitle: cnt => _excludeCountLbl.Text = $"🚫  排除名單（{cnt} 人）",
+                onChanged: RefreshExcludeList);
+            excludePanel.Location = new Point(x, y);
+            excludePanel.Size     = new Size(460, 180);
             scroll.Controls.Add(excludePanel);
             y += 190;
 
@@ -737,6 +671,7 @@ namespace SQ_Email_Tools
                 cartHdrPanel.Width  = w;
                 _cartDgv.Width      = w;
                 settingPanel.Width  = w;
+                includePanel.Width  = w;
                 excludePanel.Width  = w;
                 _sendBtn.Width      = w;
                 _progressBar.Width  = w;
@@ -877,12 +812,19 @@ namespace SQ_Email_Tools
                 $"  • {c.Item.Name}（#{c.Item.Id}）× {c.Qty} 份"));
 
             bool onlineOnly = _chkOnlineOnly.Checked;
+            bool useWhitelist = _includeSet.Count > 0;
 
             string excludeNote = _excludeSet.Count > 0
                 ? $"  ⛔ 排除 {_excludeSet.Count} 人：{string.Join("、", _excludeSet.Take(5))}{(_excludeSet.Count > 5 ? "…" : "")}\n"
                 : "";
 
-            string targetNote = onlineOnly ? "  🟢 發送對象：僅線上玩家\n" : "  🌐 發送對象：全服所有角色\n";
+            string targetNote;
+            if (useWhitelist)
+                targetNote = $"  🎯 發送對象：指定名單 {_includeSet.Count} 人（已忽略「全服/僅線上」設定）\n";
+            else if (onlineOnly)
+                targetNote = "  🟢 發送對象：僅線上玩家\n";
+            else
+                targetNote = "  🌐 發送對象：全服所有角色\n";
 
             if (MessageBox.Show(
                 $"確定要批量發送？\n\n" +
@@ -946,7 +888,11 @@ namespace SQ_Email_Tools
                                   rep.ok ? Theme.AccentGreen : Theme.AccentRed);
                     });
 
-                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(req, progress, _cts.Token, batchSize, _excludeSet.Count > 0 ? _excludeSet : null, onlineOnly);
+                    var (success, fail) = await DatabaseManager.Instance.BatchSendMailAsync(
+                        req, progress, _cts.Token, batchSize,
+                        excludeSet:   _excludeSet.Count > 0 ? _excludeSet : null,
+                        onlineOnly:   onlineOnly,
+                        whitelistSet: useWhitelist ? _includeSet : null);
                     totalSuccess += success;
                     totalFail    += fail;
 
@@ -990,6 +936,200 @@ namespace SQ_Email_Tools
             foreach (var acc in _excludeSet.OrderBy(a => a))
                 _excludeListBox.Items.Add(acc);
             _excludeCountLbl.Text = $"🚫  排除名單（{_excludeSet.Count} 人）";
+        }
+
+        private void RefreshIncludeList()
+        {
+            if (InvokeRequired) { Invoke(new Action(RefreshIncludeList)); return; }
+            _includeListBox.Items.Clear();
+            foreach (var acc in _includeSet.OrderBy(a => a))
+                _includeListBox.Items.Add(acc);
+            _includeCountLbl.Text = $"🎯  指定發送名單（{_includeSet.Count} 人）"
+                + (_includeSet.Count > 0 ? "  ※ 將忽略「全服/僅線上」設定，只發給此清單" : "");
+            // 更新發送按鈕的提示文字（若有道具）
+            RefreshCartDgv();
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 共用：建立「帳號名單」區塊（指定/排除 共用樣板）
+        //    - Header：標題 + 「📤 上傳檔案」+「全部移除」
+        //    - 中間：手動輸入帳號 + 「+ 加入」
+        //    - 下方：清單 + 「移除選中」
+        // ═══════════════════════════════════════════════════════════
+        private Panel BuildAccountListSection(
+            string title,
+            Color titleColor,
+            Color headerBg,
+            Color listBg,
+            string placeholder,
+            HashSet<string> set,
+            Action<ListBox> setListBox,
+            Action<Label> setCountLbl,
+            Action<TextBox> setSearchBox,
+            Action<int> refreshTitle,
+            Action onChanged)
+        {
+            var panel = new Panel
+            {
+                BackColor   = Theme.BgCard,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+
+            // ── Header ──
+            var hdr = new Panel { Dock = DockStyle.Top, Height = 28, BackColor = headerBg };
+            var countLbl = new Label
+            {
+                Text      = title,
+                ForeColor = titleColor,
+                Font      = new Font(Theme.FontFamily, 9f, FontStyle.Bold),
+                Dock      = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(6, 0, 0, 0)
+            };
+            setCountLbl(countLbl);
+            var btnUpload = Theme.MakeButton("📤 上傳", Theme.AccentBlue, Color.White, 64, 22);
+            btnUpload.Font   = Theme.FontSmall;
+            btnUpload.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var btnClear = Theme.MakeButton("全部移除", titleColor, Color.White, 72, 22);
+            btnClear.Font   = Theme.FontSmall;
+            btnClear.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnClear.Click += (s, e) => { set.Clear(); onChanged(); };
+            hdr.Controls.Add(countLbl);
+            hdr.Controls.Add(btnUpload);
+            hdr.Controls.Add(btnClear);
+            hdr.Resize += (s, e) =>
+            {
+                btnClear.Left  = hdr.ClientSize.Width - 4 - btnClear.Width;
+                btnUpload.Left = btnClear.Left - 4 - btnUpload.Width;
+            };
+            panel.Controls.Add(hdr);
+
+            // ── 手動輸入 + 「+ 加入」──
+            var searchBox = new TextBox
+            {
+                PlaceholderText = placeholder,
+                BackColor       = Theme.BgLight,
+                ForeColor       = Theme.TextPrimary,
+                BorderStyle     = BorderStyle.FixedSingle,
+                Font            = Theme.FontBody,
+                Location        = new Point(6, 32),
+                Height          = 24
+            };
+            setSearchBox(searchBox);
+            var btnAdd = Theme.MakeButton("＋ 加入", Theme.AccentOrange, Color.White, 70, 24);
+            btnAdd.Font     = Theme.FontSmall;
+            btnAdd.Location = new Point(0, 32);
+            btnAdd.Anchor   = AnchorStyles.Top | AnchorStyles.Right;
+
+            void Add()
+            {
+                var acc = searchBox.Text.Trim();
+                if (string.IsNullOrEmpty(acc)) return;
+                set.Add(acc);
+                searchBox.Clear();
+                onChanged();
+            }
+            btnAdd.Click    += (s, e) => Add();
+            searchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { Add(); e.Handled = true; } };
+            panel.Controls.Add(searchBox);
+            panel.Controls.Add(btnAdd);
+
+            // ── 名單 + 移除選中 ──
+            var listBox = new ListBox
+            {
+                Top           = 62,
+                Left          = 6,
+                Height        = 100,
+                BackColor     = listBg,
+                ForeColor     = Theme.TextPrimary,
+                Font          = Theme.FontSmall,
+                BorderStyle   = BorderStyle.None,
+                SelectionMode = SelectionMode.MultiExtended
+            };
+            setListBox(listBox);
+            var btnRemoveSelected = Theme.MakeButton("移除選中", titleColor, Color.White, 80, 24);
+            btnRemoveSelected.Font   = Theme.FontSmall;
+            btnRemoveSelected.Top    = 62;
+            btnRemoveSelected.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnRemoveSelected.Click += (s, e) =>
+            {
+                foreach (var item in listBox.SelectedItems.Cast<string>().ToList())
+                    set.Remove(item);
+                onChanged();
+            };
+            panel.Controls.Add(listBox);
+            panel.Controls.Add(btnRemoveSelected);
+
+            // 上傳按鈕：解析檔案 → ask 覆蓋/追加 → 加入 set
+            btnUpload.Click += (s, e) => UploadIntoSet(set, title, onChanged);
+
+            panel.Resize += (s, e) =>
+            {
+                int pw = panel.ClientSize.Width;
+                btnAdd.Left            = pw - 6 - btnAdd.Width;
+                searchBox.Width        = Math.Max(60, btnAdd.Left - 12);
+                btnRemoveSelected.Left = pw - 6 - btnRemoveSelected.Width;
+                listBox.Width          = Math.Max(60, pw - 12 - btnRemoveSelected.Width - 6);
+            };
+            return panel;
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // 上傳檔案 → 加入指定/排除名單
+        // ═══════════════════════════════════════════════════════════
+        private void UploadIntoSet(HashSet<string> set, string sectionTitle, Action onChanged)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title  = $"匯入到「{sectionTitle.Trim().Split('（')[0]}」",
+                Filter = PlayerListImporter.DialogFilter
+            };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            PlayerListImporter.ParseResult parsed;
+            try { parsed = PlayerListImporter.ParseFile(ofd.FileName); }
+            catch (Exception ex)
+            {
+                MessageBox.Show("解析失敗：" + ex.Message, "匯入失敗",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (parsed.Rows.Count == 0)
+            {
+                MessageBox.Show($"檔案內沒有有效的識別編號。\n\n{parsed.DetectedSource}",
+                    "無資料", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // 預覽前 5 筆
+            var preview = string.Join("\n", parsed.Rows.Take(5).Select(r =>
+                string.IsNullOrEmpty(r.OnlineName) ? $"  • {r.Cdkey}" : $"  • {r.Cdkey}（{r.OnlineName}）"));
+            if (parsed.Rows.Count > 5) preview += $"\n  …（共 {parsed.Rows.Count} 筆）";
+
+            // 詢問覆蓋 / 追加 / 取消
+            string msg =
+                $"已從檔案讀到 {parsed.Rows.Count} 筆。\n" +
+                $"來源：{parsed.DetectedSource}\n" +
+                (parsed.Skipped > 0 ? $"略過空白列：{parsed.Skipped}\n" : "") +
+                $"\n預覽：\n{preview}\n\n" +
+                $"目前清單已有 {set.Count} 筆，要如何處理？\n" +
+                "[是] = 覆蓋（清空後匯入）\n[否] = 追加（合併，相同帳號去重）\n[取消] = 不動作";
+            var rsp = MessageBox.Show(msg, "匯入名單", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (rsp == DialogResult.Cancel) return;
+            if (rsp == DialogResult.Yes) set.Clear();
+
+            int before = set.Count;
+            foreach (var r in parsed.Rows)
+            {
+                var cdkey = (r.Cdkey ?? "").Trim();
+                if (!string.IsNullOrEmpty(cdkey)) set.Add(cdkey);
+            }
+            onChanged();
+            int added = set.Count - before;
+            MessageBox.Show(
+                $"✓ 匯入完成\n新增 {added} 筆，目前清單共 {set.Count} 筆。",
+                "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void AppendLog(string text, Color color)

@@ -400,14 +400,44 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             CancellationToken ct,
             int batchSize = 100,
             HashSet<string>? excludeSet = null,
-            bool onlineOnly = false)
+            bool onlineOnly = false,
+            HashSet<string>? whitelistSet = null)
         {
-            // 取帳號清單（onlineOnly：與 CsaloginBatchMailOnlinePredicate 一致，與 WebApi 對齊）
+            // 取帳號清單
+            // ── 指定名單模式 ──
+            // 若 whitelistSet 非空，直接以白名單為候選（onlineOnly/全服 來源條件忽略），
+            // 但仍需經過 csalogin 對帳，過濾掉 DB 裡找不到的 cdkey，避免插入無效帳號。
             var allAccounts = new List<string>();
             using (var connA = GetConnection())
             {
                 await connA.OpenAsync();
-                if (onlineOnly)
+                if (whitelistSet != null && whitelistSet.Count > 0)
+                {
+                    // 用 IN(...) 一次比對；500 個一批避免封包過大
+                    var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var listFiltered = whitelistSet
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim()).Distinct().ToList();
+                    for (int i = 0; i < listFiltered.Count; i += 500)
+                    {
+                        var slice = listFiltered.Skip(i).Take(500).ToList();
+                        using var cmdW = new MySqlCommand();
+                        cmdW.Connection = connA;
+                        var ph = new List<string>();
+                        for (int j = 0; j < slice.Count; j++)
+                        {
+                            string p = $"@w{j}";
+                            cmdW.Parameters.AddWithValue(p, slice[j]);
+                            ph.Add(p);
+                        }
+                        cmdW.CommandText = $"SELECT `Name` FROM csalogin WHERE `Name` IN ({string.Join(",", ph)})";
+                        using var rdr = await cmdW.ExecuteReaderAsync();
+                        while (await rdr.ReadAsync()) existing.Add(rdr.GetString(0));
+                    }
+                    // 維持白名單原始順序輸出
+                    allAccounts = listFiltered.Where(a => existing.Contains(a)).ToList();
+                }
+                else if (onlineOnly)
                 {
                     allAccounts = await LoadOnlineBatchAccountNamesAsync(connA);
                 }
@@ -419,7 +449,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                 }
             }
 
-            // 套用排除名單
+            // 套用排除名單（指定模式下也適用，可從白名單再排除）
             if (excludeSet != null && excludeSet.Count > 0)
                 allAccounts = allAccounts.Where(a => !excludeSet.Contains(a)).ToList();
 
@@ -479,9 +509,13 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                 progress?.Report((done, total, batch[^1], batchOk));
             }
 
-            string targetDesc = (excludeSet != null && excludeSet.Count > 0)
-                ? $"全服（排除 {excludeSet.Count} 人）共 {total} 人"
-                : $"全服 {total} 人";
+            string targetDesc;
+            if (whitelistSet != null && whitelistSet.Count > 0)
+                targetDesc = $"指定名單 {whitelistSet.Count} 人（DB 對帳後 {total} 人{(excludeSet?.Count > 0 ? $"，再排除 {excludeSet.Count} 人" : "")}）";
+            else if (excludeSet != null && excludeSet.Count > 0)
+                targetDesc = $"{(onlineOnly ? "僅線上" : "全服")}（排除 {excludeSet.Count} 人）共 {total} 人";
+            else
+                targetDesc = $"{(onlineOnly ? "僅線上" : "全服")} {total} 人";
             await GmLogger.Instance.LogAsync("批量發送",
                 targetDesc,
                 $"道具:{template.Data} 數量:{qty}份 標題:{template.Buff1} 成功:{success} 失敗:{fail} 批次:{batchSize}",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import api from '../api'
 import type { MailHistoryItem } from '../api'
@@ -9,6 +9,40 @@ import PlayerAutocomplete from '../components/PlayerAutocomplete'
 import type { ItemInfo } from '../components/ItemBrowser'
 import { getApiItems, getApiPets } from '../components/ItemBrowser'
 import useIsMobile from '../hooks/useIsMobile'
+import {
+  FILE_INPUT_ACCEPT,
+  importPlayerListFromFile,
+  type ImportResult,
+} from '../utils/playerListImporter'
+
+// ── 共用：把已解析的玩家清單合併到既有「行對行 textarea」字串 ────
+function mergeImportedToText(existing: string, imported: ImportResult, mode: 'replace' | 'append'): string {
+  const exist = mode === 'replace' ? new Set<string>() : new Set(existing.split(/[\n,]/).map(s => s.trim()).filter(Boolean))
+  for (const r of imported.rows) {
+    const k = r.cdkey.trim()
+    if (k) exist.add(k)
+  }
+  return Array.from(exist).join('\n')
+}
+
+// 詢問「覆蓋 / 追加 / 取消」共用對話框
+function askImportMode(parsed: ImportResult, currentCount: number, listName: string): 'replace' | 'append' | null {
+  const preview = parsed.rows.slice(0, 5)
+    .map(r => r.onlineName ? `  • ${r.cdkey}（${r.onlineName}）` : `  • ${r.cdkey}`)
+    .join('\n') + (parsed.rows.length > 5 ? `\n  …（共 ${parsed.rows.length} 筆）` : '')
+  const ans = window.prompt(
+    `${listName}：已從檔案讀到 ${parsed.rows.length} 筆\n` +
+    `來源：${parsed.detectedSource}\n` +
+    (parsed.skipped > 0 ? `略過空白列：${parsed.skipped}\n` : '') +
+    `\n預覽：\n${preview}\n\n` +
+    `目前清單已有 ${currentCount} 筆。\n` +
+    `輸入：\n  1 = 覆蓋（清空後加入）\n  2 = 追加（合併、去重）\n  其他 = 取消`,
+    '2',
+  )
+  if (ans === '1') return 'replace'
+  if (ans === '2') return 'append'
+  return null
+}
 
 type MainTab = 'single' | 'batch' | 'gold'
 interface CartItem { itemId: number; qty: number; type: number; name?: string; buff3?: string }
@@ -443,6 +477,87 @@ function BatchSendTab() {
   const [excluded, setExcluded] = useState<{account: string; name: string}[]>([])
   const [showExclude, setShowExclude] = useState(false)
 
+  // ── 一鍵上傳檔案 ──
+  // 三種注入點：自訂帳號 textarea / 搜尋勾選清單 / 排除名單
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  type UploadMode = 'custom' | 'search' | 'exclude'
+  const [uploadMode, setUploadMode] = useState<UploadMode>('custom')
+
+  const handleFile = async (file: File) => {
+    let parsed: ImportResult
+    try { parsed = await importPlayerListFromFile(file) }
+    catch (err) { setResult('解析失敗：' + (err instanceof Error ? err.message : String(err))); setResultOk(false); return }
+    if (parsed.rows.length === 0) { setResult(`檔案內沒有有效識別編號（${parsed.detectedSource}）`); setResultOk(false); return }
+
+    if (uploadMode === 'custom') {
+      const mode = askImportMode(parsed, custom.split(/[\n,]/).filter(s => s.trim()).length, '指定帳號清單')
+      if (!mode) return
+      const next = mergeImportedToText(custom, parsed, mode)
+      setCustom(next)
+      const total = next.split(/\n/).filter(Boolean).length
+      setResult(`✓ 已${mode === 'replace' ? '覆蓋' : '追加'}：總共 ${total} 筆識別編號`)
+      setResultOk(true)
+      return
+    }
+
+    if (uploadMode === 'search') {
+      const mode = askImportMode(parsed, searchList.length, '搜尋勾選清單')
+      if (!mode) return
+      const baseList = mode === 'replace' ? [] : [...searchList]
+      const baseSel  = mode === 'replace' ? new Set<string>() : new Set(selected)
+      const existing = new Map(baseList.map(p => [p.account.toLowerCase(), p]))
+      let added = 0
+      for (const r of parsed.rows) {
+        const cdkey = r.cdkey.trim()
+        if (!cdkey) continue
+        const k = cdkey.toLowerCase()
+        if (existing.has(k)) {
+          baseSel.add(existing.get(k)!.account)
+        } else {
+          const np: PlayerRow = {
+            account: cdkey, onlineName: r.onlineName || cdkey, isOnline: false,
+            serverId: 0, regTime: '', loginTime: '', ip: '',
+            isBanned: false, gold: 0, crystal: 0, petCount: 0,
+            payTotal: 0, masterName: '', vipLevel: 0,
+          }
+          baseList.push(np)
+          existing.set(k, np)
+          baseSel.add(cdkey)
+          added++
+        }
+      }
+      setSearchList(baseList)
+      setSelected(baseSel)
+      setResult(`✓ 已${mode === 'replace' ? '覆蓋' : '追加'}：新增 ${added} 人，共 ${baseList.length} 人 / 勾選 ${baseSel.size}`)
+      setResultOk(true)
+      return
+    }
+
+    if (uploadMode === 'exclude') {
+      const mode = askImportMode(parsed, excluded.length, '排除名單')
+      if (!mode) return
+      const base = mode === 'replace' ? [] : [...excluded]
+      const existing = new Set(base.map(e => e.account.toLowerCase()))
+      let added = 0
+      for (const r of parsed.rows) {
+        const cdkey = r.cdkey.trim()
+        if (!cdkey) continue
+        const k = cdkey.toLowerCase()
+        if (!existing.has(k)) {
+          base.push({ account: cdkey, name: r.onlineName || cdkey })
+          existing.add(k)
+          added++
+        }
+      }
+      setExcluded(base)
+      setShowExclude(true)
+      setResult(`✓ 排除名單已${mode === 'replace' ? '覆蓋' : '追加'}：新增 ${added} 人，共 ${base.length} 人`)
+      setResultOk(true)
+      return
+    }
+  }
+  const triggerUpload = (mode: UploadMode) => { setUploadMode(mode); fileRef.current?.click() }
+
   const addToCart = (item: CartItem) => setCart(prev => { const e = prev.find(c => c.itemId === item.itemId && c.type === item.type); return e ? prev.map(c => c.itemId === item.itemId && c.type === item.type ? { ...c, qty: c.qty + item.qty } : c) : [...prev, item] })
   const addManualToCart = () => { const id = parseInt(manualId, 10); if (!id || id <= 0) return; addToCart({ itemId: id, qty: manualQty, type: manualType }); setManualId('') }
   const addFromAutocomplete = (item: ItemInfo) => addToCart({ itemId: item.id, qty: 1, type: 1, name: item.name, buff3: item.desc })
@@ -492,6 +607,8 @@ function BatchSendTab() {
 
   return (
     <div className="batchops-mail-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+      <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       <div style={{ width: isMobile ? '100%' : 380, flexShrink: 0, minWidth: 0 }}><ItemBrowser cart={cart} onAddToCart={addToCart} /></div>
       <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : undefined, position: 'relative', zIndex: 2 }}>
         <Card title="STEP 1 — 目標玩家">
@@ -514,7 +631,16 @@ function BatchSendTab() {
             </p>
           )}
 
-          {target === 'custom' && <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder={'一行一個帳號\naccount1\naccount2'} style={{ width: '100%', height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />}
+          {target === 'custom' && <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>一行一個識別編號（cdkey）</span>
+              <button type="button" onClick={() => triggerUpload('custom')} title="支援 CSV / TXT / Excel；自動偵測欄位"
+                style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(74,158,255,.12)', border: '1px solid var(--accent-blue)', borderRadius: 5, cursor: 'pointer', color: 'var(--accent-blue)' }}>
+                📤 上傳檔案
+              </button>
+            </div>
+            <textarea value={custom} onChange={e => setCustom(e.target.value)} placeholder={'一行一個帳號\naccount1\naccount2'} style={{ width: '100%', height: 80, background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, fontSize: 13, resize: 'vertical' }} />
+          </div>}
 
           {target === 'search' && <div>
             <div className={isMobile ? 'batchops-search-row' : undefined} style={{ display: 'flex', gap: 8, marginBottom: 8, flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : undefined }}>
@@ -524,6 +650,10 @@ function BatchSendTab() {
               <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online'); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online'), padding: '6px 10px', fontSize: 12 }}>{listLoading ? '載入…' : '載入在線'}</button>
               <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/online', { params: { recent: true } }); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('online_recent'), padding: '6px 10px', fontSize: 12 }} title="依 LoginTime，非真實連線">{listLoading ? '載入…' : '載入近期推測'}</button>
               <button onClick={async () => { setListLoading(true); try { const r = await api.get('/players/list', { params: { limit: 500 } }); setSearchList(r.data); setSelected(new Set(r.data.map((p: PlayerRow) => p.account))) } finally { setListLoading(false) } }} disabled={listLoading} style={{ ...btnStyle('all'), padding: '6px 10px', fontSize: 12 }}>載入全部</button>
+              <button onClick={() => triggerUpload('search')} title="從 CSV/TXT/Excel 載入並自動勾選"
+                style={{ padding: '6px 10px', fontSize: 12, background: 'rgba(74,158,255,.12)', border: '1px solid var(--accent-blue)', borderRadius: 5, cursor: 'pointer', color: 'var(--accent-blue)' }}>
+                📤 上傳檔案
+              </button>
             </div>
             {searchList.length > 0 && <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--bg-input)', borderBottom: '1px solid var(--border)', fontSize: 12, flexWrap: 'wrap' }}>
@@ -580,9 +710,15 @@ function BatchSendTab() {
               {showExclude && (
                 <div style={{ marginTop: 8, padding: '10px 12px', background: 'rgba(245,101,101,.05)', border: '1px solid rgba(245,101,101,.25)', borderRadius: 8 }}>
                   <div style={{ fontSize: 11, color: 'var(--accent-red)', marginBottom: 8 }}>排除名單中的玩家不會收到道具（即使在全部/在線名單中）</div>
-                  <PlayerAutocomplete value={excludeQ} onChange={setExcludeQ}
-                    onSelect={(p: PlayerRow) => addExclude(p)}
-                    placeholder="搜尋要排除的玩家…" style={{ marginBottom: 8 }} />
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'stretch' }}>
+                    <PlayerAutocomplete value={excludeQ} onChange={setExcludeQ}
+                      onSelect={(p: PlayerRow) => addExclude(p)}
+                      placeholder="搜尋要排除的玩家…" style={{ flex: 1 }} />
+                    <button onClick={() => triggerUpload('exclude')} title="從檔案載入要排除的玩家"
+                      style={{ padding: '6px 12px', fontSize: 12, background: 'rgba(245,101,101,.12)', border: '1px solid var(--accent-red)', borderRadius: 6, cursor: 'pointer', color: 'var(--accent-red)', whiteSpace: 'nowrap' }}>
+                      📤 上傳檔案
+                    </button>
+                  </div>
                   {excluded.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {excluded.map(e => (
@@ -671,6 +807,36 @@ function BatchGoldTab() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [result, setResult] = useState('')
 
+  // ── 一鍵上傳 ──
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const handleUpload = async (file: File) => {
+    let parsed: ImportResult
+    try { parsed = await importPlayerListFromFile(file) }
+    catch (err) { setResult('解析失敗：' + (err instanceof Error ? err.message : String(err))); return }
+    if (parsed.rows.length === 0) { setResult(`檔案內無有效識別編號（${parsed.detectedSource}）`); return }
+    const mode = askImportMode(parsed, playerList.length, '玩家清單')
+    if (!mode) return
+
+    const baseList = mode === 'replace' ? [] : [...playerList]
+    const baseSel  = mode === 'replace' ? new Set<string>() : new Set(selected)
+    const existing = new Map(baseList.map(p => [p.account.toLowerCase(), p]))
+    let added = 0
+    for (const r of parsed.rows) {
+      const cdkey = r.cdkey.trim()
+      if (!cdkey) continue
+      const k = cdkey.toLowerCase()
+      if (existing.has(k)) {
+        baseSel.add(existing.get(k)!.account)
+      } else {
+        const np = { account: cdkey, onlineName: r.onlineName || cdkey }
+        baseList.push(np); existing.set(k, np); baseSel.add(cdkey); added++
+      }
+    }
+    setPlayerList(baseList); setSelected(baseSel)
+    if (target === 'custom') setCustomList(baseList.map(p => p.account).join('\n'))
+    setResult(`✓ 已${mode === 'replace' ? '覆蓋' : '追加'}：新增 ${added} 人，共 ${baseList.length} 人 / 勾選 ${baseSel.size}`)
+  }
+
   const loadPlayers = async () => {
     if (target === 'custom') { const accounts = customList.split(/[\n,]/).map(s => s.trim()).filter(Boolean); setPlayerList(accounts.map(a => ({ account: a, onlineName: a }))); setSelected(new Set(accounts)); return }
     setLoading(true)
@@ -696,6 +862,8 @@ function BatchGoldTab() {
 
   return (
     <div style={{ maxWidth: 860 }}>
+      <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = '' }} />
       <Card title="STEP 1 — 載入玩家範圍">
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
           {(['all', 'online', 'online_recent', 'custom'] as const).map(t => (
@@ -706,8 +874,24 @@ function BatchGoldTab() {
           ))}
         </div>
         {target === 'custom'
-          ? <div><textarea value={customList} onChange={e => setCustomList(e.target.value)} placeholder="一行一個帳號" style={{ width: '100%', height: 80, marginBottom: 8, padding: 8, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} /><button onClick={loadPlayers} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>載入清單</button></div>
-          : <div style={{ display: 'flex', gap: 8 }}><input value={searchKw} onChange={e => setSearchKw(e.target.value)} placeholder="關鍵字（選填）" style={{ width: 200 }} /><button onClick={loadPlayers} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>{loading ? '載入中…' : '載入清單'}</button></div>}
+          ? <div>
+              <textarea value={customList} onChange={e => setCustomList(e.target.value)} placeholder="一行一個帳號" style={{ width: '100%', height: 80, marginBottom: 8, padding: 8, background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={loadPlayers} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>載入清單</button>
+                <button onClick={() => fileRef.current?.click()} title="從 CSV/TXT/Excel 上傳，自動勾選對應玩家"
+                  style={{ background: 'rgba(74,158,255,.12)', color: 'var(--accent-blue)', border: '1px solid var(--accent-blue)', padding: '6px 14px', borderRadius: 6 }}>
+                  📤 上傳檔案
+                </button>
+              </div>
+            </div>
+          : <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input value={searchKw} onChange={e => setSearchKw(e.target.value)} placeholder="關鍵字（選填）" style={{ width: 200 }} />
+              <button onClick={loadPlayers} disabled={loading} style={{ background: 'var(--accent-blue)', color: '#fff', padding: '6px 14px' }}>{loading ? '載入中…' : '載入清單'}</button>
+              <button onClick={() => fileRef.current?.click()} title="上傳檔案：自動勾選對應玩家、新增不存在者"
+                style={{ background: 'rgba(74,158,255,.12)', color: 'var(--accent-blue)', border: '1px solid var(--accent-blue)', padding: '6px 14px', borderRadius: 6 }}>
+                📤 上傳檔案
+              </button>
+            </div>}
       </Card>
       <Card title="STEP 2 — 金幣變動量">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
