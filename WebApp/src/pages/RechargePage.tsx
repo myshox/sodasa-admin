@@ -318,7 +318,7 @@ export default function RechargePage() {
                 )}
 
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button onClick={doFix} disabled={loading} title="進度條顯示異常時點此修復（不會更動儲值金額）"
+                  <button onClick={doFix} disabled={loading} title="進度條顯示異常時點此修復（不更動儲值金額，並把已達成檔位標記為已領取以防重複領獎）"
                     style={{ flex: 1, fontSize: 11, padding: '6px 0', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-muted)' }}>
                     🔧 修復進度顯示
                   </button>

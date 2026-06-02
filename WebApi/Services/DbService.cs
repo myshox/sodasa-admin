@@ -863,9 +863,13 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             long completedCycles = currentPoint > 0 ? (currentPoint - 1) / CYCLE_MAX : 0;
             long newCyclePoint   = currentPoint - completedCycles * CYCLE_MAX;
             long newTotalCheck   = currentTotalCheck + completedCycles;
+            // ★ 與桌面版一致：check 設為「涵蓋當前輪 point 之檔位 bit 全 1（已領取）」鎖住領獎，
+            //   不可設 0（設 0 反而讓玩家把已達成檔位重新領一次）。
+            long lockBits = CalcCheckBits(newCyclePoint);
             await using var cmdFix = new MySqlCommand(
-                "UPDATE paydata SET point=@newpt, `check`=0, totalcheck=@tc WHERE cdkey=@cdkey", db);
+                "UPDATE paydata SET point=@newpt, `check`=@chk, totalcheck=@tc WHERE cdkey=@cdkey", db);
             cmdFix.Parameters.AddWithValue("@newpt", newCyclePoint);
+            cmdFix.Parameters.AddWithValue("@chk",   lockBits);
             cmdFix.Parameters.AddWithValue("@tc",    newTotalCheck);
             cmdFix.Parameters.AddWithValue("@cdkey", account);
             return await cmdFix.ExecuteNonQueryAsync() > 0;
@@ -952,6 +956,26 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
 
     // ── 給予儲值（與 EXE 一致：paydata 循環 20,000、csalogin.PayTotal/VipPoint）────────
     private const long CYCLE_MAX = 20_000L;
+
+    // 每輪 11 個獎勵門檻（bit 0~10），單位台幣；與桌面版 DatabaseManager.RewardTiers 一致。
+    private static readonly long[] RewardTiers = {
+          100,    300,    500,  1_000,  2_000,
+        3_000,  5_000, 10_000, 13_000, 15_000,
+       20_000,
+    };
+
+    /// <summary>
+    /// 依「當前輪次進度（0~20000）」計算 check bitmask：門檻 ≤ cyclePoint 的 bit 全設 1（已領取）。
+    /// 遊戲端可領條件 = (point ≥ 該檔門檻) 且 (check 對應 bit == 0)；
+    /// 將 bit 設 1 即等同「已領取」→ 鎖住領獎。
+    /// </summary>
+    private static long CalcCheckBits(long cyclePoint)
+    {
+        long bits = 0;
+        for (int i = 0; i < RewardTiers.Length; i++)
+            if (cyclePoint >= RewardTiers[i]) bits |= (1L << i);
+        return bits;
+    }
 
     public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold, bool updatePaydata = true)
     {
