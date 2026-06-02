@@ -178,6 +178,24 @@ public class PlayersController : ControllerBase
         return ok ? Ok(new { message = "✓ 已給予儲值" }) : BadRequest(new { message = "修改失敗" });
     }
 
+    /// <summary>只加累儲顯示（玩家無法領獎）：動 PayTotal/lifetime/point、鎖 check、不發金幣（與 EXE AdjustPayDisplayOnlyAsync 一致）</summary>
+    [HttpPost("{account}/paydata/display-only")]
+    public async Task<IActionResult> DisplayOnly(string account, [FromBody] DisplayOnlyRequest req)
+    {
+        if (req.TwdAmount <= 0)
+            return BadRequest(new { message = "台幣金額須大於 0" });
+        var (ok, newPoint) = await _db.AdjustPayDisplayOnlyAsync(account, req.TwdAmount);
+        if (ok)
+        {
+            string orderNo  = $"GM-DISP-{DateTime.UtcNow:yyyyMMddHHmmss}-{(account.Length > 8 ? account[..8] : account)}";
+            string prodName = $"GM補單（只加顯示 +NT${req.TwdAmount:N0}，不動輪次、不可領獎）";
+            await _db.WriteRechargeOrderAsync(account, orderNo, prodName, req.TwdAmount * 100);
+        }
+        return ok
+            ? Ok(new { message = $"🔒 已只加累儲顯示 +NT${req.TwdAmount:N0}（已鎖領獎，玩家重登後才看到新進度）", newPoint })
+            : BadRequest(new { message = "修改失敗" });
+    }
+
     /// <summary>主帳號分配儲值：為旗下多個 CDKEY 各別執行儲值</summary>
     [HttpPost("master-split-recharge")]
     public async Task<IActionResult> MasterSplitRecharge([FromBody] List<SplitRechargeItem> items)

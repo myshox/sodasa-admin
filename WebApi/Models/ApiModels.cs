@@ -209,6 +209,12 @@ public class RechargeRequest
     public int  BonusPercent   { get; set; } = 0;
 }
 
+/// <summary>只加累儲顯示（玩家無法領獎）：僅帶台幣金額/差額</summary>
+public class DisplayOnlyRequest
+{
+    public long TwdAmount { get; set; }
+}
+
 /// <summary>主帳號分配儲值：單一 CDKEY 的儲值項目</summary>
 public class SplitRechargeItem
 {

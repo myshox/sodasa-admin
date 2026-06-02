@@ -977,6 +977,82 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         return bits;
     }
 
+    /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→20000 一致）。</summary>
+    private static long CyclePointFromRawTotal(long rawTotal)
+    {
+        if (rawTotal <= 0) return 0;
+        long completedCycles = (rawTotal - 1) / CYCLE_MAX;
+        return rawTotal - completedCycles * CYCLE_MAX;
+    }
+
+    /// <summary>
+    /// 【只加顯示，不給領獎】調整玩家累積儲值（與桌面版 DatabaseManager.AdjustPayDisplayOnlyAsync 完全一致）。
+    ///   會變動：
+    ///     - csalogin.PayTotal      += twdAmount（玩家資料卡顯示、VIP 分層依此）
+    ///     - paydata.lifetime_total += twdAmount（歷史總額，永不歸零）
+    ///     - paydata.point          以「目前 point」為基準累加，循環進位（遊戲面板 NT$/20,000 讀此欄）
+    ///     - paydata.check          設為「涵蓋目前 point 之檔位 bit 全 1（已領取）」→ 鎖住領獎
+    ///   不會變動：
+    ///     - paydata.totalcheck     保持不變（不推進已完成輪次、不解鎖跨輪獎勵）
+    ///     - csalogin.VipPoint      保持不變（不發金幣）
+    /// </summary>
+    public async Task<(bool ok, long newPoint)> AdjustPayDisplayOnlyAsync(string account, long twdAmount)
+    {
+        if (twdAmount == 0) return (false, 0);
+
+        await using var db = Open();
+        await db.OpenAsync();
+
+        long currentPoint = 0;
+        await using (var cmdGet = new MySqlCommand(
+            "SELECT IFNULL(point,0) AS pt FROM paydata WHERE cdkey=@cdkey", db))
+        {
+            cmdGet.Parameters.AddWithValue("@cdkey", account);
+            await using var r = await cmdGet.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+                currentPoint = Convert.ToInt64(r["pt"]);
+        }
+
+        // ★ 加值基準一律＝paydata.point（遊戲面板實際讀取的當前循環進度），不可用 lifetime 推算。
+        long baseline = currentPoint;
+        long newCyclePoint = CyclePointFromRawTotal(baseline + twdAmount);
+
+        // ★ 鎖領獎：遊戲端可領 = (point >= 該檔門檻) 且 (check 對應 bit == 0)。
+        //   把 check 設為涵蓋目前 point 的檔位 bit 全 1（已領取）→ 進度條有進度但領不到。
+        //   totalcheck 不動。
+        long lockBits = CalcCheckBits(newCyclePoint);
+
+        // 1) csalogin.PayTotal（顯示用、VIP 分層用）
+        bool okLogin;
+        await using (var cmdLogin = new MySqlCommand(
+            "UPDATE csalogin SET PayTotal = GREATEST(0, PayTotal + @twd) WHERE `Name` = @cdkey", db))
+        {
+            cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
+            cmdLogin.Parameters.AddWithValue("@cdkey", account);
+            okLogin = await cmdLogin.ExecuteNonQueryAsync() > 0;
+        }
+
+        // 2) lifetime_total + point；check 設為「已領取」bitmask 鎖領獎；totalcheck 不動
+        int payRows;
+        await using (var cmdPay = new MySqlCommand(@"
+            INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+            VALUES (@cdkey, @newpt, NOW(), @chk, 0, GREATEST(0, @twd))
+            ON DUPLICATE KEY UPDATE
+                point          = @newpt,
+                `check`        = @chk,
+                lifetime_total = GREATEST(0, IFNULL(lifetime_total, 0) + @twd)", db))
+        {
+            cmdPay.Parameters.AddWithValue("@cdkey", account);
+            cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
+            cmdPay.Parameters.AddWithValue("@chk",   lockBits);
+            cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+            payRows = await cmdPay.ExecuteNonQueryAsync();
+        }
+        bool okPay = payRows > 0;
+
+        return (okPay || okLogin, newCyclePoint);
+    }
+
     public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold, bool updatePaydata = true)
     {
         await using var db = Open();

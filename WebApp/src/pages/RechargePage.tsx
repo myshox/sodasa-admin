@@ -80,7 +80,7 @@ export default function RechargePage() {
   const [selectedTier, setSelectedTier] = useState<typeof TIERS[0] | null>(null)
   const [bonus, setBonus] = useState(0)
   const [customTwd, setCustomTwd] = useState('')
-  const [opType, setOpType] = useState<null | 'only' | 'gold' | 'onlyGold'>(null)
+  const [opType, setOpType] = useState<null | 'only' | 'gold' | 'onlyGold' | 'displayOnly'>(null)
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgOk, setMsgOk] = useState(true)
@@ -105,7 +105,7 @@ export default function RechargePage() {
   const afterCycle     = effectiveTwd > 0 ? currentCycle + effectiveTwd : currentCycle
   const completedExtra = afterCycle > 0 ? Math.floor((afterCycle - 1) / CYCLE_MAX) - Math.floor((currentCycle > 0 ? (currentCycle - 1) / CYCLE_MAX : 0)) : 0
   const afterPoint     = afterCycle - Math.floor((afterCycle > 0 ? (afterCycle - 1) / CYCLE_MAX : 0)) * CYCLE_MAX
-  const afterPayTotal  = (info?.payTotal ?? 0) + (opType === 'gold' ? finalTwd : 0)
+  const afterPayTotal  = (info?.payTotal ?? 0) + (opType === 'gold' || opType === 'displayOnly' ? finalTwd : 0)
   const afterVip       = afterPayTotal >= 15000 ? 2 : afterPayTotal >= 5000 ? 1 : 0
   const cycPct         = Math.min(100, Math.round((currentCycle / CYCLE_MAX) * 100))
   const afterCycPct    = Math.min(100, Math.round(((afterPoint > 0 ? afterPoint : currentCycle) / CYCLE_MAX) * 100))
@@ -140,6 +140,24 @@ export default function RechargePage() {
     // 大額（> NT$10,000）額外警告
     if (effectiveTwd > 10_000) {
       if (!window.confirm(`⚠ 充值金額 NT$${effectiveTwd.toLocaleString()} 超過 NT$10,000\n請確認金額無誤。繼續嗎？`)) return
+    }
+
+    // ── 只加累儲顯示（玩家無法領獎）── 走獨立端點
+    if (opType === 'displayOnly') {
+      if (!window.confirm(
+        `確認「只加累儲顯示」？\n\n  玩家：${info.onlineName}（${info.account}）\n  累儲 +NT$${finalTwd.toLocaleString()}（PayTotal / 歷史總額 / 面板進度）\n  🔒 已達成檔位將標記為已領取 → 玩家無法領獎\n  本次不發放金幣\n\n此操作無法撤銷！`
+      )) return
+      setLoading(true); setMsg('')
+      try {
+        const r = await api.post(`/players/${encodeURIComponent(info.account)}/paydata/display-only`, { twdAmount: finalTwd })
+        setMsg(r.data.message || '🔒 已只加累儲顯示'); setMsgOk(true)
+        setSelectedTier(null); setCustomTwd(''); setOpType(null)
+        await loadPlayer(info.account)
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { message?: string } } }
+        setMsg(err.response?.data?.message || '操作失敗'); setMsgOk(false)
+      } finally { setLoading(false) }
+      return
     }
 
     // 最終確認
@@ -409,7 +427,7 @@ export default function RechargePage() {
           {/* STEP 4：操作類型 */}
           <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(251,191,36,.3)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
             <StepLabel n={4} text="這次要做什麼？" sub="必填" warn />
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? 8 : 10, marginTop: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 8 : 10, marginTop: 14 }}>
               <OpCard
                 selected={opType === 'gold'} onClick={() => setOpType('gold')}
                 icon="💰" color="#4ade80"
@@ -429,6 +447,12 @@ export default function RechargePage() {
                 title="只發金幣，不計充值"
                 desc="發送金幣但不影響累積儲值進度，適合活動補償"
               />
+              <OpCard
+                selected={opType === 'displayOnly'} onClick={() => setOpType('displayOnly')}
+                icon="🔒" color="#a78bfa"
+                title="只加累儲顯示（玩家無法領獎）"
+                desc="動 PayTotal+歷史+面板進度、鎖領獎、不發金幣；玩家重登後才看到新進度"
+              />
             </div>
           </div>
 
@@ -439,6 +463,11 @@ export default function RechargePage() {
               {opType === 'onlyGold' && (
                 <div style={{ fontSize: 12, color: '#f59e0b', background: 'rgba(245,158,11,.1)', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>
                   ⚠ 此模式只發金幣，累積充值進度不變
+                </div>
+              )}
+              {opType === 'displayOnly' && (
+                <div style={{ fontSize: 12, color: '#a78bfa', background: 'rgba(167,139,250,.1)', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>
+                  🔒 此模式更新 PayTotal／歷史總額／面板進度，並把已達成檔位標記為已領取（玩家無法領獎），不發放金幣
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 10 }}>
@@ -486,6 +515,10 @@ export default function RechargePage() {
                 ? (finalGold > 0
                     ? `🎁 確認發放 ${info.onlineName} ${finalGold.toLocaleString()} 金幣（不計充值）`
                     : '⬅ 請選擇套餐以決定金幣數量')
+              : opType === 'displayOnly'
+                ? (finalTwd > 0
+                    ? `🔒 只加累儲顯示 NT$${finalTwd.toLocaleString()}（鎖領獎・不發金幣）`
+                    : '⬅ 請選擇套餐或輸入金額')
               : finalTwd <= 0 ? '⬅ 請選擇套餐或輸入金額'
               : isMobile
                 ? `💳 確認儲值 NT$${finalTwd.toLocaleString()}`
