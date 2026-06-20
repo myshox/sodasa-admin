@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace SQ_Email_Tools
@@ -19,19 +20,28 @@ namespace SQ_Email_Tools
             Text          = "📋 GM 操作日誌";
             Size          = new Size(1100, 660);
             MinimumSize   = new Size(800, 480);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
-            LoadLogFiles();
+            _ = LoadLogDatesAsync();
+
+            // 有新操作時自動刷新目前檢視（讓網頁/其他 GM 的操作也即時出現）
+            GmLogger.Instance.LogUpdated += OnLogUpdated;
+            FormClosed += (s, e) => GmLogger.Instance.LogUpdated -= OnLogUpdated;
+        }
+
+        private void OnLogUpdated()
+        {
+            if (IsDisposed) return;
+            try { BeginInvoke(new Action(() => _ = LoadSelectedDateAsync())); } catch { }
         }
 
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  📋  GM 操作日誌  —  查詢所有 GM 的操作記錄",
@@ -43,7 +53,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 工具列 ──
-            var toolPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var toolPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             toolPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             toolPanel.Controls.Add(new Label
             {
@@ -62,7 +72,7 @@ namespace SQ_Email_Tools
                 Width         = 160,
                 Height        = 28
             };
-            _cboDates.SelectedIndexChanged += (s, e) => LoadSelectedDate();
+            _cboDates.SelectedIndexChanged += (s, e) => _ = LoadSelectedDateAsync();
 
             var lblSearch = new Label
             {
@@ -80,6 +90,14 @@ namespace SQ_Email_Tools
                 Anchor          = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             _searchBox.TextChanged += (s, e) => ApplyFilter();
+            _searchBox.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    _ = LoadSelectedDateAsync();   // Enter：跨全部歷史於資料庫端搜尋
+                }
+            };
 
             var btnExport = Theme.MakeButton("💾 匯出", Theme.AccentGreen, Color.White, 90, 28);
             btnExport.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -108,10 +126,9 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly           = true;
-            _dgv.RowTemplate.Height = 32;
-
-            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTime",   HeaderText = "時間",   Width = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTime",   HeaderText = "時間",   Width = 140 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cOp",     HeaderText = "操作員", Width = 80  });
+            _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cSrc",    HeaderText = "來源",   Width = 56  });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cResult", HeaderText = "結果",   Width = 54  });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAction", HeaderText = "操作",   Width = 110 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTarget", HeaderText = "目標",   Width = 120 });
@@ -127,77 +144,59 @@ namespace SQ_Email_Tools
             Controls.Add(header);
         }
 
-        // ── 載入日誌檔列表 ──────────────────────────────────────
-        private void LoadLogFiles()
+        // ── 載入有紀錄的日期清單（從共用資料庫）───────────────────
+        private async Task LoadLogDatesAsync()
         {
+            string prev = _cboDates.SelectedItem?.ToString();
+            var dates = await DatabaseManager.Instance.GetGmLogDatesAsync();
+
+            _cboDates.SelectedIndexChanged -= OnDateChanged;
             _cboDates.Items.Clear();
-            _cboDates.Items.Add("今日（即時）");
-            var files = GmLogger.Instance.GetLogFiles();
-            foreach (var f in files)
-            {
-                string dateStr = Path.GetFileNameWithoutExtension(f);
-                _cboDates.Items.Add(dateStr);
-            }
-            _cboDates.SelectedIndex = 0;
+            _cboDates.Items.Add("全部（最近）");
+            foreach (var d in dates) _cboDates.Items.Add(d);
+
+            int idx = prev != null ? _cboDates.Items.IndexOf(prev) : -1;
+            _cboDates.SelectedIndex = idx >= 0 ? idx : 0;
+            _cboDates.SelectedIndexChanged += OnDateChanged;
+
+            await LoadSelectedDateAsync();
         }
 
-        // ── 載入選定日期的日誌 ──────────────────────────────────
-        private void LoadSelectedDate()
+        private void OnDateChanged(object sender, EventArgs e) => _ = LoadSelectedDateAsync();
+
+        // ── 載入選定日期的紀錄（從共用資料庫）─────────────────────
+        private async Task LoadSelectedDateAsync()
         {
+            if (!DatabaseManager.Instance.IsConnected)
+            {
+                _dgv.Rows.Clear();
+                _statusLbl.Text = "尚未連線資料庫，無法載入操作紀錄";
+                return;
+            }
+
+            string date = _cboDates.SelectedIndex <= 0 ? "" : (_cboDates.SelectedItem?.ToString() ?? "");
+            string keyword = _searchBox.Text.Trim();
+
+            var (rows, total) = await DatabaseManager.Instance.GetGmLogsAsync(date, keyword, 0, 1000);
+            if (IsDisposed) return;
+
             _dgv.Rows.Clear();
-            if (_cboDates.SelectedIndex == 0)
+            foreach (var e in rows)
             {
-                // 今日即時記錄
-                var entries = GmLogger.Instance.RecentLogs;
-                foreach (var e in entries.Reverse<GmLogEntry>())
-                {
-                    int i = _dgv.Rows.Add(
-                        e.Time.ToString("HH:mm:ss"),
-                        e.Operator,
-                        e.Success ? "✓" : "✗",
-                        e.Action, e.Target, e.Detail);
-                    _dgv.Rows[i].DefaultCellStyle.ForeColor = e.Success ? Theme.TextPrimary : Theme.AccentRed;
-                }
-                _statusLbl.Text = $"今日共 {entries.Count} 筆操作記錄";
+                int i = _dgv.Rows.Add(
+                    e.Time.ToString("yyyy-MM-dd HH:mm:ss"),
+                    e.Operator,
+                    e.Source == "web" ? "網頁" : "工具",
+                    e.Success ? "✓" : "✗",
+                    e.Action, e.Target, e.Detail);
+                _dgv.Rows[i].DefaultCellStyle.ForeColor = e.Success ? Theme.TextPrimary : Theme.AccentRed;
             }
-            else
-            {
-                // 讀取歷史 log 檔
-                string date = _cboDates.SelectedItem?.ToString() ?? "";
-                string content = GmLogger.Instance.ReadLogFile(date + ".log");
-                var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in lines.Reverse())
-                {
-                    int i = _dgv.Rows.Add(ParseLogLine(line));
-                    if (line.Contains(" ✗ ")) _dgv.Rows[i].DefaultCellStyle.ForeColor = Theme.AccentRed;
-                }
-                _statusLbl.Text = $"{date} 共 {lines.Length} 筆記錄";
-            }
-            ApplyFilter();
-        }
 
-        private static string[] ParseLogLine(string line)
-        {
-            // 格式：[HH:mm:ss] [操作員] ✓/✗ 操作 | 目標 | 詳情
-            try
-            {
-                string time = line.Length > 10 ? line.Substring(1, 8) : "";
-                string rest = line.Length > 12 ? line.Substring(10).Trim() : line;
-                string op   = "", result = "", action = "", target = "", detail = "";
-                if (rest.StartsWith("["))
-                {
-                    int end = rest.IndexOf(']');
-                    if (end > 0) { op = rest.Substring(1, end - 1); rest = rest.Substring(end + 1).Trim(); }
-                }
-                result = rest.StartsWith("✓") ? "✓" : rest.StartsWith("✗") ? "✗" : "";
-                if (result.Length > 0) rest = rest.Substring(1).Trim();
-                var parts = rest.Split('|');
-                action = parts.Length > 0 ? parts[0].Trim() : "";
-                target = parts.Length > 1 ? parts[1].Trim() : "";
-                detail = parts.Length > 2 ? parts[2].Trim() : "";
-                return new[] { time, op, result, action, target, detail };
-            }
-            catch { return new[] { "", "", "", line, "", "" }; }
+            string scope = string.IsNullOrEmpty(date) ? "全部" : date;
+            string filterNote = string.IsNullOrEmpty(keyword) ? "" : $"（關鍵字「{keyword}」）";
+            _statusLbl.Text = total > rows.Count
+                ? $"{scope}{filterNote} 共 {total} 筆，顯示最新 {rows.Count} 筆"
+                : $"{scope}{filterNote} 共 {rows.Count} 筆記錄";
         }
 
         private void ApplyFilter()

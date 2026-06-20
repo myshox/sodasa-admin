@@ -229,6 +229,8 @@ namespace SQ_Email_Tools
         public string   Target   { get; set; }
         public string   Detail   { get; set; }
         public bool     Success  { get; set; }
+        /// <summary>來源：exe（工具）或 web（網頁）</summary>
+        public string   Source   { get; set; } = "exe";
     }
 
     // ── 玩家貨幣（csalogin 可讀寫欄位）────────────────
@@ -284,7 +286,10 @@ namespace SQ_Email_Tools
         public long   Crystal    { get; set; }
         public long   PayPoint   { get; set; }
         public long   RmbPoint   { get; set; }
+        /// <summary>遊戲面板當前循環進度 = paydata.point（遊戲「累積充值獎勵」介面直接讀此欄）</summary>
         public long   PayTotal         { get; set; }
+        /// <summary>csalogin.PayTotal（玩家資料卡顯示 / VIP 分層用，可能與 paydata.point 不同步）</summary>
+        public long   CsaPayTotal      { get; set; }
         /// <summary>歷史總累積儲值（永不歸零）= paydata.lifetime_total</summary>
         public long   LifetimePayTotal { get; set; }
         /// <summary>已完成循環數 = paydata.totalcheck</summary>

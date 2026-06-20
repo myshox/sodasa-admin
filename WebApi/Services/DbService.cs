@@ -14,6 +14,130 @@ public class DbService
 
     private MySqlConnection Open() => new(_conn);
 
+    // ══════════════════════════════════════════════════════════
+    // GM 操作紀錄（gm_operation_log）── 與 EXE 共用同一張表
+    // ══════════════════════════════════════════════════════════
+    private bool _gmLogTableReady = false;
+
+    private async Task EnsureGmLogTableAsync(MySqlConnection db)
+    {
+        if (_gmLogTableReady) return;
+        try
+        {
+            await using var cmd = new MySqlCommand(@"
+                CREATE TABLE IF NOT EXISTS `gm_operation_log` (
+                  `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                  `created_at` DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  `operator`   VARCHAR(64)    NOT NULL DEFAULT 'GM',
+                  `source`     VARCHAR(8)     NOT NULL DEFAULT 'web',
+                  `action`     VARCHAR(64)    NOT NULL DEFAULT '',
+                  `target`     VARCHAR(255)   NOT NULL DEFAULT '',
+                  `detail`     TEXT           NULL,
+                  `success`    TINYINT(1)     NOT NULL DEFAULT 1,
+                  PRIMARY KEY (`id`),
+                  KEY `idx_created`  (`created_at`),
+                  KEY `idx_operator` (`operator`),
+                  KEY `idx_action`   (`action`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", db);
+            await cmd.ExecuteNonQueryAsync();
+            _gmLogTableReady = true;
+        }
+        catch { }
+    }
+
+    /// <summary>寫入一筆 GM 操作紀錄；失敗不丟例外（不影響主操作結果）。</summary>
+    public async Task WriteGmLogAsync(string oper, string action, string target, string detail, bool success, string source = "web")
+    {
+        try
+        {
+            await using var db = Open();
+            await db.OpenAsync();
+            await EnsureGmLogTableAsync(db);
+            await using var cmd = new MySqlCommand(
+                "INSERT INTO `gm_operation_log` (`operator`,`source`,`action`,`target`,`detail`,`success`) " +
+                "VALUES (@op,@src,@act,@tgt,@det,@ok)", db);
+            cmd.Parameters.AddWithValue("@op",  Trunc(oper,   64));
+            cmd.Parameters.AddWithValue("@src", Trunc(source,  8));
+            cmd.Parameters.AddWithValue("@act", Trunc(action, 64));
+            cmd.Parameters.AddWithValue("@tgt", Trunc(target, 255));
+            cmd.Parameters.AddWithValue("@det", detail ?? "");
+            cmd.Parameters.AddWithValue("@ok",  success ? 1 : 0);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch { }
+
+        static string Trunc(string s, int max)
+            => string.IsNullOrEmpty(s) ? "" : (s.Length > max ? s.Substring(0, max) : s);
+    }
+
+    /// <summary>取得有紀錄的日期清單（yyyy-MM-dd，新到舊）。</summary>
+    public async Task<List<string>> GetGmLogDatesAsync()
+    {
+        var list = new List<string>();
+        try
+        {
+            await using var db = Open();
+            await db.OpenAsync();
+            await EnsureGmLogTableAsync(db);
+            await using var cmd = new MySqlCommand(
+                "SELECT DISTINCT DATE_FORMAT(`created_at`,'%Y-%m-%d') d " +
+                "FROM `gm_operation_log` ORDER BY d DESC LIMIT 366", db);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(r.GetString(0));
+        }
+        catch { }
+        return list;
+    }
+
+    /// <summary>查詢 GM 操作紀錄（可依日期、關鍵字篩選，分頁）。</summary>
+    public async Task<(int total, List<GmLogItem> items)> GetGmLogsAsync(
+        string date, string q, int offset, int limit)
+    {
+        var items = new List<GmLogItem>();
+        int total = 0;
+        try
+        {
+            await using var db = Open();
+            await db.OpenAsync();
+            await EnsureGmLogTableAsync(db);
+
+            string where = "WHERE 1=1";
+            if (!string.IsNullOrWhiteSpace(date)) where += " AND DATE(`created_at`)=@date";
+            if (!string.IsNullOrWhiteSpace(q))    where += " AND (`action` LIKE @kw OR `target` LIKE @kw OR `detail` LIKE @kw OR `operator` LIKE @kw)";
+
+            await using (var cntCmd = new MySqlCommand($"SELECT COUNT(*) FROM `gm_operation_log` {where}", db))
+            {
+                if (!string.IsNullOrWhiteSpace(date)) cntCmd.Parameters.AddWithValue("@date", date);
+                if (!string.IsNullOrWhiteSpace(q))    cntCmd.Parameters.AddWithValue("@kw", $"%{q}%");
+                total = Convert.ToInt32(await cntCmd.ExecuteScalarAsync());
+            }
+
+            await using var cmd = new MySqlCommand(
+                "SELECT DATE_FORMAT(`created_at`,'%Y-%m-%d %H:%i:%s') t, `operator`,`source`,`action`,`target`,`detail`,`success` " +
+                $"FROM `gm_operation_log` {where} ORDER BY `id` DESC LIMIT @lim OFFSET @off", db);
+            if (!string.IsNullOrWhiteSpace(date)) cmd.Parameters.AddWithValue("@date", date);
+            if (!string.IsNullOrWhiteSpace(q))    cmd.Parameters.AddWithValue("@kw", $"%{q}%");
+            cmd.Parameters.AddWithValue("@lim", limit);
+            cmd.Parameters.AddWithValue("@off", offset);
+            await using var r = await cmd.ExecuteReaderAsync();
+            int idx = offset;
+            while (await r.ReadAsync())
+            {
+                items.Add(new GmLogItem(
+                    ++idx,
+                    r.IsDBNull(1) ? "" : r.GetString(1),
+                    r.IsDBNull(2) ? "" : r.GetString(2),
+                    r.IsDBNull(3) ? "" : r.GetString(3),
+                    r.IsDBNull(4) ? "" : r.GetString(4),
+                    r.IsDBNull(5) ? "" : r.GetString(5),
+                    r.IsDBNull(0) ? "" : r.GetString(0),
+                    !r.IsDBNull(6) && r.GetInt32(6) != 0));
+            }
+        }
+        catch { }
+        return (total, items);
+    }
+
     // ── 玩家搜尋 ─────────────────────────────────────────────
     public async Task<List<PlayerRow>> SearchPlayersAsync(string kw, int limit = 50)
     {
@@ -4187,3 +4311,8 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
     }
 
 }
+
+/// <summary>GM 操作紀錄資料列（供 API 回傳，欄位名稱對應前端）。</summary>
+public record GmLogItem(
+    int Id, string GmUser, string Source, string Action,
+    string Target, string Detail, string Time, bool Success);

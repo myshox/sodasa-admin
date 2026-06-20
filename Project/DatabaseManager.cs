@@ -154,13 +154,174 @@ namespace SQ_Email_Tools
                     SaveConnectionString(connectionString);
                     // 連線成功後立刻偵測欄位，快取結果，後續查詢不再額外開連線
                     await CsaloginHasIdAsync(conn);
+                    // 確保 GM 操作紀錄表存在（EXE 與網頁共用同一張表）
+                    await EnsureGmLogTableAsync(conn);
                 }
                 return (IsConnected, null);
             }
-            catch (Exception ex) { IsConnected = false; return (false, ex.Message); }
+            catch (Exception ex) { IsConnected = false; return (false, FormatConnectionError(ex, connectionString)); }
+        }
+
+        static string FormatConnectionError(Exception ex, string connectionString)
+        {
+            string server = "?", port = "3306";
+            foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var kv = part.Split('=', 2);
+                if (kv.Length < 2) continue;
+                var k = kv[0].Trim();
+                var v = kv[1].Trim();
+                if (k.Equals("Server", StringComparison.OrdinalIgnoreCase)) server = v;
+                else if (k.Equals("Port", StringComparison.OrdinalIgnoreCase)) port = v;
+            }
+            var endpoint = $"{server}:{port}";
+            var msg = ex.Message ?? "";
+            if (msg.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("逾時", StringComparison.OrdinalIgnoreCase))
+                return $"無法連到 {endpoint}（連線逾時）。\n\n" +
+                       "請確認技術提供的 Port（例如 3306）與防火牆白名單已包含你目前的對外 IP。";
+            if (msg.Contains("actively refused", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("(113)", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("10061", StringComparison.OrdinalIgnoreCase))
+                return $"無法連到 {endpoint}（連線被拒）。\n\n" +
+                       "請確認 MySQL 在該埠有啟動，且 Port= 已寫在連線字串中。";
+            return msg;
         }
 
         public MySqlConnection GetConnection() => new MySqlConnection(_connectionString);
+
+        // ══════════════════════════════════════════════════════════
+        // GM 操作紀錄（gm_operation_log）── EXE 與網頁共用同一張表
+        // ══════════════════════════════════════════════════════════
+        private bool _gmLogTableReady = false;
+
+        /// <summary>確保 gm_operation_log 表存在（MySQL 5.7 相容）。</summary>
+        public async Task EnsureGmLogTableAsync(MySqlConnection existingConn = null)
+        {
+            if (_gmLogTableReady) return;
+            bool ownsConn = existingConn == null;
+            var conn = existingConn ?? GetConnection();
+            try
+            {
+                if (ownsConn) await conn.OpenAsync();
+                using var cmd = new MySqlCommand(@"
+                    CREATE TABLE IF NOT EXISTS `gm_operation_log` (
+                      `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                      `created_at` DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      `operator`   VARCHAR(64)    NOT NULL DEFAULT 'GM',
+                      `source`     VARCHAR(8)     NOT NULL DEFAULT 'exe',
+                      `action`     VARCHAR(64)    NOT NULL DEFAULT '',
+                      `target`     VARCHAR(255)   NOT NULL DEFAULT '',
+                      `detail`     TEXT           NULL,
+                      `success`    TINYINT(1)     NOT NULL DEFAULT 1,
+                      PRIMARY KEY (`id`),
+                      KEY `idx_created`  (`created_at`),
+                      KEY `idx_operator` (`operator`),
+                      KEY `idx_action`   (`action`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", conn);
+                await cmd.ExecuteNonQueryAsync();
+                _gmLogTableReady = true;
+            }
+            catch { /* 建表失敗（權限不足等）不影響主流程，僅退回本機檔案日誌 */ }
+            finally { if (ownsConn) conn.Dispose(); }
+        }
+
+        /// <summary>寫入一筆 GM 操作紀錄到資料庫。失敗不丟例外（仍保留本機檔案日誌）。</summary>
+        public async Task WriteGmLogAsync(string oper, string action, string target, string detail, bool success, string source = "exe")
+        {
+            if (!IsConnected) return;
+            try
+            {
+                await EnsureGmLogTableAsync();
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "INSERT INTO `gm_operation_log` (`operator`,`source`,`action`,`target`,`detail`,`success`) " +
+                    "VALUES (@op,@src,@act,@tgt,@det,@ok)", conn);
+                cmd.Parameters.AddWithValue("@op",  Trunc(oper,   64));
+                cmd.Parameters.AddWithValue("@src", Trunc(source,  8));
+                cmd.Parameters.AddWithValue("@act", Trunc(action, 64));
+                cmd.Parameters.AddWithValue("@tgt", Trunc(target, 255));
+                cmd.Parameters.AddWithValue("@det", detail ?? "");
+                cmd.Parameters.AddWithValue("@ok",  success ? 1 : 0);
+                await cmd.ExecuteNonQueryAsync();
+            }
+            catch { }
+
+            static string Trunc(string s, int max)
+                => string.IsNullOrEmpty(s) ? "" : (s.Length > max ? s.Substring(0, max) : s);
+        }
+
+        /// <summary>取得有紀錄的日期清單（yyyy-MM-dd，新到舊）。</summary>
+        public async Task<List<string>> GetGmLogDatesAsync()
+        {
+            var list = new List<string>();
+            if (!IsConnected) return list;
+            try
+            {
+                await EnsureGmLogTableAsync();
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+                using var cmd = new MySqlCommand(
+                    "SELECT DISTINCT DATE_FORMAT(`created_at`,'%Y-%m-%d') d " +
+                    "FROM `gm_operation_log` ORDER BY d DESC LIMIT 366", conn);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync()) list.Add(r.GetString(0));
+            }
+            catch { }
+            return list;
+        }
+
+        /// <summary>查詢 GM 操作紀錄（可依日期、關鍵字篩選，分頁）。回傳資料列與符合總數。</summary>
+        public async Task<(List<GmLogEntry> rows, int total)> GetGmLogsAsync(
+            string date = "", string query = "", int offset = 0, int limit = 200)
+        {
+            var rows = new List<GmLogEntry>();
+            int total = 0;
+            if (!IsConnected) return (rows, total);
+            try
+            {
+                await EnsureGmLogTableAsync();
+                using var conn = GetConnection();
+                await conn.OpenAsync();
+
+                string where = "WHERE 1=1";
+                if (!string.IsNullOrWhiteSpace(date))  where += " AND DATE(`created_at`)=@date";
+                if (!string.IsNullOrWhiteSpace(query)) where += " AND (`action` LIKE @kw OR `target` LIKE @kw OR `detail` LIKE @kw OR `operator` LIKE @kw)";
+
+                using (var cntCmd = new MySqlCommand($"SELECT COUNT(*) FROM `gm_operation_log` {where}", conn))
+                {
+                    if (!string.IsNullOrWhiteSpace(date))  cntCmd.Parameters.AddWithValue("@date", date);
+                    if (!string.IsNullOrWhiteSpace(query)) cntCmd.Parameters.AddWithValue("@kw", $"%{query}%");
+                    total = Convert.ToInt32(await cntCmd.ExecuteScalarAsync());
+                }
+
+                using var cmd = new MySqlCommand(
+                    "SELECT DATE_FORMAT(`created_at`,'%Y-%m-%d %H:%i:%s') t, `operator`,`source`,`action`,`target`,`detail`,`success` " +
+                    $"FROM `gm_operation_log` {where} ORDER BY `id` DESC LIMIT @lim OFFSET @off", conn);
+                if (!string.IsNullOrWhiteSpace(date))  cmd.Parameters.AddWithValue("@date", date);
+                if (!string.IsNullOrWhiteSpace(query)) cmd.Parameters.AddWithValue("@kw", $"%{query}%");
+                cmd.Parameters.AddWithValue("@lim", limit);
+                cmd.Parameters.AddWithValue("@off", offset);
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    DateTime.TryParse(r.GetString(0), out var dt);
+                    rows.Add(new GmLogEntry
+                    {
+                        Time     = dt,
+                        Operator = r.IsDBNull(1) ? "" : r.GetString(1),
+                        Source   = r.IsDBNull(2) ? "" : r.GetString(2),
+                        Action   = r.IsDBNull(3) ? "" : r.GetString(3),
+                        Target   = r.IsDBNull(4) ? "" : r.GetString(4),
+                        Detail   = r.IsDBNull(5) ? "" : r.GetString(5),
+                        Success  = !r.IsDBNull(6) && r.GetInt32(6) != 0
+                    });
+                }
+            }
+            catch { }
+            return (rows, total);
+        }
 
         // ══════════════════════════════════════════════════════════
         // 玩家查詢
@@ -1063,6 +1224,147 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             return ok;
         }
 
+        /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→20000 一致）。</summary>
+        public static long CyclePointFromRawTotal(long rawTotal)
+        {
+            if (rawTotal <= 0) return 0;
+            long completedCycles = (rawTotal - 1) / CYCLE_MAX;
+            return rawTotal - completedCycles * CYCLE_MAX;
+        }
+
+        /// <summary>
+        /// 【只加顯示，不給領獎】調整玩家累積儲值（用於：賽季轉移、不讓玩家重複領獎的補分等情境）
+        ///   會變動：
+        ///     - csalogin.PayTotal         += twdAmount   （玩家資料卡顯示的累儲金額，VIP 分層依此判斷）
+        ///     - paydata.lifetime_total    += twdAmount   （歷史總額，永不歸零）
+        ///     - paydata.point             依本輪進度累加（遊戲面板 NT$/20,000 讀此欄）
+        ///     - paydata.check             設為「涵蓋目前 point 之檔位 bit 全 1（已領取）」→ 鎖住領獎
+        ///   不會變動：
+        ///     - paydata.totalcheck   保持不變（不推進「已完成輪次」計數，不解鎖跨輪獎勵）
+        ///     - csalogin.VipPoint    保持不變（不發金幣）
+        /// </summary>
+        public async Task<(bool ok, long newPoint)> AdjustPayDisplayOnlyAsync(string account, long twdAmount)
+        {
+            if (twdAmount == 0) return (false, 0);
+
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            long currentPoint = 0;
+            using (var cmdGet = new MySqlCommand(
+                "SELECT IFNULL(point,0) AS pt FROM paydata WHERE cdkey=@cdkey", conn))
+            {
+                cmdGet.Parameters.AddWithValue("@cdkey", account);
+                using var r = await cmdGet.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                    currentPoint = Convert.ToInt64(r["pt"]);
+            }
+
+            // ★ 加值基準一律＝paydata.point（遊戲面板實際讀取的當前循環進度）。
+            //   不可改用 lifetime 推算值當基準：當 point=0、lifetime=86000 時，
+            //   lifetime 推算 = 6000，會把不存在於遊戲面板的 6000 一起累進，
+            //   導致寫回的 point 與「目前累積」顯示及遊戲端不一致。
+            //   若要由 lifetime 補回 point，請用「📊 同步面板進度」鈕（SyncGamePanelPointFromLifetimeAsync）。
+            long baseline = currentPoint;
+            long newCyclePoint = CyclePointFromRawTotal(baseline + twdAmount);
+
+            // ★ 「不可領獎」關鍵：遊戲端判斷某檔位可領 = (point >= 該檔門檻) 且 (check 對應 bit == 0)。
+            //   Mode3 只抬高 point 卻不動 check（=0）時，所有 ≤ point 的檔位 bit 仍為 0 → 玩家照樣可領。
+            //   因此這裡把 check 設為「涵蓋目前 point 的所有檔位 bit 全 1（已領取）」，
+            //   讓進度條顯示有進度、但每個已達成檔位都被標記為已領取 → 玩家領不到。
+            //   totalcheck 維持不變（不推進已完成輪次，不解鎖跨輪獎勵）。
+            long lockBits = CalcCheckBits(newCyclePoint);
+
+            // 1) 更新 csalogin.PayTotal（顯示用、VIP 分層用）
+            bool okLogin;
+            using (var cmdLogin = new MySqlCommand(
+                "UPDATE csalogin SET PayTotal = GREATEST(0, PayTotal + @twd) WHERE `Name` = @cdkey", conn))
+            {
+                cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
+                cmdLogin.Parameters.AddWithValue("@cdkey", account);
+                okLogin = await cmdLogin.ExecuteNonQueryAsync() > 0;
+            }
+
+            // 2) lifetime_total + point（遊戲面板進度）；check 設為「已領取」bitmask 以鎖住領獎；totalcheck 不動
+            int payRows;
+            using (var cmdPay = new MySqlCommand(@"
+                INSERT INTO paydata (cdkey, point, time, `check`, totalcheck, lifetime_total)
+                VALUES (@cdkey, @newpt, NOW(), @chk, 0, GREATEST(0, @twd))
+                ON DUPLICATE KEY UPDATE
+                    point          = @newpt,
+                    `check`        = @chk,
+                    lifetime_total = GREATEST(0, IFNULL(lifetime_total, 0) + @twd)", conn))
+            {
+                cmdPay.Parameters.AddWithValue("@cdkey", account);
+                cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
+                cmdPay.Parameters.AddWithValue("@chk",   lockBits);
+                cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
+                payRows = await cmdPay.ExecuteNonQueryAsync();
+            }
+            bool okPay = payRows > 0;
+
+            // 3) 寫一筆 GM 補單記錄（便於日後稽核）
+            try
+            {
+                string productName = $"GM補單（只加顯示 +NT${twdAmount:N0}，不動輪次、不可領獎）";
+                string orderNo     = $"GM-DISP-{DateTime.Now:yyyyMMddHHmmss}-{account[..Math.Min(account.Length, 8)]}";
+                using var cmdOrder = new MySqlCommand(@"
+                    INSERT INTO recharge_orders
+                        (order_no, user_id, role_name, product_name, amount, status, created_at)
+                    VALUES (@ord,
+                            IFNULL((SELECT id FROM game_users WHERE username=@role LIMIT 1), 0),
+                            @role, @prod, @amt, 'completed', NOW())", conn);
+                cmdOrder.Parameters.AddWithValue("@ord",  orderNo);
+                cmdOrder.Parameters.AddWithValue("@role", account);
+                cmdOrder.Parameters.AddWithValue("@prod", productName);
+                cmdOrder.Parameters.AddWithValue("@amt",  twdAmount * 100);
+                await cmdOrder.ExecuteNonQueryAsync();
+            }
+            catch { /* recharge_orders 表結構不符時靜默忽略 */ }
+
+            bool ok = okPay || okLogin;
+            await GmLogger.Instance.LogAsync("只加累儲顯示", account,
+                $"PayTotal/lifetime +NT${twdAmount:N0}；paydata.point→NT${newCyclePoint:N0}（基準 NT${baseline:N0}）；check→{lockBits}(已領取/鎖領獎)；totalcheck 不動", ok);
+            return (ok, newCyclePoint);
+        }
+
+        /// <summary>
+        /// 依 lifetime_total 推算並寫入 paydata.point（修復舊版 Mode3 只寫 lifetime、point 仍為 0 的資料）。
+        /// 與 Mode3 一致：同步 point 後將 check 設為「涵蓋該 point 之檔位 bit 全 1（已領取）」以鎖住領獎；totalcheck 不動。
+        /// </summary>
+        public async Task<(bool ok, long newPoint)> SyncGamePanelPointFromLifetimeAsync(string account)
+        {
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+
+            long lifetime = 0, currentPoint = 0;
+            using (var cmdGet = new MySqlCommand(
+                "SELECT IFNULL(point,0) AS pt, IFNULL(lifetime_total,0) AS lt FROM paydata WHERE cdkey=@cdkey", conn))
+            {
+                cmdGet.Parameters.AddWithValue("@cdkey", account);
+                using var r = await cmdGet.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) return (false, 0);
+                currentPoint = Convert.ToInt64(r["pt"]);
+                lifetime     = Convert.ToInt64(r["lt"]);
+            }
+
+            if (lifetime <= 0) return (false, currentPoint);
+
+            long newPoint = CyclePointFromRawTotal(lifetime);
+            long lockBits = CalcCheckBits(newPoint);   // 鎖住領獎：涵蓋 newPoint 的檔位全標記已領取
+
+            using var cmdUpd = new MySqlCommand(
+                "UPDATE paydata SET point=@newpt, `check`=@chk WHERE cdkey=@cdkey", conn);
+            cmdUpd.Parameters.AddWithValue("@newpt", newPoint);
+            cmdUpd.Parameters.AddWithValue("@chk",   lockBits);
+            cmdUpd.Parameters.AddWithValue("@cdkey", account);
+            bool ok = await cmdUpd.ExecuteNonQueryAsync() > 0;
+
+            await GmLogger.Instance.LogAsync("同步遊戲面板進度", account,
+                $"lifetime_total NT${lifetime:N0} → paydata.point NT${newPoint:N0}；check→{lockBits}(已領取/鎖領獎)；totalcheck 不動", ok);
+            return (ok, newPoint);
+        }
+
         /// <summary>
         /// 修復循環顯示（針對舊資料 point > 20000 的情況）：
         ///   - 若 point > 20000（嚴格超過），才自動進位
@@ -1089,20 +1391,24 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             long newCyclePoint   = currentPoint - completedCycles * CYCLE_MAX;
             long newTotalCheck   = currentTotalCheck + completedCycles;
 
-            // check 歸零：讓玩家在新輪次可以重新點「領取」
+            // check 設為「涵蓋當前輪 point 之檔位 bit 全 1（已領取）」：
+            //   修復循環顯示的用途是「把進度顯示弄對」，不應順手讓玩家可以重新領獎，
+            //   否則 GM 一按修復、玩家立刻能把已達成檔位再領一次。
+            long lockBits = CalcCheckBits(newCyclePoint);
             using var cmdFix = new MySqlCommand(@"
                 UPDATE paydata
                 SET point      = @newpt,
-                    `check`    = 0,
+                    `check`    = @chk,
                     totalcheck = @tc
                 WHERE cdkey = @cdkey", conn);
             cmdFix.Parameters.AddWithValue("@newpt", newCyclePoint);
+            cmdFix.Parameters.AddWithValue("@chk",   lockBits);
             cmdFix.Parameters.AddWithValue("@tc",    newTotalCheck);
             cmdFix.Parameters.AddWithValue("@cdkey", account);
             int rows = await cmdFix.ExecuteNonQueryAsync();
 
             await GmLogger.Instance.LogAsync("修復循環check", account,
-                $"舊point={currentPoint:N0}→新輪次point={newCyclePoint:N0}，check 歸零，完成{completedCycles}輪", rows > 0);
+                $"舊point={currentPoint:N0}→新輪次point={newCyclePoint:N0}，check→{lockBits}(已領取/鎖領獎)，完成{completedCycles}輪", rows > 0);
             return rows > 0;
         }
 
@@ -1870,7 +2176,9 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                     detail.Crystal    = Convert.ToInt64(r["PetPoint"]);
                     detail.PayPoint   = Convert.ToInt64(r["PayPoint"]);
                     detail.RmbPoint   = Convert.ToInt64(r["RmbPoint"]);
-                    detail.PayTotal   = Convert.ToInt64(r["PayTotal"]);
+                    // csalogin.PayTotal 僅作資料卡顯示 / VIP 分層；「目前累積 / 遊戲面板進度」一律以下方 paydata.point 為準
+                    detail.CsaPayTotal = r["PayTotal"] == DBNull.Value ? 0 : Convert.ToInt64(r["PayTotal"]);
+                    detail.PayTotal    = detail.CsaPayTotal;   // 暫存；若有 paydata 記錄會被 paydata.point 覆蓋
                     detail.QQ           = r["QQ"]?.ToString() ?? "";
                     detail.Uid          = r["uid"]?.ToString() ?? "";
                     detail.MAC          = r["MAC1"]?.ToString() ?? "";
@@ -1970,7 +2278,16 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                     detail.TotalCheck       = r5["tc"]             == DBNull.Value ? 0 : Convert.ToInt64(r5["tc"]);
                     detail.PaydataCheck     = r5["ck"]             == DBNull.Value ? 1 : Convert.ToInt32(r5["ck"]);
                 }
-                // 若 paydata 無記錄，PayTotal / LifetimePayTotal 維持 csalogin.PayTotal 的值
+                else
+                {
+                    // ⚠ 無 paydata 記錄＝遊戲端 paydata.point 為 0。
+                    //   工具「目前累積 / 遊戲面板進度」必須與遊戲讀取的欄位一致，
+                    //   不可回退用 csalogin.PayTotal（兩者可能分歧，會導致加值時把不存在的舊值一起累進）。
+                    detail.PayTotal         = 0;
+                    detail.LifetimePayTotal = 0;
+                    detail.TotalCheck       = 0;
+                    detail.PaydataCheck     = 1;
+                }
             }
 
             // 累計消費達成獎勵：costdata（point = 累計消費金幣, check = 已領取里程碑數）

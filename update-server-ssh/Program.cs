@@ -5,8 +5,14 @@ using Renci.SshNet;
 
 class Program
 {
-    static void Main()
+    static void Main(string[] cliArgs)
     {
+        if (cliArgs.Length > 0 && cliArgs[0] == "dbcheck")
+        {
+            RunDbCheck();
+            return;
+        }
+
         var host = "172.234.95.180";
         var user = "root";
         var pass = "~QbW(8c8tXAKM*f3v";
@@ -17,6 +23,76 @@ class Program
         Console.WriteLine("=== 連線成功，開始更新... ===\n");
 
         var args = Environment.GetCommandLineArgs();
+        if (args.Length > 1 && args[1] == "sh")
+        {
+            var cmd = Environment.GetEnvironmentVariable("REMOTE_CMD") ?? "";
+            Console.WriteLine("$ " + cmd + "\n");
+            var r = client.RunCommand(cmd);
+            Console.WriteLine(r.Result.TrimEnd());
+            if (!string.IsNullOrWhiteSpace(r.Error)) Console.WriteLine("[stderr] " + r.Error.TrimEnd());
+            Console.WriteLine($"[exit {r.ExitStatus}]");
+            client.Disconnect();
+            return;
+        }
+        if (args.Length > 1 && args[1] == "fulldeploy")
+        {
+            const string NEWCS = "Server=141.140.14.61;Port=3306;Database=sqsd;User ID=sqsd;Password=sarFGSEKJdJrnaFc;Connection Timeout=8;charset=utf8mb4;";
+            var unit = @"[Unit]
+Description=SodaGM Web Tool
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/gmtool/publish
+ExecStart=/usr/bin/dotnet --roll-forward LatestMajor /opt/gmtool/publish/WebApi.dll
+Restart=always
+RestartSec=5
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
+Environment=GmAccounts__0__Username=admin
+Environment=GmAccounts__0__Password=@Aa31178375
+Environment=GmAccounts__0__Role=superadmin
+Environment=Jwt__Secret=kQ7nRwXz3YpM8fH2sL4vBt6cE1gJuA9dNhT5bVaKoXeFmP0rCyZqDsIlUwGhJxNv
+Environment=Jwt__ExpiryHours=12
+
+[Install]
+WantedBy=multi-user.target
+";
+            var fixCs = "python3 - <<'PY'\n" +
+                "import json,os\n" +
+                "cs='" + NEWCS + "'\n" +
+                "for p in ['/opt/gmtool/publish/appsettings.json','/opt/gmtool/WebApi/appsettings.json']:\n" +
+                "    if os.path.exists(p):\n" +
+                "        d=json.load(open(p))\n" +
+                "        d.setdefault('ConnectionStrings',{})['Default']=cs\n" +
+                "        json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)\n" +
+                "        print('updated',p)\n" +
+                "    else:\n" +
+                "        print('missing',p)\n" +
+                "PY";
+            var steps = new List<(string desc, string cmd)>
+            {
+                ("write service unit (no ConnStr override)", $"cat > /etc/systemd/system/gmtool.service <<'EOF'\n{unit}EOF\necho unit-written"),
+                ("git pull", "cd /opt/gmtool && git stash push -u -m auto-stash-before-pull 2>/dev/null; git pull origin master 2>&1 | tail -8"),
+                ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -4"),
+                ("fix connection string (after publish)", fixCs),
+                ("check unit for ConnStr override", "grep -n 'ConnectionStrings__Default' /etc/systemd/system/gmtool.service || echo NO-OVERRIDE-IN-UNIT"),
+                ("daemon-reload + restart", "systemctl daemon-reload; systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
+                ("effective connection string", "python3 -c \"import json;print(json.load(open('/opt/gmtool/publish/appsettings.json'))['ConnectionStrings']['Default'])\""),
+                ("systemctl status", "systemctl status gmtool --no-pager | head -12"),
+                ("DB connectivity test", "mysql -h141.140.14.61 -P3306 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 AS ok, DATABASE() AS db;\" 2>&1 | grep -v 'password on the command line'"),
+                ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}\\n' http://localhost:5050/"),
+                ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'"),
+            };
+            foreach (var (desc, cmd) in steps)
+            {
+                Console.WriteLine($"\n===== [{desc}] =====");
+                var r = client.RunCommand(cmd);
+                Console.WriteLine(r.Result.Trim());
+                if (!string.IsNullOrWhiteSpace(r.Error)) Console.WriteLine("[stderr] " + r.Error.Trim());
+            }
+            client.Disconnect();
+            return;
+        }
         if (args.Length > 1 && args[1] == "binlog")
         {
             var getCs = client.RunCommand(
@@ -285,7 +361,7 @@ class Program
             var target = args.Length > 2 ? args[2] : "CAT1987 CAT1988";
             var keys = target.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
             // 用本機 curl 透過 WebApi 登入並查回收桶
-            var loginCmd = "curl -s -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'";
+            var loginCmd = "curl -s -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'";
             var loginRes = client.RunCommand(loginCmd).Result.Trim();
             Console.WriteLine("[login] " + loginRes);
             var tokenIdx = loginRes.IndexOf("\"token\":\"");
@@ -450,7 +526,7 @@ RestartSec=5
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
 Environment=GmAccounts__0__Username=admin
-Environment=GmAccounts__0__Password=1234
+Environment=GmAccounts__0__Password=@Aa31178375
 Environment=GmAccounts__0__Role=superadmin
 Environment=Jwt__Secret=kQ7nRwXz3YpM8fH2sL4vBt6cE1gJuA9dNhT5bVaKoXeFmP0rCyZqDsIlUwGhJxNv
 Environment=Jwt__ExpiryHours=12
@@ -463,11 +539,11 @@ WantedBy=multi-user.target
         var cmds = new List<(string desc, string cmd)>
         {
             ("write service unit (prod+GmAccounts+Jwt)", writeUnitCmd),
-            ("git pull", "cd /opt/gmtool && git pull origin master 2>&1 | tail -3"),
+            ("git pull", "cd /opt/gmtool && git stash push -u -m auto-stash-before-pull 2>/dev/null; git pull origin master 2>&1 | tail -5"),
             ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
             ("restart", "systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
             ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://localhost:5050/"),
-            ("login admin/1234", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"1234\"}'"),
+            ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'"),
         };
 
         foreach (var (desc, cmd) in cmds)
@@ -478,5 +554,72 @@ WantedBy=multi-user.target
         }
         client.Disconnect();
         Console.WriteLine("\nDone! Press Ctrl+Shift+R to reload the web page.");
+    }
+
+    static void RunDbCheck()
+    {
+        var targets = new (string host, string label)[]
+        {
+            ("172.234.95.180", "web VPS"),
+            ("141.140.14.61", "new DB IP"),
+            ("162.245.220.106", "old DB IP"),
+        };
+        var user = "root";
+        var pass = "~QbW(8c8tXAKM*f3v";
+
+        foreach (var (host, label) in targets)
+        {
+            Console.WriteLine($"\n======== {label} ({host}) ========");
+            try
+            {
+                using var c = new SshClient(host, user, pass);
+                c.ConnectionInfo.Timeout = TimeSpan.FromSeconds(12);
+                c.Connect();
+                Console.WriteLine("SSH: OK");
+                foreach (var cmd in new[]
+                {
+                    "hostname -f 2>/dev/null || hostname",
+                    "ss -tlnp 2>/dev/null | grep -E ':3306|:22 ' || netstat -tlnp 2>/dev/null | grep 3306",
+                    "command -v mysql >/dev/null && mysql --version | head -1 || echo mysql-cli-missing",
+                })
+                {
+                    var r = c.RunCommand(cmd);
+                    if (!string.IsNullOrWhiteSpace(r.Result)) Console.WriteLine(r.Result.TrimEnd());
+                }
+                if (host == "172.234.95.180")
+                {
+                    foreach (var db in new[] { "141.140.14.61", "162.245.220.106", "127.0.0.1" })
+                    {
+                        var t = c.RunCommand(
+                            $"timeout 3 bash -c 'echo >/dev/tcp/{db}/3306' 2>/dev/null && echo tcp-{db}-3306-OPEN || echo tcp-{db}-3306-CLOSED");
+                        Console.WriteLine(t.Result.TrimEnd());
+                    }
+                    var cs = c.RunCommand(
+                        "python3 -c \"import json; d=json.load(open('/opt/gmtool/publish/appsettings.json')); print(d['ConnectionStrings']['Default'])\" 2>/dev/null"
+                    ).Result.Trim();
+                    if (!string.IsNullOrEmpty(cs))
+                        Console.WriteLine("gmtool appsettings: " + cs);
+                }
+                c.Disconnect();
+            }
+            catch (Exception ex) { Console.WriteLine("SSH: FAIL - " + ex.Message); }
+        }
+
+        Console.WriteLine("\n======== MySQL from web VPS -> 141.140.14.61 ========");
+        try
+        {
+            using var c = new SshClient("172.234.95.180", user, pass);
+            c.Connect();
+            var test = c.RunCommand(
+                "mysql -h141.140.14.61 -P3306 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 ok, DATABASE() db, @@hostname host\" 2>&1 | grep -v 'password on the command line'"
+            );
+            Console.WriteLine(string.IsNullOrWhiteSpace(test.Result) ? test.Error.Trim() : test.Result.Trim());
+            test = c.RunCommand(
+                "mysql -h162.245.220.106 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 ok\" 2>&1 | grep -v 'password on the command line' | head -3"
+            );
+            Console.WriteLine("old IP test:\n" + (test.Result + test.Error).Trim());
+            c.Disconnect();
+        }
+        catch (Exception ex) { Console.WriteLine(ex.Message); }
     }
 }

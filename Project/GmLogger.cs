@@ -52,11 +52,15 @@ namespace SQ_Email_Tools
                 if (_recentLogs.Count >= 500) _recentLogs.RemoveAt(0);
                 _recentLogs.Add(entry);
 
-                // 寫到當天的 log 檔
+                // 寫到當天的 log 檔（本機備援，即使資料庫不可用仍保留紀錄）
                 string logFile = Path.Combine(_logDir, $"{DateTime.Today:yyyy-MM-dd}.log");
                 string line = $"[{entry.Time:HH:mm:ss}] [{entry.Operator}] {(success ? "✓" : "✗")} {action} | {target} | {detail}";
                 File.AppendAllText(logFile, line + "\n", Encoding.UTF8);
             }
+
+            // 同步寫入共用資料庫（EXE 與網頁共用 gm_operation_log）；失敗不影響主流程
+            _ = Task.Run(() => DatabaseManager.Instance.WriteGmLogAsync(
+                entry.Operator, action, target, detail, success, "exe"));
 
             LogUpdated?.Invoke();
             return Task.CompletedTask;

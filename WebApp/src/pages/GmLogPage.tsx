@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../api'
 import { S } from '../strings'
 
-interface GmLogRow { id: number; gmUser: string; action: string; target: string; detail: string; time: string; success: boolean }
+interface GmLogRow { id: number; gmUser: string; source: string; action: string; target: string; detail: string; time: string; success: boolean }
 
 export default function GmLogPage() {
   const [rows, setRows] = useState<GmLogRow[]>([])
@@ -92,6 +92,7 @@ export default function GmLogPage() {
             <tr style={{ background: 'var(--bg-input)' }}>
               <Th w={28}>結果</Th>
               <Th w={90}>GM</Th>
+              <Th w={56}>來源</Th>
               <Th w={110}>操作</Th>
               <Th w={120}>對象</Th>
               <Th>詳情</Th>
@@ -100,9 +101,9 @@ export default function GmLogPage() {
           </thead>
           <tbody>
             {loading
-              ? <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.loading}</td></tr>
+              ? <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.loading}</td></tr>
               : rows.length === 0
-                ? <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.noData}</td></tr>
+                ? <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>{S.noData}</td></tr>
                 : rows.map(r => (
                   <tr key={r.id} style={{ borderBottom: '1px solid var(--border)', background: !r.success ? 'rgba(245,101,101,.04)' : 'transparent' }}>
                     <td style={{ padding: '8px 10px', textAlign: 'center' }}>
@@ -111,6 +112,13 @@ export default function GmLogPage() {
                       </span>
                     </td>
                     <td style={{ padding: '8px 10px', color: 'var(--accent-blue)', fontWeight: 600 }}>{r.gmUser}</td>
+                    <td style={{ padding: '8px 10px' }}>
+                      <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 5, whiteSpace: 'nowrap',
+                        background: r.source === 'web' ? 'rgba(99,179,237,.15)' : 'rgba(160,174,192,.15)',
+                        color: r.source === 'web' ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
+                        {r.source === 'web' ? '網頁' : '工具'}
+                      </span>
+                    </td>
                     <td style={{ padding: '8px 10px', color: 'var(--accent-orange)' }}>{r.action}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{r.target}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>{r.detail}</td>

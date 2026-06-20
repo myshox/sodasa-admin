@@ -11,6 +11,13 @@ public class PlayersController : ControllerBase
     private readonly DbService _db;
     public PlayersController(DbService db) => _db = db;
 
+    /// <summary>目前登入的 GM 名稱（取自 JWT），找不到時回傳 GM。</summary>
+    private string Gm => string.IsNullOrWhiteSpace(User?.Identity?.Name) ? "GM" : User!.Identity!.Name!;
+
+    /// <summary>寫入一筆 GM 操作紀錄（網頁來源）。失敗不影響主操作。</summary>
+    private Task LogOp(string action, string target, string detail, bool success)
+        => _db.WriteGmLogAsync(Gm, action, target, detail, success, "web");
+
     [HttpGet("search")]
     public async Task<IActionResult> Search([FromQuery] string q = "", [FromQuery] int limit = 50)
     {
@@ -67,6 +74,7 @@ public class PlayersController : ControllerBase
             req.CustomList ?? "",
             req.AccountIds ?? "",
             req.Amount);
+        await LogOp("批量金幣", $"目標:{target}", $"每人 {req.Amount:N0} 金幣，成功 {done}，失敗 {fail}", fail == 0);
         return Ok(new { done, fail });
     }
 
@@ -76,6 +84,7 @@ public class PlayersController : ControllerBase
         if (!DbService.IsValidBatchTarget(req.Target))
             return BadRequest(new { message = $"不支援的批量目標：{req.Target}" });
         var count = await _db.BatchMailAsync(req.Target, req.CustomList, req.Title, req.Content);
+        await LogOp("批量郵件", $"目標:{req.Target}", $"標題「{req.Title}」，發送 {count} 封", count > 0);
         return Ok(new { count });
     }
 
@@ -88,6 +97,9 @@ public class PlayersController : ControllerBase
             return BadRequest(new { message = "購物車為空" });
         var (count, fail, sentAccounts, lastError) = await _db.BatchSendCartAsync(
             req.Target, req.CustomList, req.Cart, req.Title, req.Content, req.ExcludeList);
+        await LogOp("批量發送道具", $"目標:{req.Target}",
+            $"道具 {req.Cart.Count} 種，送達 {sentAccounts.Count} 人（共 {count} 封）" + (fail > 0 ? $"，失敗 {fail}" : ""),
+            sentAccounts.Count > 0);
         if (sentAccounts.Count == 0)
         {
             string errHint = string.IsNullOrEmpty(lastError) ? "" : $"\n錯誤：{lastError}";
@@ -107,6 +119,7 @@ public class PlayersController : ControllerBase
         var (success, fail) = await _db.SendItemMailAsync(
             req.Account.Trim(), req.ItemId, req.Quantity <= 0 ? 1 : req.Quantity,
             req.Title ?? "", req.Content ?? "");
+        await LogOp("發送道具", req.Account.Trim(), $"道具ID {req.ItemId} x{(req.Quantity <= 0 ? 1 : req.Quantity)}，成功 {success}" + (fail > 0 ? $"，失敗 {fail}" : ""), success > 0);
         return Ok(new { success, fail, message = $"已發送 {success} 封道具郵件" + (fail > 0 ? $"，失敗 {fail}" : "") });
     }
 
@@ -140,6 +153,7 @@ public class PlayersController : ControllerBase
         if (string.IsNullOrWhiteSpace(req?.Unicode))
             return BadRequest(new { message = "請提供寵物 unicode" });
         var ok = await _db.DeletePetAsync(req.Unicode.Trim());
+        await LogOp("移除寵物", account, $"unicode {req.Unicode.Trim()}", ok);
         return ok ? Ok(new { message = "✓ 已移除寵物" }) : BadRequest(new { message = "移除失敗或該筆不存在" });
     }
 
@@ -147,6 +161,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> SetGold(string account, [FromBody] SetCurrencyRequest req)
     {
         var ok = await _db.SetGoldAsync(account, req.Value);
+        await LogOp("修改金幣", account, $"設為 {req.Value:N0}", ok);
         return ok ? Ok(new { message = "\u2713 \u5DF2\u66F4\u65B0" }) : BadRequest();
     }
 
@@ -154,6 +169,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> SetCrystal(string account, [FromBody] SetCurrencyRequest req)
     {
         var ok = await _db.SetCrystalAsync(account, req.Value);
+        await LogOp("修改水晶", account, $"設為 {req.Value:N0}", ok);
         return ok ? Ok(new { message = "\u2713 \u5DF2\u66F4\u65B0" }) : BadRequest();
     }
 
@@ -175,6 +191,8 @@ public class PlayersController : ControllerBase
             long yuanbao = req.GiveGold ? req.GoldAmount : req.TwdAmount * 100;
             await _db.WriteRechargeOrderAsync(account, orderNo, prodName, yuanbao);
         }
+        await LogOp("給予儲值", account,
+            req.GiveGold ? $"+NT${req.TwdAmount:N0} / +{req.GoldAmount:N0}金幣" : $"僅累儲 +NT${req.TwdAmount:N0}", ok);
         return ok ? Ok(new { message = "✓ 已給予儲值" }) : BadRequest(new { message = "修改失敗" });
     }
 
@@ -191,6 +209,7 @@ public class PlayersController : ControllerBase
             string prodName = $"GM補單（只加顯示 +NT${req.TwdAmount:N0}，不動輪次、不可領獎）";
             await _db.WriteRechargeOrderAsync(account, orderNo, prodName, req.TwdAmount * 100);
         }
+        await LogOp("只加累儲顯示", account, $"+NT${req.TwdAmount:N0}（鎖領獎、不發金幣）", ok);
         return ok
             ? Ok(new { message = $"🔒 已只加累儲顯示 +NT${req.TwdAmount:N0}（已鎖領獎，玩家重登後才看到新進度）", newPoint })
             : BadRequest(new { message = "修改失敗" });
@@ -224,6 +243,7 @@ public class PlayersController : ControllerBase
             }
             results.Add(new { account = item.Account, ok, msg = ok ? "✓ 成功" : "✗ 失敗" });
         }
+        await LogOp("主帳號分配儲值", $"{items.Count} 個帳號", $"成功 {done}／{items.Count}", done > 0);
         return Ok(new { done, total = items.Count, results });
     }
 
@@ -231,6 +251,8 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> Ban(string account, [FromBody] BanRequest req)
     {
         var ok = await _db.SetBanAsync(account, req.Ban, req.Days, req.Hours);
+        string dur = req.Days > 0 ? $"{req.Days} 天" : req.Hours > 0 ? $"{req.Hours} 小時" : "永久";
+        await LogOp(req.Ban ? "封禁帳號" : "解除封禁", account, req.Ban ? dur : "", ok);
         return ok ? Ok(new { message = req.Ban ? "\u2713 \u5DF2\u5C01\u865F" : "\u2713 \u5DF2\u89E3\u5C01" }) : BadRequest();
     }
 
@@ -239,6 +261,7 @@ public class PlayersController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(req.NewName)) return BadRequest(new { message = "請輸入新名稱" });
         var ok = await _db.RenamePlayerAsync(account, req.NewName.Trim());
+        await LogOp("改名", account, $"→ {req.NewName.Trim()}", ok);
         return ok ? Ok(new { message = "\u2713 \u6539\u540D\u6210\u529F" }) : BadRequest(new { message = "\u6539\u540D\u5931\u6557" });
     }
 
@@ -246,6 +269,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> ForceOffline(string account)
     {
         var ok = await _db.ForceOfflineAsync(account);
+        await LogOp("強制下線", account, "", ok);
         return ok ? Ok(new { message = "\u2713 \u5DF2\u5F37\u5236\u4E0B\u7DDA" }) : BadRequest();
     }
 
@@ -253,6 +277,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> Mute(string account, [FromBody] MuteRequest req)
     {
         var ok = await _db.SetMuteAsync(account, req.Mute);
+        await LogOp(req.Mute ? "禁言" : "解除禁言", account, "", ok);
         return ok ? Ok(new { message = req.Mute ? "\u2713 \u5DF2\u7981\u8A00" : "\u2713 \u5DF2\u89E3\u9664\u7981\u8A00" }) : BadRequest();
     }
 
@@ -260,6 +285,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> ResetPaydata(string account)
     {
         var ok = await _db.ResetPaydataAsync(account);
+        await LogOp("重置儲值進度", account, "", ok);
         return ok ? Ok(new { message = "\u2713 \u5DF2\u91CD\u7F6E\u5132\u5024\u9032\u5EA6" }) : BadRequest();
     }
 
@@ -267,6 +293,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> FixPaydata(string account)
     {
         var ok = await _db.FixPaydataCheckAsync(account);
+        await LogOp("修復循環顯示", account, "", ok);
         return ok ? Ok(new { message = "✓ 已修復循環顯示" }) : BadRequest(new { message = "修復失敗（可能無 paydata 記錄）" });
     }
 
@@ -275,6 +302,8 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> ClaimPaydataReward(string account)
     {
         var result = await _db.ClaimPaydataRewardAsync(account);
+        bool claimOk = result is not ("already_claimed" or "no_cycle" or "not_found" or "error");
+        await LogOp("發放累積獎勵", account, claimOk ? $"輪次 #{result}" : $"未發放（{result}）", claimOk);
         return result switch
         {
             "already_claimed"=> BadRequest(new { message = "⚠ 此輪獎勵已發放，無法重複領取" }),
@@ -304,6 +333,7 @@ public class PlayersController : ControllerBase
             return BadRequest(new { message = "請提供帳號列表" });
         var (success, fail) = await _db.BatchResetCostDataAsync(req.Accounts, req.FullReset);
         string kind = req.FullReset ? "完全重置" : "重置已領狀態";
+        await LogOp($"批量{kind}消費達成", $"{req.Accounts.Count} 個帳號", $"成功 {success}，失敗 {fail}", fail == 0);
         return Ok(new { message = $"✓ 批量{kind}完成：成功 {success} 筆，失敗 {fail} 筆", success, fail });
     }
 
@@ -320,6 +350,7 @@ public class PlayersController : ControllerBase
     {
         if (req.AddPoint <= 0) return BadRequest(new { message = "增加量必須大於 0" });
         var ok = await _db.AdjustCostdataPointAsync(account, req.CharName ?? "", req.AddPoint);
+        await LogOp("增加消費點數", account, $"+{req.AddPoint:N0}", ok);
         return ok ? Ok(new { message = $"✓ 已增加 {req.AddPoint:N0} 消費點數" }) : BadRequest(new { message = "調整失敗" });
     }
 
@@ -327,6 +358,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> ResetCostdata(string account)
     {
         var ok = await _db.ResetCostdataAsync(account);
+        await LogOp("重置消費已領狀態", account, "", ok);
         return ok ? Ok(new { message = "✓ 已清除已領狀態（check=0），消費點數保留，玩家可立即重領" }) : BadRequest(new { message = "重置失敗（玩家可能無 costdata 記錄）" });
     }
 
@@ -335,6 +367,7 @@ public class PlayersController : ControllerBase
     public async Task<IActionResult> FullResetCostdata(string account)
     {
         var ok = await _db.FullResetCostdataAsync(account);
+        await LogOp("完全重置消費達成", account, "point=0, check=0", ok);
         return ok ? Ok(new { message = "✓ 完全重置完成（point=0, check=0），玩家須重新消費才能再領取" }) : BadRequest(new { message = "完全重置失敗（玩家可能無 costdata 記錄）" });
     }
 
@@ -369,6 +402,7 @@ public class PlayersController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Account)) return BadRequest(new { message = "請指定玩家帳號" });
         if (req.Cart == null || req.Cart.Count == 0) return BadRequest(new { message = "購物車為空" });
         var (success, fail) = await _db.SendCartMailAsync(req.Account.Trim(), req.Cart, req.Title, req.Content);
+        await LogOp("發送道具", req.Account.Trim(), $"道具 {req.Cart.Count} 種，成功 {success}" + (fail > 0 ? $"，失敗 {fail}" : ""), success > 0);
         return Ok(new { success, fail, message = $"已發送 {success} 筆" + (fail > 0 ? $"，失敗 {fail}" : "") });
     }
 
@@ -417,6 +451,7 @@ public class PlayersController : ControllerBase
     {
         var count = await _db.ClearPlayerMailAsync(account, req.UnclaimedOnly);
         string scope = req.UnclaimedOnly ? "未領取郵件" : "全部郵件";
+        await LogOp("清除玩家郵件", account, $"{scope}，共 {count} 封", true);
         return Ok(new { count, message = $"✓ 已清除「{account}」{scope} {count} 封" });
     }
 
@@ -426,6 +461,7 @@ public class PlayersController : ControllerBase
     {
         var count = await _db.ClearPlayerMailAsync("", req.UnclaimedOnly);
         string scope = req.UnclaimedOnly ? "未領取郵件" : "全部郵件";
+        await LogOp("清除全服郵件", "全服", $"{scope}，共 {count} 封", true);
         return Ok(new { count, message = $"✓ 已清除全服 {scope} {count} 封" });
     }
 
@@ -462,6 +498,7 @@ public class PlayersController : ControllerBase
             catch { fail++; }
         }
         string dur = req.Days > 0 ? $"{req.Days} 天" : req.Hours > 0 ? $"{req.Hours} 小時" : "永久";
+        await LogOp("批量封禁", $"{req.Accounts.Count} 個帳號", $"{dur}，成功 {success}，失敗 {fail}", fail == 0);
         return Ok(new { success, fail, message = $"✓ 批量封禁完成（{dur}）：成功 {success}，失敗 {fail}" });
     }
 }
@@ -482,83 +519,31 @@ public class StatsController : ControllerBase
 [ApiController, Route("api/gmlog"), Authorize]
 public class GmLogController : ControllerBase
 {
+    private readonly DbService _db;
+    public GmLogController(DbService db) => _db = db;
+
     [HttpGet("dates")]
-    public IActionResult Dates()
-    {
-        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-        if (!Directory.Exists(logDir)) return Ok(new List<string>());
-        var dates = Directory.GetFiles(logDir, "*.log")
-            .Select(f => Path.GetFileNameWithoutExtension(f))
-            .OrderByDescending(x => x).ToList();
-        return Ok(dates);
-    }
+    public async Task<IActionResult> Dates() => Ok(await _db.GetGmLogDatesAsync());
 
     [HttpGet]
-    public IActionResult Get([FromQuery] int offset = 0, [FromQuery] int limit = 100,
+    public async Task<IActionResult> Get([FromQuery] int offset = 0, [FromQuery] int limit = 100,
         [FromQuery] string q = "", [FromQuery] string date = "")
     {
-        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-        if (!Directory.Exists(logDir)) return Ok(new List<object>());
-        var entries = new List<object>();
-        IEnumerable<string> files = Directory.GetFiles(logDir, "*.log").OrderByDescending(x => x);
-        if (!string.IsNullOrWhiteSpace(date))
-            files = files.Where(f => Path.GetFileNameWithoutExtension(f) == date);
-        foreach (var f in files)
-        {
-            foreach (var line in System.IO.File.ReadAllLines(f).Reverse())
-            {
-                try {
-                    var doc = System.Text.Json.JsonDocument.Parse(line);
-                    var r   = doc.RootElement;
-                    bool success = !r.TryGetProperty("Success", out var sc) || sc.GetBoolean();
-                    string action = r.TryGetProperty("Action", out var ac) ? ac.GetString() ?? "" : "";
-                    string target = r.TryGetProperty("Target", out var tg) ? tg.GetString() ?? "" : "";
-                    string detail = r.TryGetProperty("Detail", out var dt) ? dt.GetString() ?? "" : "";
-                    string gmUser = r.TryGetProperty("Operator", out var op) ? op.GetString() ?? "GM" : "GM";
-                    string time   = r.TryGetProperty("Time",     out var tm) ? tm.GetString() ?? "" : "";
-                    if (!string.IsNullOrWhiteSpace(q))
-                    {
-                        string combined = $"{action} {target} {detail} {gmUser}";
-                        if (!combined.Contains(q, StringComparison.OrdinalIgnoreCase)) continue;
-                    }
-                    entries.Add(new { id = entries.Count + 1, gmUser, action, target, detail, time, success });
-                } catch { }
-            }
-        }
-        int total = entries.Count;
-        return Ok(new { total, items = entries.Skip(offset).Take(limit).ToList() });
+        var (total, items) = await _db.GetGmLogsAsync(date, q, offset, Math.Clamp(limit, 1, 500));
+        return Ok(new { total, items });
     }
 
     [HttpGet("export")]
-    public IActionResult Export([FromQuery] string date = "")
+    public async Task<IActionResult> Export([FromQuery] string date = "", [FromQuery] string q = "")
     {
-        var logDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
-        if (!Directory.Exists(logDir)) return NotFound();
-        IEnumerable<string> files = Directory.GetFiles(logDir, "*.log").OrderByDescending(x => x);
-        if (!string.IsNullOrWhiteSpace(date))
-            files = files.Where(f => Path.GetFileNameWithoutExtension(f) == date);
+        var (_, items) = await _db.GetGmLogsAsync(date, q, 0, 100000);
         var lines = new System.Text.StringBuilder();
-        lines.AppendLine("時間\tGM\t結果\t操作\t對象\t詳情");
-        foreach (var f in files)
-        {
-            foreach (var line in System.IO.File.ReadAllLines(f))
-            {
-                try {
-                    var doc = System.Text.Json.JsonDocument.Parse(line);
-                    var r   = doc.RootElement;
-                    bool ok   = !r.TryGetProperty("Success", out var sc) || sc.GetBoolean();
-                    string tm = r.TryGetProperty("Time",     out var t)  ? t.GetString()  ?? "" : "";
-                    string op = r.TryGetProperty("Operator", out var o)  ? o.GetString()  ?? "" : "";
-                    string ac = r.TryGetProperty("Action",   out var a)  ? a.GetString()  ?? "" : "";
-                    string tg = r.TryGetProperty("Target",   out var tgt)? tgt.GetString()?? "" : "";
-                    string dt = r.TryGetProperty("Detail",   out var d)  ? d.GetString()  ?? "" : "";
-                    lines.AppendLine($"{tm}\t{op}\t{(ok?"✓":"✗")}\t{ac}\t{tg}\t{dt}");
-                } catch { }
-            }
-        }
-        var bytes = System.Text.Encoding.UTF8.GetBytes(lines.ToString());
-        string fname = string.IsNullOrWhiteSpace(date) ? "gmlog_all.txt" : $"gmlog_{date}.txt";
-        return File(bytes, "text/plain; charset=utf-8", fname);
+        lines.AppendLine("時間\tGM\t來源\t結果\t操作\t對象\t詳情");
+        foreach (var it in items)
+            lines.AppendLine($"{it.Time}\t{it.GmUser}\t{(it.Source == "web" ? "網頁" : "工具")}\t{(it.Success ? "✓" : "✗")}\t{it.Action}\t{it.Target}\t{it.Detail}");
+        var bytes = System.Text.Encoding.UTF8.GetBytes("\uFEFF" + lines.ToString());
+        string fname = string.IsNullOrWhiteSpace(date) ? "gmlog_all.csv" : $"gmlog_{date}.csv";
+        return File(bytes, "text/csv; charset=utf-8", fname);
     }
 }
 
