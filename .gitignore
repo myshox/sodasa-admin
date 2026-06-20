@@ -5,12 +5,17 @@ WebApi/appsettings.json
 WebApi/appsettings.*.json
 !WebApi/appsettings.example.json
 c:/SodaGM/
+# 部署用密碼檔（SSH/DB/JWT/管理者密碼），只留 example 範本
+update-server-ssh/secrets.local.json
+update-server-ssh/secrets.json
 
 # ===== .NET =====
 WebApi/bin/
 WebApi/obj/
 Project/bin/
 Project/obj/
+update-server-ssh/bin/
+update-server-ssh/obj/
 *.user
 *.suo
 .vs/

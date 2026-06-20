@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Renci.SshNet;
 
 class Program
 {
+    // 密碼一律從 secrets.local.json（已 gitignore）或環境變數載入，原始碼不再寫死任何密碼
+    static readonly Secrets S = Secrets.Load();
+
     static void Main(string[] cliArgs)
     {
         if (cliArgs.Length > 0 && cliArgs[0] == "dbcheck")
@@ -13,11 +18,7 @@ class Program
             return;
         }
 
-        var host = "172.234.95.180";
-        var user = "root";
-        var pass = "~QbW(8c8tXAKM*f3v";
-
-        using var client = new SshClient(host, user, pass);
+        using var client = new SshClient(S.SshHost, S.SshUser, S.SshPass);
         client.ConnectionInfo.Timeout = TimeSpan.FromSeconds(30);
         client.Connect();
         Console.WriteLine("=== 連線成功，開始更新... ===\n");
@@ -36,8 +37,8 @@ class Program
         }
         if (args.Length > 1 && args[1] == "fulldeploy")
         {
-            const string NEWCS = "Server=141.140.14.61;Port=3306;Database=sqsd;User ID=sqsd;Password=sarFGSEKJdJrnaFc;Connection Timeout=8;charset=utf8mb4;";
-            var unit = @"[Unit]
+            string NEWCS = S.DbConnString;
+            var unit = $@"[Unit]
 Description=SodaGM Web Tool
 After=network.target
 
@@ -49,9 +50,9 @@ RestartSec=5
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
 Environment=GmAccounts__0__Username=admin
-Environment=GmAccounts__0__Password=@Aa31178375
+Environment=GmAccounts__0__Password={S.AdminPassword}
 Environment=GmAccounts__0__Role=superadmin
-Environment=Jwt__Secret=kQ7nRwXz3YpM8fH2sL4vBt6cE1gJuA9dNhT5bVaKoXeFmP0rCyZqDsIlUwGhJxNv
+Environment=Jwt__Secret={S.JwtSecret}
 Environment=Jwt__ExpiryHours=12
 
 [Install]
@@ -79,9 +80,9 @@ WantedBy=multi-user.target
                 ("daemon-reload + restart", "systemctl daemon-reload; systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
                 ("effective connection string", "python3 -c \"import json;print(json.load(open('/opt/gmtool/publish/appsettings.json'))['ConnectionStrings']['Default'])\""),
                 ("systemctl status", "systemctl status gmtool --no-pager | head -12"),
-                ("DB connectivity test", "mysql -h141.140.14.61 -P3306 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 AS ok, DATABASE() AS db;\" 2>&1 | grep -v 'password on the command line'"),
+                ("DB connectivity test", $"mysql -h{S.DbHost} -P{S.DbPort} -u{S.DbUser} -p'{S.DbPass}' {S.DbName} --protocol=tcp -e \"SELECT 1 AS ok, DATABASE() AS db;\" 2>&1 | grep -v 'password on the command line'"),
                 ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}\\n' http://localhost:5050/"),
-                ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'"),
+                ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"" + S.AdminPassword + "\"}'"),
             };
             foreach (var (desc, cmd) in steps)
             {
@@ -361,7 +362,7 @@ WantedBy=multi-user.target
             var target = args.Length > 2 ? args[2] : "CAT1987 CAT1988";
             var keys = target.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
             // 用本機 curl 透過 WebApi 登入並查回收桶
-            var loginCmd = "curl -s -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'";
+            var loginCmd = "curl -s -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"" + S.AdminPassword + "\"}'";
             var loginRes = client.RunCommand(loginCmd).Result.Trim();
             Console.WriteLine("[login] " + loginRes);
             var tokenIdx = loginRes.IndexOf("\"token\":\"");
@@ -514,7 +515,7 @@ WantedBy=multi-user.target
             return;
         }
 
-        var serviceUnit = @"[Unit]
+        var serviceUnit = $@"[Unit]
 Description=SodaGM Web Tool
 After=network.target
 
@@ -526,9 +527,9 @@ RestartSec=5
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5050
 Environment=GmAccounts__0__Username=admin
-Environment=GmAccounts__0__Password=@Aa31178375
+Environment=GmAccounts__0__Password={S.AdminPassword}
 Environment=GmAccounts__0__Role=superadmin
-Environment=Jwt__Secret=kQ7nRwXz3YpM8fH2sL4vBt6cE1gJuA9dNhT5bVaKoXeFmP0rCyZqDsIlUwGhJxNv
+Environment=Jwt__Secret={S.JwtSecret}
 Environment=Jwt__ExpiryHours=12
 
 [Install]
@@ -543,7 +544,7 @@ WantedBy=multi-user.target
             ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
             ("restart", "systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
             ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://localhost:5050/"),
-            ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"@Aa31178375\"}'"),
+            ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"" + S.AdminPassword + "\"}'"),
         };
 
         foreach (var (desc, cmd) in cmds)
@@ -564,8 +565,8 @@ WantedBy=multi-user.target
             ("141.140.14.61", "new DB IP"),
             ("162.245.220.106", "old DB IP"),
         };
-        var user = "root";
-        var pass = "~QbW(8c8tXAKM*f3v";
+        var user = S.SshUser;
+        var pass = S.SshPass;
 
         foreach (var (host, label) in targets)
         {
@@ -611,15 +612,85 @@ WantedBy=multi-user.target
             using var c = new SshClient("172.234.95.180", user, pass);
             c.Connect();
             var test = c.RunCommand(
-                "mysql -h141.140.14.61 -P3306 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 ok, DATABASE() db, @@hostname host\" 2>&1 | grep -v 'password on the command line'"
+                $"mysql -h{S.DbHost} -P{S.DbPort} -u{S.DbUser} -p'{S.DbPass}' {S.DbName} --protocol=tcp -e \"SELECT 1 ok, DATABASE() db, @@hostname host\" 2>&1 | grep -v 'password on the command line'"
             );
             Console.WriteLine(string.IsNullOrWhiteSpace(test.Result) ? test.Error.Trim() : test.Result.Trim());
             test = c.RunCommand(
-                "mysql -h162.245.220.106 -usqsd -p'sarFGSEKJdJrnaFc' sqsd --protocol=tcp -e \"SELECT 1 ok\" 2>&1 | grep -v 'password on the command line' | head -3"
+                $"mysql -h162.245.220.106 -u{S.DbUser} -p'{S.DbPass}' {S.DbName} --protocol=tcp -e \"SELECT 1 ok\" 2>&1 | grep -v 'password on the command line' | head -3"
             );
             Console.WriteLine("old IP test:\n" + (test.Result + test.Error).Trim());
             c.Disconnect();
         }
         catch (Exception ex) { Console.WriteLine(ex.Message); }
+    }
+}
+
+/// <summary>
+/// 部署用機敏資訊。原始碼不再寫死任何密碼，改由 secrets.local.json（已 gitignore）或環境變數載入。
+/// 若兩者都找不到，會印出說明並結束，避免誤用空密碼。
+/// </summary>
+class Secrets
+{
+    public string SshHost { get; set; } = "";
+    public string SshUser { get; set; } = "root";
+    public string SshPass { get; set; } = "";
+    public string DbHost { get; set; } = "";
+    public string DbPort { get; set; } = "3306";
+    public string DbName { get; set; } = "";
+    public string DbUser { get; set; } = "";
+    public string DbPass { get; set; } = "";
+    public string AdminPassword { get; set; } = "";
+    public string JwtSecret { get; set; } = "";
+
+    public string DbConnString =>
+        $"Server={DbHost};Port={DbPort};Database={DbName};User ID={DbUser};Password={DbPass};Connection Timeout=8;charset=utf8mb4;";
+
+    public static Secrets Load()
+    {
+        // 1) 依序找 secrets.local.json（執行檔目錄、目前目錄、專案目錄）
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "secrets.local.json"),
+            Path.Combine(Directory.GetCurrentDirectory(), "secrets.local.json"),
+            Path.Combine(Directory.GetCurrentDirectory(), "update-server-ssh", "secrets.local.json"),
+        };
+        foreach (var path in candidates)
+        {
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var opt = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var s = JsonSerializer.Deserialize<Secrets>(File.ReadAllText(path), opt);
+                if (s != null && !string.IsNullOrWhiteSpace(s.SshPass))
+                    return s;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[secrets] 讀取 {path} 失敗：{ex.Message}");
+            }
+        }
+
+        // 2) 退而求其次：環境變數
+        var env = new Secrets
+        {
+            SshHost = Environment.GetEnvironmentVariable("DEPLOY_SSH_HOST") ?? "",
+            SshUser = Environment.GetEnvironmentVariable("DEPLOY_SSH_USER") ?? "root",
+            SshPass = Environment.GetEnvironmentVariable("DEPLOY_SSH_PASS") ?? "",
+            DbHost = Environment.GetEnvironmentVariable("DEPLOY_DB_HOST") ?? "",
+            DbPort = Environment.GetEnvironmentVariable("DEPLOY_DB_PORT") ?? "3306",
+            DbName = Environment.GetEnvironmentVariable("DEPLOY_DB_NAME") ?? "",
+            DbUser = Environment.GetEnvironmentVariable("DEPLOY_DB_USER") ?? "",
+            DbPass = Environment.GetEnvironmentVariable("DEPLOY_DB_PASS") ?? "",
+            AdminPassword = Environment.GetEnvironmentVariable("DEPLOY_ADMIN_PASS") ?? "",
+            JwtSecret = Environment.GetEnvironmentVariable("DEPLOY_JWT_SECRET") ?? "",
+        };
+        if (!string.IsNullOrWhiteSpace(env.SshPass))
+            return env;
+
+        Console.WriteLine(
+            "[secrets] 找不到 secrets.local.json，也沒有設定環境變數。\n" +
+            "請在 update-server-ssh 目錄建立 secrets.local.json（參考 secrets.example.json），內容包含 SSH/DB/JWT 密碼後再執行。");
+        Environment.Exit(1);
+        return env; // 不會執行到
     }
 }
