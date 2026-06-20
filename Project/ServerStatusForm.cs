@@ -22,6 +22,7 @@ namespace SQ_Email_Tools
 
         public ServerStatusForm()
         {
+            Theme.ApplyHubForm(this);
             BuildUI();
             _ = RefreshAsync();
             _autoTimer = new System.Windows.Forms.Timer { Interval = 30_000 };
@@ -42,9 +43,6 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             Text        = "🖥 伺服器狀態";
-            BackColor   = Theme.BgPage;
-            ForeColor   = Theme.TextPrimary;
-            Font        = Theme.FontBody;
             MinimumSize = new Size(860, 560);
 
             // ── 根 TableLayoutPanel（5 列）────────────────────────────
@@ -195,8 +193,6 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(_ipDgv);
             Theme.EnableSmoothPaint(_ipDgv);
             _ipDgv.ReadOnly            = true;
-            _ipDgv.RowTemplate.Height  = 28;
-            _ipDgv.ColumnHeadersHeight = 30;
             _ipDgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             _ipDgv.Columns.Add(new DataGridViewTextBoxColumn
             {
@@ -270,8 +266,6 @@ namespace SQ_Email_Tools
             _regDgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_regDgv);
             _regDgv.ReadOnly            = true;
-            _regDgv.RowTemplate.Height  = 32;
-            _regDgv.ColumnHeadersHeight = 34;
             _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c0", HeaderText = "狀態",     FillWeight = 50,  MinimumWidth = 50  });
             _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c1", HeaderText = "帳號",     FillWeight = 140, MinimumWidth = 90  });
             _regDgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "c2", HeaderText = "角色名",   FillWeight = 100, MinimumWidth = 70  });

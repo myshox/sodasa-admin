@@ -10,9 +10,10 @@ C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.Ge
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.AssemblyInfoInputs.cache
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.AssemblyInfo.cs
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.csproj.CoreCompileInputs.cache
-C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.csproj.CopyComplete
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.dll
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\refint\update.dll
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.pdb
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.genruntimeconfig.cache
 C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\ref\update.dll
+C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.sourcelink.json
+C:\Users\mysho\Downloads\SODAGMTOOL\update-server-ssh\obj\Debug\net6.0\update.csproj.Up2Date

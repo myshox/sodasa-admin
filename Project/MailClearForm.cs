@@ -34,10 +34,8 @@ namespace SQ_Email_Tools
 
         public MailClearForm()
         {
-            BackColor       = Theme.BgPage;
-            ForeColor       = Theme.TextPrimary;
-            Font            = Theme.FontBody;
             FormBorderStyle = FormBorderStyle.None;
+            Theme.ApplyHubForm(this);
             AutoScroll      = true;
             InitUI();
         }
@@ -320,7 +318,6 @@ namespace SQ_Email_Tools
                 AllowUserToAddRows = false, AllowUserToDeleteRows = false,
                 AllowUserToResizeRows = false, Font = Theme.FontSmall,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-                ColumnHeadersHeight = 28,
                 RowTemplate = { Height = 26 }
             };
             _playerDgv.DefaultCellStyle.BackColor          = Theme.BgCard;

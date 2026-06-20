@@ -18,9 +18,8 @@ namespace SQ_Email_Tools
             Text          = "🔍 玩家活動歷程";
             Size          = new Size(1200, 700);
             MinimumSize   = new Size(900, 520);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -37,7 +36,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──────────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  🔍  玩家活動歷程  —  交易 / 攤位 / 商城 / 速度 / 消費 / 倉庫",

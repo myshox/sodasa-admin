@@ -42,11 +42,22 @@ namespace SQ_Email_Tools
         public static readonly Color BgInset        = Color.FromArgb( 36,  42,  58);
         public static readonly Color AccentLineSubtle = Color.FromArgb( 56, 120, 220);
 
-        /// <summary>全站內邊距（放寬後 12px 網格，較不擁擠）</summary>
-        public static readonly int UiPadXl = 32;
-        public static readonly int UiPadLg = 28;
-        public static readonly int UiPadMd = 22;
-        public static readonly int UiPadSm = 16;
+        /// <summary>全站內邊距（8px 網格，v5 加寬避免擠在一起）</summary>
+        public static readonly int UiPadXl = 40;
+        public static readonly int UiPadLg = 32;
+        public static readonly int UiPadMd = 24;
+        public static readonly int UiPadSm = 18;
+        public static readonly int GapXs   = 6;
+        public static readonly int GapSm   = 10;
+        public static readonly int GapMd   = 16;
+        public static readonly int GapLg   = 24;
+        public static readonly int BtnHeight    = 44;
+        public static readonly int BtnHeightSm  = 36;
+        public static readonly int ToolbarHeight = 68;
+        public static readonly int PageHeaderHeight = 104;
+        public static readonly int GridRowHeight      = 48;
+        public static readonly int GridHeaderHeight   = 50;
+        public static readonly int GridRowHeightCompact = 42;
 
         /// <summary>對話框外殼：雙緩衝、底色與字體一致。</summary>
         public static void ApplyDialogShell(Form form)
@@ -60,6 +71,61 @@ namespace SQ_Email_Tools
 
         /// <summary>主視窗與大型工具視窗：與 ApplyDialogShell 相同，語意上標示「整體改版」入口。</summary>
         public static void ApplyMainWindowChrome(Form form) => ApplyDialogShell(form);
+
+        public const int HubTabBarHeight    = 48;
+        public const int HubSearchBarHeight = 64;
+        public const int HubFooterHeight    = 52;
+        public const int HubKpiPanelHeight  = 88;
+
+        /// <summary>嵌入主視窗的 Hub（Form 或 UserControl）— 底色、字體、留白、雙緩衝。</summary>
+        public static void ApplyHubForm(Control hub)
+        {
+            if (hub == null) return;
+            hub.BackColor = BgPage;
+            hub.ForeColor = TextPrimary;
+            hub.Font      = FontBody;
+            EnableSmoothPaint(hub);
+            if (hub is Form f && f.FormBorderStyle != FormBorderStyle.None && f.Dock != DockStyle.Fill)
+                return;
+            hub.Padding = new Padding(UiPadMd, UiPadSm, UiPadMd, UiPadSm);
+        }
+
+        /// <summary>Hub 分頁頂部標題列（固定高度、左色條）</summary>
+        public static Panel MakeHubPageHeader(string title, Color accent, string subtitle = null)
+        {
+            var hdr = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = ToolbarHeight,
+                BackColor = BgDialogHeader,
+                Padding   = new Padding(UiPadLg, GapMd, UiPadLg, GapSm)
+            };
+            hdr.Controls.Add(new Panel { Dock = DockStyle.Left, Width = 4, BackColor = accent });
+            hdr.Controls.Add(new Label
+            {
+                Text      = title,
+                ForeColor = accent,
+                Font      = FontPageTitle,
+                AutoSize  = true,
+                Location  = new Point(UiPadLg + 8, 8),
+                BackColor = Color.Transparent
+            });
+            if (!string.IsNullOrEmpty(subtitle))
+            {
+                hdr.Controls.Add(new Label
+                {
+                    Text      = subtitle,
+                    ForeColor = TextMuted,
+                    Font      = FontPageSubtitle,
+                    AutoSize  = true,
+                    Location  = new Point(UiPadLg + 8, 38),
+                    BackColor = Color.Transparent
+                });
+            }
+            hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Border });
+            EnableSmoothPaint(hdr);
+            return hdr;
+        }
 
         // 強調色（與 WebApp CSS 變數對齊）
         public static readonly Color AccentBlue   = Color.FromArgb( 59, 130, 246);
@@ -115,7 +181,7 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>Soft UI 風格按鈕：淺灰底 + 淺邊框模擬凸起</summary>
-        public static Button MakeButton(string text, Color bg, Color fg, int w = 120, int h = 40)
+        public static Button MakeButton(string text, Color bg, Color fg, int w = 120, int h = 44)
         {
             var btn = new Button
             {
@@ -137,11 +203,11 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>Apple 風格主要按鈕（藍底白字，圓角感）</summary>
-        public static Button MakePrimaryButton(string text, int w = 120, int h = 40)
+        public static Button MakePrimaryButton(string text, int w = 120, int h = 44)
             => MakeButton(text, AccentBlue, Color.White, w, h);
 
         /// <summary>次要按鈕（Soft UI 灰底）</summary>
-        public static Button MakeSecondaryButton(string text, int w = 120, int h = 40)
+        public static Button MakeSecondaryButton(string text, int w = 120, int h = 44)
             => MakeButton(text, BgLight, TextPrimary, w, h);
 
         public static TextBox MakeTextBox(int w = 200)
@@ -170,8 +236,26 @@ namespace SQ_Email_Tools
         // 每個 DGV 對應一個 ToolTip（在 DGV Dispose 時同步 Dispose，避免 ObjectDisposedException）
 
         // ── DataGridView 深色樣式 ────────────────────────────────
+        const string StyledDgvTag = "gmtool_theme_dgv";
+
+        /// <summary>Hub 切換後對整棵控制項樹套用表格／頁籤疏朗樣式（可重複呼叫）。</summary>
+        public static void ApplyComfortableControls(Control root)
+        {
+            if (root == null || root.IsDisposed) return;
+            if (root is DataGridView dgv)
+                StyleDataGridView(dgv);
+            else if (root is TabControl tc)
+                StyleTabControl(tc);
+            foreach (Control child in root.Controls)
+                ApplyComfortableControls(child);
+        }
+
         public static void StyleDataGridView(DataGridView dgv)
         {
+            if (dgv == null || dgv.IsDisposed) return;
+            if (dgv.Tag as string == StyledDgvTag) return;
+            dgv.Tag = StyledDgvTag;
+
             // 每個 DGV 一個 ToolTip，跟 DGV 生命週期綁定，避免共享 ToolTip 在 DGV 已 Dispose 後仍嘗試 Hide()
             var copyTip = new ToolTip { InitialDelay = 0, ReshowDelay = 0, AutoPopDelay = 1400 };
             dgv.Disposed += (s, e) => { try { copyTip.Dispose(); } catch { } };
@@ -268,21 +352,21 @@ namespace SQ_Email_Tools
             dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 32,  92, 168);
             dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
-            dgv.DefaultCellStyle.Padding            = new Padding(14, 8, 14, 8);
+            dgv.DefaultCellStyle.Padding            = new Padding(16, 10, 16, 10);
 
             dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
             dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 36, 105, 188);
             dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
-            dgv.AlternatingRowsDefaultCellStyle.Padding            = new Padding(14, 8, 14, 8);
+            dgv.AlternatingRowsDefaultCellStyle.Padding            = new Padding(16, 10, 16, 10);
 
             // 欄位標題列
             dgv.ColumnHeadersDefaultCellStyle.BackColor = BgDark;
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = TextSecondary;
             dgv.ColumnHeadersDefaultCellStyle.Font      = FontSmall;
-            dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(12, 8, 12, 8);
-            dgv.ColumnHeadersHeight                     = 48;
-            dgv.RowTemplate.Height                      = 50;
+            dgv.ColumnHeadersDefaultCellStyle.Padding   = new Padding(14, 10, 14, 10);
+            dgv.ColumnHeadersHeight                     = GridHeaderHeight;
+            dgv.RowTemplate.Height                      = GridRowHeight;
 
             EnableSmoothPaint(dgv);
         }
@@ -291,10 +375,10 @@ namespace SQ_Email_Tools
         public static void StyleDataGridViewDialog(DataGridView dgv)
         {
             StyleDataGridView(dgv);
-            dgv.ColumnHeadersHeight = 42;
-            dgv.RowTemplate.Height  = 44;
-            dgv.DefaultCellStyle.Padding = new Padding(14, 7, 14, 7);
-            dgv.AlternatingRowsDefaultCellStyle.Padding = new Padding(14, 7, 14, 7);
+            dgv.ColumnHeadersHeight = 44;
+            dgv.RowTemplate.Height  = GridRowHeightCompact;
+            dgv.DefaultCellStyle.Padding = new Padding(14, 9, 14, 9);
+            dgv.AlternatingRowsDefaultCellStyle.Padding = new Padding(14, 9, 14, 9);
         }
 
         public static string FontFamily => _ff;
@@ -311,11 +395,11 @@ namespace SQ_Email_Tools
         {
             if (tc == null) return;
             tc.DrawMode = TabDrawMode.OwnerDrawFixed;
-            tc.ItemSize = new Size(Math.Max(108, tc.ItemSize.Width), 38);
+            tc.ItemSize = new Size(Math.Max(120, tc.ItemSize.Width), 42);
             tc.SizeMode = TabSizeMode.Fixed;
             tc.BackColor = BgPage;
             tc.ForeColor = TextPrimary;
-            tc.Padding = new Point(8, 6);
+            tc.Padding = new Point(14, 8);
 
             void OnDrawItem(object? sender, DrawItemEventArgs e)
             {
@@ -912,6 +996,89 @@ namespace SQ_Email_Tools
             dlg.Controls.Add(dgv);
             dlg.Controls.Add(bottom);
             dlg.ShowDialog(parent);
+        }
+
+        /// <summary>STEP 標題列（色條 + 粗體字）</summary>
+        public static Label MakeStepLabel(string step, string title, Color accent, int x, int y)
+        {
+            return new Label
+            {
+                Text      = $"  {step}   {title}",
+                ForeColor = accent,
+                Font      = new Font(FontFamily, 10f, FontStyle.Bold),
+                AutoSize  = false,
+                Size      = new Size(600, 22),
+                Location  = new Point(x, y),
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+        }
+
+        /// <summary>Hub 分頁頂部標題列（固定高度、左右留白）</summary>
+        public static Panel MakeHubTopBar(string title, Color accent, out Panel innerHost)
+        {
+            var bar = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = ToolbarHeight,
+                BackColor = BgDialogHeader,
+                Padding   = new Padding(UiPadLg, GapSm, UiPadLg, GapSm)
+            };
+            bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Border });
+            bar.Controls.Add(new Panel { Dock = DockStyle.Left, Width = 4, BackColor = accent });
+            bar.Controls.Add(new Label
+            {
+                Text      = title,
+                ForeColor = accent,
+                Font      = FontHeader,
+                AutoSize  = true,
+                Location  = new Point(UiPadLg + 8, 10),
+                BackColor = Color.Transparent
+            });
+            innerHost = new Panel
+            {
+                Dock      = DockStyle.Right,
+                Width     = 520,
+                BackColor = Color.Transparent,
+                Padding   = new Padding(0, 8, 0, 0)
+            };
+            bar.Controls.Add(innerHost);
+            EnableSmoothPaint(bar);
+            return bar;
+        }
+
+        /// <summary>底部操作列（確認／取消等）</summary>
+        public static Panel MakeFooterBar(int height = 56)
+        {
+            var footer = new Panel
+            {
+                Dock      = DockStyle.Bottom,
+                Height    = height,
+                BackColor = BgDialogHeader,
+                Padding   = new Padding(UiPadLg, GapSm, UiPadLg, GapSm)
+            };
+            footer.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Border });
+            EnableSmoothPaint(footer);
+            return footer;
+        }
+
+        /// <summary>內嵌輸入區塊（略深背景 + 左側色條）</summary>
+        public static Panel MakeInsetBox(int x, int y, int w, int h, Color accentLeft)
+        {
+            var box = new Panel
+            {
+                Location  = new Point(x, y),
+                Size      = new Size(w, h),
+                BackColor = BgInset
+            };
+            EnableSmoothPaint(box);
+            box.Controls.Add(new Panel
+            {
+                Location  = new Point(0, 0),
+                Size      = new Size(4, h),
+                BackColor = accentLeft
+            });
+            return box;
         }
     }
 }

@@ -86,9 +86,8 @@ namespace SQ_Email_Tools
                 : $"✉ 道具發送 — {_recipients.Count} 位玩家";
             Size          = new Size(1120, 740);
             MinimumSize   = new Size(860, 560);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             // ── ① 收件人工具列（同 RechargeForm / PlayerHistoryForm 風格）──
@@ -256,10 +255,23 @@ namespace SQ_Email_Tools
             BuildLeftPanel(split.Panel1);
             BuildRightPanel(split.Panel2);
 
-            // 加入順序：Fill → Top（後加的 Top 視覺上更靠頂端）
-            Controls.Add(split);           // Fill
-            Controls.Add(searchPanel);     // Top（視覺第二，在 header 正下方）
-            Controls.Add(_recipientsHdr);  // Top（視覺最頂端，最後加）
+            // ── 頂部工具列容器（收件人列 + STEP1 道具搜尋列）──────────
+            // 包成單一 Dock=Top 容器，避免多個 Dock=Top 在 hub 內嵌(reparent)後
+            // 最頂端那層不渲染的問題（先前「搜尋收件人」整列消失即此故）。
+            var topStack = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = _recipientsHdr.Height + searchPanel.Height,  // 54 + 56
+                BackColor = Color.FromArgb(22, 24, 36)
+            };
+            searchPanel.Dock   = DockStyle.Fill;   // 容器內：填滿收件人列下方
+            _recipientsHdr.Dock = DockStyle.Top;   // 容器內：固定 54 高，置頂
+            topStack.Controls.Add(searchPanel);     // Fill 先加
+            topStack.Controls.Add(_recipientsHdr);  // Top 後加（置頂）
+
+            // 表單層級僅剩「一個 Fill + 一個 Top」最穩定組合
+            Controls.Add(split);      // Fill
+            Controls.Add(topStack);   // Top
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -477,7 +489,6 @@ namespace SQ_Email_Tools
                 AllowUserToDeleteRows= false,
                 SelectionMode        = DataGridViewSelectionMode.FullRowSelect,
                 RowTemplate          = { Height = 26 },
-                ColumnHeadersHeight  = 26,
                 MultiSelect          = true,
                 BackgroundColor      = Theme.BgCard,
                 GridColor            = Theme.Border,

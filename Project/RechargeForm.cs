@@ -79,12 +79,10 @@ namespace SQ_Email_Tools
         public RechargeForm()
         {
             Text            = "💰 充值管理";
-            Size            = new Size(1160, 780);
-            MinimumSize     = new Size(1020, 640);
-            BackColor       = Theme.BgPage;
-            ForeColor       = Theme.TextPrimary;
-            Font            = Theme.FontBody;
+            Size            = new Size(1200, 820);
+            MinimumSize     = new Size(1080, 680);
             StartPosition   = FormStartPosition.CenterParent;
+            Theme.ApplyHubForm(this);
             BuildUI();
         }
 
@@ -96,9 +94,9 @@ namespace SQ_Email_Tools
             // ── 頂部搜尋列 ──────────────────────────────────────────
             var topBar = new Panel
             {
-                Dock = DockStyle.Top, Height = 56,
-                BackColor = Color.FromArgb(22, 24, 36),
-                Padding = new Padding(14, 0, 14, 0)
+                Dock = DockStyle.Top, Height = Theme.ToolbarHeight,
+                BackColor = Theme.BgDialogHeader,
+                Padding = new Padding(Theme.UiPadLg, Theme.GapSm, Theme.UiPadLg, Theme.GapSm)
             };
             topBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             topBar.Controls.Add(new Label
@@ -110,7 +108,7 @@ namespace SQ_Email_Tools
             });
             _txtSearch = new TextBox
             {
-                Width = 320, Height = 28, Left = 175, Top = 14,
+                Width = 340, Height = 32, Left = 190, Top = 16,
                 BackColor = Theme.BgInput, ForeColor = Theme.TextPrimary,
                 Font = Theme.FontBody, BorderStyle = BorderStyle.FixedSingle,
                 PlaceholderText = "主帳號 / 角色名 / UID（主帳號可帶出全部子帳號）"
@@ -601,7 +599,6 @@ namespace SQ_Email_Tools
 
             _dgvHistory = new DataGridView { Location = new Point(x, y), Size = new Size(640, 200) };
             Theme.StyleDataGridView(_dgvHistory);
-            _dgvHistory.RowTemplate.Height = 32;
             _dgvHistory.ReadOnly = true;
             _dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTime",    HeaderText = "時間",      Width = 130 });
             _dgvHistory.Columns.Add(new DataGridViewTextBoxColumn { Name = "cAccount", HeaderText = "帳號",      Width = 120 });

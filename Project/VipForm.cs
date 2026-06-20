@@ -21,10 +21,8 @@ namespace SQ_Email_Tools
             Text          = "💎 VIP 玩家管理";
             Size          = new Size(980, 680);
             MinimumSize   = new Size(750, 480);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterParent;
+            Theme.ApplyHubForm(this);
             BuildUI();
             _ = LoadAsync();
         }
@@ -32,7 +30,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── 標題列 ──────────────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  💎  VIP 玩家管理  —  黃金 / 鑽石 VIP 特權與回饋加成",
@@ -144,7 +142,6 @@ namespace SQ_Email_Tools
             // ── DataGridView ─────────────────────────────────────────────
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
-            _dgv.RowTemplate.Height = 34;
             _dgv.ReadOnly           = true;
 
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cVip",       HeaderText = "VIP 等級",    Width = 110 });

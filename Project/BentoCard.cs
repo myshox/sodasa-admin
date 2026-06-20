@@ -182,4 +182,61 @@ namespace SQ_Email_Tools
 
         private Color _cardBg => base.CardColor;
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // RoundedProgressBar — 圓角進度條（GMTool 累儲／遊戲面板進度）
+    // ══════════════════════════════════════════════════════════════════
+    public class RoundedProgressBar : Panel
+    {
+        private int _pct;
+        private Color _trackColor  = Color.FromArgb(18, 22, 32);  // 比卡片更深的凹槽
+        private Color _trackBorder = Color.FromArgb(72, 82, 108);  // 細邊框，確保在深色卡片上仍清晰可見
+
+        public int Percent
+        {
+            get => _pct;
+            set { _pct = Math.Max(0, Math.Min(100, value)); Invalidate(); }
+        }
+
+        public Color TrackColor { get => _trackColor; set { _trackColor = value; Invalidate(); } }
+
+        public RoundedProgressBar(int width, int height = 12)
+        {
+            Size      = new Size(width, height);
+            BackColor = Color.Transparent;
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        }
+
+        public static Color FillForPercent(int pct) =>
+            pct >= 80 ? Color.FromArgb(52, 211, 128)
+            : pct >= 40 ? Color.FromArgb(251, 191, 36)
+            : Color.FromArgb(96, 165, 250);
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode      = SmoothingMode.AntiAlias;
+            g.CompositingQuality = CompositingQuality.HighQuality;
+            var r   = ClientRectangle;
+            if (r.Width < 4 || r.Height < 4) return;
+            r.Inflate(-1, -1);                 // 留 1px 給邊框，避免被控件邊界裁掉
+            int rad = r.Height / 2;
+            using (var trackPath  = BentoCard.MakePath(r, rad))
+            {
+                using (var trackBrush = new SolidBrush(_trackColor))
+                    g.FillPath(trackBrush, trackPath);
+                using (var trackPen = new Pen(_trackBorder))
+                    g.DrawPath(trackPen, trackPath);
+            }
+            if (_pct <= 0) return;
+            int fw = Math.Max(rad * 2, (int)(r.Width * (_pct / 100.0)));
+            var fr = new Rectangle(r.X, r.Y, fw, r.Height);
+            using var fillPath  = BentoCard.MakePath(fr, rad);
+            using var fillBrush = new SolidBrush(FillForPercent(_pct));
+            g.FillPath(fillBrush, fillPath);
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e) { }
+    }
 }

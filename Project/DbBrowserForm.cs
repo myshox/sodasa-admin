@@ -37,6 +37,7 @@ namespace SQ_Email_Tools
 
         public DbBrowserForm()
         {
+            Theme.ApplyHubForm(this);
             BuildUI();
         }
 
@@ -198,7 +199,6 @@ namespace SQ_Email_Tools
             _dgvData.Dock = DockStyle.Fill;
             _dgvData.ReadOnly = true;
             _dgvData.AllowUserToAddRows = false;
-            _dgvData.ColumnHeadersHeight = 28;
             _dgvData.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             rightPanel.Controls.Add(_dgvData, 0, 2);
 
@@ -396,7 +396,6 @@ namespace SQ_Email_Tools
                     Padding = new Padding(4, 0, 4, 0)
                 },
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing,
-                ColumnHeadersHeight = 28,
                 RowTemplate = { Height = 26 }
             };
             dgv.EnableHeadersVisualStyles = false;

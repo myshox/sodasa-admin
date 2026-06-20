@@ -32,9 +32,8 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             Text        = "👥 消費達成獎勵 — 全服批量管理";
-            BackColor   = Theme.BgPage;
-            ForeColor   = Theme.TextPrimary;
-            Font        = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             MinimumSize = new Size(960, 620);
             Size        = new Size(1100, 720);
 
@@ -140,7 +139,6 @@ namespace SQ_Email_Tools
                 SelectionMode          = DataGridViewSelectionMode.FullRowSelect,
                 ReadOnly               = false,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-                ColumnHeadersHeight    = 32,
                 RowTemplate            = { Height = 28 },
                 AutoSizeColumnsMode    = DataGridViewAutoSizeColumnsMode.None,
                 ScrollBars             = ScrollBars.Both

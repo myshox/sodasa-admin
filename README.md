@@ -1,15 +1,40 @@
 # 蘇打石器 GM 工具
 
 石器時代私服 GM 後台管理系統，包含桌面版（WinForms）與網頁版（React PWA + ASP.NET Core API）。
+兩個版本功能對齊，並**共用同一個 MySQL 資料庫**（含統一的 GM 操作歷史紀錄表 `gm_operation_log`）。
 
-## 專案結構
+## 專案結構（依用途分類）
 
 ```
 SODAGMTOOL/
-├── Project/      WinForms 桌面版（.NET 6）
-├── WebApi/       後端 REST API（ASP.NET Core 6，Port 5050）
-└── WebApp/       前端 PWA（React + TypeScript + Vite）
+│
+├─ 🖥️  EXE 桌面版（WinForms / .NET 6）
+│   └── Project/              桌面版完整原始碼（GM 工具本體）
+│   └── GMTool/               桌面版編譯後執行檔（不進版控，本機/分發用）
+│
+├─ 🌐 網頁版（前端 + 後端，部署於 gm.sodasa.org）
+│   ├── WebApp/               前端 PWA（React 19 + TypeScript + Vite）
+│   └── WebApi/               後端 REST API（ASP.NET Core 6，Port 5050）
+│       └── wwwroot/          前端 build 後的產物（由 API 一併提供）
+│
+├─ 🚀 部署 / 工具
+│   ├── update-server-ssh/    以 SSH 連線線上伺服器自動部署（git pull + publish + 重啟）
+│   ├── update-server.ps1     線上部署輔助腳本（含密鑰，已 gitignore，不上傳）
+│   ├── _run_update.ps1       本機：複製最新 EXE 到 GMTool/
+│   ├── deploy.bat            本機：build 前端 + 跑 API（本地測試）
+│   ├── gmtool.service        線上 systemd 服務定義（參考）
+│   └── DbConnTest/           資料庫連線診斷小工具（選用，未進版控）
+│
+└─ 📄 其他：README.md、appsettings.example.json（範本）
 ```
+
+> **網頁版 vs EXE 的對應**：兩邊操作（封禁、發物品、儲值、改金幣等）都會寫進同一張
+> `gm_operation_log`，因此「歷史操作紀錄」在 EXE（系統 → 📋 GM 操作日誌）與
+> 網頁（系統設定 → 📋 GM 日誌 / `/gmlog`）兩端看到的內容完全一致。
+
+> **為什麼不把資料夾搬成「網頁版/」「EXE/」兩大層？**
+> 因為線上伺服器部署寫死了 `/opt/gmtool/WebApi` 路徑，且各專案的 `.csproj`、
+> 部署腳本都依賴現有目錄結構。搬動會直接讓部署失效，故以本分類表清楚標示用途即可。
 
 ## 快速開始
 

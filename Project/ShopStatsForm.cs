@@ -28,6 +28,7 @@ namespace SQ_Email_Tools
 
         public ShopStatsForm()
         {
+            Theme.ApplyHubForm(this);
             Text          = "🏪 商城熱賣分析";
             Size          = new Size(1100, 720);
             MinimumSize   = new Size(860, 520);
@@ -412,7 +413,7 @@ namespace SQ_Email_Tools
 
         private static Panel MakeSectionHeader(string title, Color accent, Color? subtitleColor = null)
         {
-            var wrap = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgMid };
+            var wrap = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             var accentBar = new Panel { Width = 4, Dock = DockStyle.Left, BackColor = accent };
             var inner = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 10, 12, 8), BackColor = Color.Transparent };
             inner.Controls.Add(new Label
@@ -436,7 +437,6 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(dgv);
             Theme.EnableSmoothPaint(dgv);
             dgv.ReadOnly = true;
-            dgv.RowTemplate.Height = 34;
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",   HeaderText = "排名",       MinimumWidth = 44,  FillWeight = 25,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
@@ -489,7 +489,6 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(dgv);
             Theme.EnableSmoothPaint(dgv);
             dgv.ReadOnly = true;
-            dgv.RowTemplate.Height = 34;
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colRank",  HeaderText = "排名",       MinimumWidth = 44,  FillWeight = 30,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });

@@ -25,6 +25,7 @@ namespace SQ_Email_Tools
 
         public RechargeAnalyticsForm()
         {
+            Theme.ApplyHubForm(this);
             InitUI();
             _ = LoadAllAsync();
         }
@@ -40,7 +41,7 @@ namespace SQ_Email_Tools
             StartPosition = FormStartPosition.CenterParent;
 
             // ── Header ──────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text = "  💰  儲值趨勢分析",
@@ -70,7 +71,7 @@ namespace SQ_Email_Tools
             header.Controls.Add(btnBatchReset);
 
             // ── KPI 卡片列 ──────────────────────────────────────
-            var kpiPanel = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.BgMid };
+            var kpiPanel = new Panel { Dock = DockStyle.Top, Height = Theme.HubKpiPanelHeight, BackColor = Theme.BgCard };
             kpiPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             var kpiFlow = new FlowLayoutPanel
             {
@@ -194,7 +195,6 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true; dgv.AllowUserToAddRows = false;
-            dgv.RowTemplate.Height = 26; dgv.ColumnHeadersHeight = 28;
             void AddCol(string name, string hdr, int w, DataGridViewContentAlignment align = DataGridViewContentAlignment.MiddleLeft)
                 => dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = name, HeaderText = hdr, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { Alignment = align } });
             AddCol("cMonth",  "月份",          100, DataGridViewContentAlignment.MiddleCenter);
@@ -256,7 +256,6 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true; dgv.AllowUserToAddRows = false;
-            dgv.RowTemplate.Height = 30; dgv.ColumnHeadersHeight = 28;
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cTier", HeaderText = "分層", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, SortMode = DataGridViewColumnSortMode.NotSortable });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cCount", HeaderText = "人數", Width = 90,  SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cPct",   HeaderText = "佔比", Width = 80,  SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });

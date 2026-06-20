@@ -19,11 +19,8 @@ namespace SQ_Email_Tools
             Text          = "🟢 線上玩家監控";
             Size          = new Size(1000, 640);
             MinimumSize   = new Size(720, 460);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterParent;
-
+            Theme.ApplyHubForm(this);
             BuildUI();
             _ = RefreshAsync();
             StartAutoRefresh();
@@ -32,7 +29,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             _btnRefresh = Theme.MakePrimaryButton("🔄 立即刷新", 110, 28);
             _btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _btnRefresh.Click += (s, e) => _ = RefreshAsync();
@@ -71,7 +68,6 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly           = true;
-            _dgv.RowTemplate.Height = 36;
             _dgv.CellDoubleClick   += OpenPlayerProfile;
 
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cOnline",     HeaderText = "狀態",      FillWeight = 50,  MinimumWidth = 55  });

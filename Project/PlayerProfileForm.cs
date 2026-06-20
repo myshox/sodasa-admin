@@ -598,10 +598,19 @@ namespace SQ_Email_Tools
 
             void Section(string title, Color color)
             {
-                var bar = new Panel { Location = new Point(x, y), Width = panelW, Height = 26, BackColor = Theme.BgCard };
-                bar.Controls.Add(new Label { Text = title, ForeColor = color, Font = Theme.FontBody, AutoSize = true, Location = new Point(8, 4) });
+                var bar = new Panel { Location = new Point(x, y), Width = panelW, Height = 28, BackColor = Theme.BgCard };
+                Theme.EnableSmoothPaint(bar);
+                bar.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(4, 28), BackColor = color });
+                bar.Controls.Add(new Label
+                {
+                    Text      = title,
+                    ForeColor = color,
+                    Font      = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
+                    AutoSize  = true,
+                    Location  = new Point(12, 5)
+                });
                 _bodyPanel.Controls.Add(bar);
-                y += 30;
+                y += 32;
             }
 
             // 建立可選取 / 複製的唯讀文字框（外觀同 Label，但文字可拖選及 Ctrl+C）
@@ -771,46 +780,66 @@ namespace SQ_Email_Tools
                 : $"第 {cycle + 1} 循環（已完成 {cycle} 次）";
 
             y += 4;
-            Section($"💳  累積充值（台幣）  —  {cycleLabel} · NT${inCycle:N0} / $20,000  ·  歷史總計 NT${payPt:N0}", Color.FromArgb(255, 200, 80));
+            Section($"💳  累積充值（台幣）  —  {cycleLabel} · NT${inCycle:N0} / $20,000  ·  歷史總計 NT${lifetimePt:N0}", Color.FromArgb(255, 200, 80));
             RowEditable("當前循環進度：",
-                $"NT$ {inCycle:N0} / 20,000　（遊戲面板顯示值）　|　歷史總計 NT$ {payPt:N0}",
+                $"NT$ {inCycle:N0} / 20,000　（遊戲面板顯示值）　|　歷史總計 NT$ {lifetimePt:N0}",
                 Color.FromArgb(255, 200, 80), async () =>
             {
                 using var dlg = new AdjustRechargeDialog(_player.OnlineName, _detail.PayTotal, _detail.LifetimePayTotal,
                     _player.Account, _detail.ClaimReady, (int)_detail.TotalCheck);
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
-                if (dlg.NeedsRefresh) { BuildDetailUI(); return; }
+                if (dlg.NeedsRefresh) { await LoadDetailAsync(); return; }
                 if (dlg.IsResetRequest)
                 {
                     bool ok = await DatabaseManager.Instance.ResetPaydataProgressAsync(_player.Account);
                     if (ok)
                     {
-                        _detail.PayTotal = 0;
                         MessageBox.Show("✅ 累儲進度已歸零。歷史總累儲保留不動。",
                             "操作成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        BuildDetailUI();
+                        await LoadDetailAsync();
                     }
                     else
                         MessageBox.Show("⚠ 重置失敗（玩家可能無 paydata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                // 🔒 mode 3：只加顯示 / 不推進輪次 / 不發金幣
+                if (dlg.DisplayOnly)
+                {
+                    long dispTwd = dlg.DisplayOnlyTwd;
+                    var (okDisp, newPt) = await DatabaseManager.Instance.AdjustPayDisplayOnlyAsync(_player.Account, dispTwd);
+                    if (okDisp)
+                    {
+                        MessageBox.Show(
+                            $"✅ 累儲顯示已更新：{(dispTwd >= 0 ? "+" : "")}NT${dispTwd:N0}\n" +
+                            $"  · 遊戲面板進度（paydata.point）→ NT${newPt:N0} / 20,000\n" +
+                            $"  · lifetime_total / PayTotal 已累加\n" +
+                            $"  · check 已設為「已領取」鎖住領獎、totalcheck 不動（玩家無法領獎）\n\n" +
+                            $"請玩家重新登入遊戲後查看遊戲內面板。",
+                            "操作成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        await LoadDetailAsync();
+                    }
+                    else
+                        MessageBox.Show("⚠ 更新失敗（玩家可能無 csalogin 記錄）。", "失敗",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 bool ok2 = await DatabaseManager.Instance.AdjustPayDataPointAsync(
                     _player.Account, dlg.TwdAmount, dlg.GoldAmount, dlg.GiveGold);
                 if (ok2)
                 {
-                    if (dlg.GiveGold) _detail.Gold += dlg.GoldAmount;
-                    _detail.PayTotal         += dlg.TwdAmount;
-                    _detail.LifetimePayTotal += dlg.TwdAmount;
                     string goldLine = dlg.GiveGold
                         ? $"✅ 金幣已入帳：+{dlg.GoldAmount:N0} 金幣（含套餐加成及優惠贈金）\n"
                         : "ℹ️ 本次不發放金幣（僅更新累儲進度）\n";
                     MessageBox.Show(
                         goldLine +
-                        $"✅ 累積充值更新：+NT${dlg.TwdAmount:N0}（paydata.point 累加）\n" +
+                        $"✅ 累積充值更新：+NT${dlg.TwdAmount:N0}（以 paydata.point 為基準累加）\n" +
                         $"✅ 歷史總累儲同步更新（lifetime_total 累加）\n\n" +
                         "玩家重新登入後，遊戲內累積充值獎勵介面將顯示新數值。",
                         "操作成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    BuildDetailUI();
+                    // 重新自資料庫載入（顯示值＝paydata.point，與遊戲一致；避免用舊的記憶體值累加造成顯示分歧）
+                    await LoadDetailAsync();
                 }
                 else
                 {
@@ -828,10 +857,41 @@ namespace SQ_Email_Tools
                     BackColor = Color.Transparent
                 };
 
+                // 📊 從 lifetime 同步 point（舊版 Mode3 只寫了 lifetime、面板仍 0 時用）
+                if (lifetimePt > 0 && payPt == 0)
+                {
+                    var btnSyncPanel = Theme.MakeButton("📊 同步面板進度", Color.FromArgb(50, 120, 90), Color.White, 118, 24);
+                    btnSyncPanel.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
+                    btnSyncPanel.Location = new Point(0, 2);
+                    btnSyncPanel.Click += async (s, e) =>
+                    {
+                        long expectPt = lifetimePt <= 0 ? 0
+                            : lifetimePt - ((lifetimePt - 1) / CYCLE) * CYCLE;
+                        if (MessageBox.Show(
+                            $"依歷史總計 NT${lifetimePt:N0} 推算遊戲面板進度為 NT${expectPt:N0} / 20,000。\n\n" +
+                            "  ✅ 更新 paydata.point（遊戲面板進度）\n" +
+                            "  🔒 check 設為「已領取」鎖住領獎、totalcheck 不動（玩家無法領獎）\n\n確認同步？",
+                            "同步遊戲面板進度", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+                        var (okSync, newPt) = await DatabaseManager.Instance.SyncGamePanelPointFromLifetimeAsync(_player.Account);
+                        if (okSync)
+                        {
+                            MessageBox.Show($"✅ 遊戲面板進度已同步為 NT${newPt:N0} / 20,000。\n請玩家重新登入遊戲查看。",
+                                "同步成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            await LoadDetailAsync();
+                        }
+                        else
+                            MessageBox.Show("⚠ 同步失敗（可能無 paydata 或 lifetime 為 0）。", "失敗",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    };
+                    btnPanel.Controls.Add(btnSyncPanel);
+                }
+
+                int btnFixX = lifetimePt > 0 && payPt == 0 ? 124 : 0;
                 // 🔧 修復循環 check（不動 point，只補 check bits）
                 var btnFix = Theme.MakeButton("🔧 修復循環顯示", Color.FromArgb(30, 90, 160), Color.White, 138, 24);
                 btnFix.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
-                btnFix.Location = new Point(0, 2);
+                btnFix.Location = new Point(btnFixX, 2);
                 btnFix.Click += async (s, e) =>
                 {
                     long completedCycles = payPt / CYCLE;
@@ -861,7 +921,7 @@ namespace SQ_Email_Tools
                 // 🔄 重置（point + check → 0，保留 lifetime_total）
                 var btnReset = Theme.MakeButton("🔄 重置進度（清0）", Theme.AccentRed, Color.White, 138, 24);
                 btnReset.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
-                btnReset.Location = new Point(146, 2);
+                btnReset.Location = new Point(btnFixX + 146, 2);
                 btnReset.Click += async (s, e) =>
                 {
                     if (MessageBox.Show(
@@ -873,10 +933,9 @@ namespace SQ_Email_Tools
                     bool ok = await DatabaseManager.Instance.ResetPaydataProgressAsync(_player.Account);
                     if (ok)
                     {
-                        _detail.PayTotal = 0;
                         MessageBox.Show("✅ 累儲進度已歸零。歷史總累儲保留不動。",
                             "操作成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        BuildDetailUI();
+                        await LoadDetailAsync();
                     }
                     else
                         MessageBox.Show("⚠ 重置失敗（玩家可能無 paydata 記錄）。", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -888,7 +947,7 @@ namespace SQ_Email_Tools
                     ForeColor = Theme.TextMuted,
                     Font      = Theme.FontSmall,
                     AutoSize  = true,
-                    Location  = new Point(292, 6)
+                    Location  = new Point(btnFixX + 292, 6)
                 };
                 btnPanel.Controls.AddRange(new Control[] { btnFix, btnReset, lblNote });
                 _bodyPanel.Controls.Add(btnPanel);
@@ -1000,68 +1059,69 @@ namespace SQ_Email_Tools
                 y += 22;
             }
 
-            // ── 循環進度條（大型，明顯顯示）──────────────────────────
+            // ── 循環進度條（卡片式）──────────────────────────
             {
-                // 主進度行
-                var lbl = new Label
+                const int pcW = 490, pcPad = 16;
+                var progCard = new BentoCard
                 {
-                    Text      = "遊戲面板進度：",
-                    ForeColor = Theme.TextMuted,
-                    Font      = Theme.FontSmall,
-                    Width     = 130,
-                    Location  = new Point(x + 4, y + 2),
-                    TextAlign = ContentAlignment.MiddleRight
+                    Location     = new Point(x + 130, y),
+                    Size         = new Size(pcW, 96),
+                    CardColor    = Color.FromArgb(30, 36, 52),
+                    CornerRadius = 10
                 };
-
-                // 進度數字（大字，遊戲面板顯示的就是這個）
-                var valMain = new Label
+                // 第 1 列：標題
+                progCard.Controls.Add(new Label
+                {
+                    Text      = "🎮  遊戲面板進度（paydata.point）",
+                    ForeColor = Theme.TextSecondary,
+                    Font      = Theme.FontSmall,
+                    AutoSize  = true,
+                    Location  = new Point(pcPad, 10),
+                    BackColor = Color.Transparent
+                });
+                // 第 2 列：數值（左）＋ 百分比（右）—— 與進度條垂直分開，互不重疊
+                progCard.Controls.Add(new Label
                 {
                     Text      = $"NT$ {inCycle:N0}  /  20,000",
-                    ForeColor = pct >= 80 ? Color.FromArgb(80, 230, 140)
-                              : pct >= 40 ? Color.FromArgb(255, 200, 80)
-                              : Color.FromArgb(100, 180, 255),
-                    Font      = new Font(Theme.FontFamily, 11f, FontStyle.Bold),
+                    ForeColor = RoundedProgressBar.FillForPercent(pct),
+                    Font      = new Font(Theme.FontFamily, 13f, FontStyle.Bold),
                     AutoSize  = true,
-                    Location  = new Point(x + 140, y)
+                    Location  = new Point(pcPad, 30),
+                    BackColor = Color.Transparent
+                });
+                progCard.Controls.Add(new Label
+                {
+                    Text      = $"{pct}%",
+                    ForeColor = Theme.TextPrimary,
+                    Font      = new Font(Theme.FontFamily, 12f, FontStyle.Bold),
+                    AutoSize  = false,
+                    Size      = new Size(60, 22),
+                    TextAlign = ContentAlignment.MiddleRight,
+                    Location  = new Point(pcW - pcPad - 60, 32),
+                    BackColor = Color.Transparent
+                });
+                // 第 3 列：進度條（獨占一列，置於數值下方）
+                var bar = new RoundedProgressBar(pcW - pcPad * 2, 12) { Location = new Point(pcPad, 64), Percent = pct };
+                progCard.Controls.Add(bar);
+                var lblSide = new Label
+                {
+                    Text      = "遊戲面板：",
+                    ForeColor = Theme.TextMuted,
+                    Font      = Theme.FontSmall,
+                    Width     = 120,
+                    Location  = new Point(x + 4, y + 30),
+                    TextAlign = ContentAlignment.MiddleRight
                 };
                 var valSub = new Label
                 {
-                    Text      = $"  還差 NT${remain:N0} 完成第 {cycle + 1} 循環　　歷史總計（paydata.point） = NT${payPt:N0}",
+                    Text      = $"還差 NT${remain:N0} 完成第 {cycle + 1} 循環　·　歷史 NT${lifetimePt:N0}",
                     ForeColor = Theme.TextMuted,
                     Font      = Theme.FontSmall,
                     AutoSize  = true,
-                    Location  = new Point(x + 140, y + 22)
+                    Location  = new Point(x + 140, y + 100)
                 };
-                _bodyPanel.Controls.AddRange(new Control[] { lbl, valMain, valSub });
-                y += 40;
-
-                // 進度條
-                var barBg = new Panel
-                {
-                    Location  = new Point(x + 140, y),
-                    Size      = new Size(420, 12),
-                    BackColor = Theme.BgCard
-                };
-                int fillW = Math.Max(4, (int)(420 * pct / 100.0));
-                var barFill = new Panel
-                {
-                    Location  = new Point(0, 0),
-                    Size      = new Size(fillW, 12),
-                    BackColor = pct >= 80 ? Color.FromArgb(50, 220, 120)
-                              : pct >= 40 ? Color.FromArgb(255, 190, 60)
-                              : Color.FromArgb(80, 140, 255)
-                };
-                barBg.Controls.Add(barFill);
-                var barPct = new Label
-                {
-                    Text      = $"{pct}%",
-                    ForeColor = Color.FromArgb(130, 150, 190),
-                    Font      = Theme.FontSmall,
-                    AutoSize  = true,
-                    Location  = new Point(x + 566, y)
-                };
-                _bodyPanel.Controls.AddRange(new Control[] { barBg, barPct });
-                y += 20;
+                _bodyPanel.Controls.AddRange(new Control[] { lblSide, progCard, valSub });
+                y += 124;
             }
 
             // ── 累計消費達成獎勵（costdata，與累積儲值 paydata 平行）────────
@@ -1831,11 +1891,11 @@ namespace SQ_Email_Tools
 
         private NumericUpDown _nudTwd;          // 台幣輸入
         private Label         _lblGoldCalc;     // 對應金幣預覽
-        // 操作類型：-1=未選 0=僅累積 1=累積+金幣 2=只金幣
+        // 操作類型：-1=未選 0=僅累積 1=累積+金幣 2=只金幣 3=只加顯示(不推進輪次、不讓玩家領獎)
         private int           _opMode = -1;
         private Button[]      _opBtns = Array.Empty<Button>();
         private Label         _lblCycleAfter;
-        private Panel         _barFillAfter;
+        private RoundedProgressBar _progressAfterBar;
         private Button[]      _tierBtns;
         private Panel           _scrollHost = null!; // 內容過高時可垂直捲動
         private readonly long _currentTotal;   // 目前 paydata.point (NT$)
@@ -1847,12 +1907,16 @@ namespace SQ_Email_Tools
         private int _bonusPct = 0;
         private Button[] _bonusBtns = Array.Empty<Button>();
 
-        /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）；若為「只給金幣」模式則為 0</summary>
-        public long TwdAmount  => _opMode == 2 ? 0 : (long)_nudTwd.Value;
+        /// <summary>要加入 paydata.point 的台幣金額（不含優惠贈金）；若為「只給金幣」或「只加顯示」模式則為 0</summary>
+        public long TwdAmount  => (_opMode == 2 || _opMode == 3) ? 0 : (long)_nudTwd.Value;
         /// <summary>要加入 VipPoint 的金幣（套餐金額 × (1 + bonus%)；累積儲值進度只計台幣，不含此贈金）</summary>
         public long GoldAmount => (long)Math.Round((_selectedGold >= 0 ? _selectedGold : TwdToGoldBase((long)_nudTwd.Value)) * (1 + _bonusPct / 100.0));
         public bool GiveGold   => _opMode == 1 || _opMode == 2;
         public bool OnlyGold   => _opMode == 2;
+        /// <summary>true = mode 3「只加顯示，不讓玩家領獎」：動 PayTotal + lifetime + point，並把 check 設為已領取(鎖領獎)；totalcheck 不動</summary>
+        public bool DisplayOnly => _opMode == 3;
+        /// <summary>mode 3 要加進 csalogin.PayTotal / lifetime_total 的台幣金額（不論正負）</summary>
+        public long DisplayOnlyTwd => _opMode == 3 ? (long)_nudTwd.Value : 0;
         /// <summary>true = 使用者按了「清0累儲進度」</summary>
         public bool IsResetRequest { get; private set; }
         /// <summary>true = 對話框內執行了修復循環或發放獎勵，呼叫端應刷新列表/詳情</summary>
@@ -1911,17 +1975,23 @@ namespace SQ_Email_Tools
             _claimReady    = claimReady;
             _totalCheck    = totalCheck;
             Text           = $"💳 調整累積充值 — {playerName}";
-            Size           = new Size(660, 710);
-            BackColor = Theme.BgPage;
-            ForeColor      = Theme.TextPrimary;
-            Font           = Theme.FontBody;
+            Size           = new Size(700, 780);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox    = false;
             MinimizeBox    = false;
             StartPosition  = FormStartPosition.CenterParent;
+            Theme.ApplyDialogShell(this);
 
-            _scrollHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.BgPage };
+            var footer = new Panel
+            {
+                Dock      = DockStyle.Bottom,
+                Height    = 58,
+                BackColor = Theme.BgDialogHeader,
+                Padding   = new Padding(16, 10, 16, 10)
+            };
+            _scrollHost = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.BgPage, Padding = new Padding(0, 0, 0, 8) };
             Controls.Add(_scrollHost);
+            Controls.Add(footer);
 
             const int x = 18;
             const int W = 616;
@@ -1933,60 +2003,66 @@ namespace SQ_Email_Tools
             long curRemain = CYCLE - curIn;
             int  curPct    = (int)(curIn * 100 / CYCLE);
 
-            var infoBox = new Panel { Location = new Point(x, y), Size = new Size(W, 96), BackColor = Theme.BgCard };
-            infoBox.Controls.Add(new Label
+            const int scPad = 16;
+            var statusCard = new BentoCard
             {
-                Text      = "累積充值（台幣，實際付款） — 金幣換算依套餐分段匯率（與充值管理相同）",
-                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 6)
+                Location     = new Point(x, y),
+                Size         = new Size(W, 150),
+                CardColor    = Color.FromArgb(32, 38, 54),
+                CornerRadius = 12
+            };
+            statusCard.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 4, BackColor = Color.FromArgb(245, 158, 11) });
+            statusCard.Controls.Add(new Label
+            {
+                Text = "📊  目前累積狀態", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
+                AutoSize = true, Location = new Point(scPad, 12), BackColor = Color.Transparent
             });
-            infoBox.Controls.Add(new Label
+            // 大數值（高 18pt ≈ 30px，下方各列都讓開避免被壓）
+            statusCard.Controls.Add(new Label
             {
-                Text      = $"NT$ {currentPayTotal:N0}",
-                ForeColor = Color.FromArgb(180, 120, 0),
-                Font      = new Font(Theme.FontFamily, 12f, FontStyle.Bold),
-                AutoSize  = true, Location = new Point(10, 22)
+                Text = $"NT$ {currentPayTotal:N0}", ForeColor = Color.FromArgb(251, 191, 36),
+                Font = new Font(Theme.FontFamily, 18f, FontStyle.Bold), AutoSize = true,
+                Location = new Point(scPad, 32), BackColor = Color.Transparent
             });
-            infoBox.Controls.Add(new Label
+            statusCard.Controls.Add(new Label
             {
-                Text      = "← 遊戲內「累積充值獎勵」讀取此值",
-                ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(165, 28)
+                Text = "paydata.point · 遊戲內累積充值獎勵讀此欄",
+                ForeColor = Theme.TextMuted, Font = Theme.FontXSmall, AutoSize = true,
+                Location = new Point(scPad + 190, 42), BackColor = Color.Transparent
             });
             bool sameLifetime = _lifetimeTotal == currentPayTotal;
-            infoBox.Controls.Add(new Label
+            statusCard.Controls.Add(new Label
             {
-                Text      = sameLifetime
-                    ? $"歷史總累儲（永不歸零）：NT$ {_lifetimeTotal:N0}（尚無重置記錄）"
-                    : $"歷史總累儲（永不歸零）：NT$ {_lifetimeTotal:N0}（跨越 {_lifetimeTotal / CYCLE} 個循環）",
-                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 48)
+                Text = sameLifetime
+                    ? $"歷史總累儲 NT$ {_lifetimeTotal:N0}（永不歸零）"
+                    : $"歷史總累儲 NT$ {_lifetimeTotal:N0} · 已完成 {_lifetimeTotal / CYCLE} 輪",
+                ForeColor = Color.FromArgb(160, 210, 255), Font = Theme.FontSmall, AutoSize = true,
+                Location = new Point(scPad, 70), BackColor = Color.Transparent
             });
             string curCycStr = curCycle == 0
-                ? $"第 1 循環 · 本循環 NT${curIn:N0} / $20,000 · 還差 NT${curRemain:N0}"
-                : $"第 {curCycle + 1} 循環（完成 {curCycle} 次）· 本循環 NT${curIn:N0} / $20,000 · 還差 NT${curRemain:N0}";
-            infoBox.Controls.Add(new Label
+                ? $"第 1 循環 · NT${curIn:N0}/20,000 · 還差 ${curRemain:N0}"
+                : $"第 {curCycle + 1} 循環 · NT${curIn:N0}/20,000 · 還差 ${curRemain:N0}";
+            statusCard.Controls.Add(new Label
             {
-                Text = curCycStr, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(10, 66)
+                Text = curCycStr, ForeColor = Theme.TextPrimary, Font = Theme.FontSmall,
+                AutoSize = true, Location = new Point(scPad, 92), BackColor = Color.Transparent
             });
-            var barBg0 = new Panel { Location = new Point(10, 80), Size = new Size(W - 70, 8), BackColor = Theme.BgCard };
-            barBg0.Controls.Add(new Panel
+            // 進度條獨占最後一列；百分比放在條的右側、同一列但不重疊
+            statusCard.Controls.Add(new Label
             {
-                Location  = new Point(0, 0),
-                Size      = new Size(Math.Max(2, (int)((W - 70) * curPct / 100.0)), 8),
-                BackColor = curPct >= 80 ? Color.FromArgb(50, 220, 120) : curPct >= 40 ? Color.FromArgb(255, 190, 60) : Color.FromArgb(80, 140, 255)
+                Text = $"{curPct}%", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall,
+                AutoSize = false, Size = new Size(48, 14), TextAlign = ContentAlignment.MiddleRight,
+                Location = new Point(W - scPad - 48, 116), BackColor = Color.Transparent
             });
-            infoBox.Controls.Add(barBg0);
-            infoBox.Controls.Add(new Label { Text = $"{curPct}%", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(W - 54, 78) });
-            _scrollHost.Controls.Add(infoBox);
-            y += 104;
+            var barCur = new RoundedProgressBar(W - scPad * 2 - 56, 12) { Location = new Point(scPad, 117), Percent = curPct };
+            statusCard.Controls.Add(barCur);
+            _scrollHost.Controls.Add(statusCard);
+            y += 160;
 
             // ── 快選套餐（以台幣為輸入，金幣自動套加成）─────────────
-            Div(x, y, W); y += 10;
-            _scrollHost.Controls.Add(new Label
-            {
-                Text = "STEP 1  選擇充值套餐（台幣）— 金幣依加成率自動計算：",
-                ForeColor = Theme.AccentBlue, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize = true, Location = new Point(x, y)
-            });
-            y += 22;
+            Div(x, y, W); y += 12;
+            _scrollHost.Controls.Add(Theme.MakeStepLabel("STEP 1", "選擇充值套餐（台幣）", Theme.AccentBlue, x, y));
+            y += 26;
 
             _tierBtns = new Button[Tiers.Length];
             int bx = x;
@@ -2000,14 +2076,15 @@ namespace SQ_Email_Tools
                     BackColor = Theme.BgCard,
                     ForeColor = Theme.TextPrimary,
                     FlatStyle = FlatStyle.Flat,
-                    Font      = new Font(Theme.FontFamily, 7.5f),
-                    Size      = new Size(82, 52),
+                    Font      = new Font(Theme.FontFamily, 8f, FontStyle.Bold),
+                    Size      = new Size(86, 56),
                     Location  = new Point(bx, y),
                     Cursor    = Cursors.Hand,
                     UseVisualStyleBackColor = false,
                     Tag       = (twd, gold)
                 };
                 btn.FlatAppearance.BorderColor = Theme.Border;
+                btn.FlatAppearance.BorderSize  = 1;
                 btn.Click += (s, e) =>
                 {
                     _nudTwd.Value   = Math.Min(captTwd, _nudTwd.Maximum);
@@ -2018,18 +2095,14 @@ namespace SQ_Email_Tools
                 };
                 _scrollHost.Controls.Add(btn);
                 _tierBtns[i] = btn;
-                bx += 84;
+                bx += 88;
             }
-            y += 58;
+            y += 64;
 
             // ── 優惠加成 ─────────────────────────────────────────
-            Div(x, y, W); y += 10;
-            _scrollHost.Controls.Add(new Label
-            {
-                Text      = "STEP 2  選擇優惠加成%（贈金加成，累積儲值進度只計台幣，贈金不計入進度）：",
-                ForeColor = Theme.AccentGreen, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 2)
-            });
-            y += 22;
+            Div(x, y, W); y += 12;
+            _scrollHost.Controls.Add(Theme.MakeStepLabel("STEP 2", "優惠加成 %（贈金不計入累儲進度）", Theme.AccentGreen, x, y));
+            y += 26;
 
             int[] bonusPcts = { 0, 5, 10, 15, 20 };
             _bonusBtns = new Button[bonusPcts.Length];
@@ -2040,17 +2113,18 @@ namespace SQ_Email_Tools
                 var bb = new Button
                 {
                     Text      = pct == 0 ? "無加成" : $"+{pct}%",
-                    Size      = new Size(80, 28),
+                    Size      = new Size(84, 32),
                     Location  = new Point(bbx, y),
                     FlatStyle = FlatStyle.Flat,
                     BackColor = Theme.BgInput,
                     ForeColor = Theme.TextSecondary,
-                    Font      = Theme.FontSmall,
+                    Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
                     Cursor    = Cursors.Hand,
                     UseVisualStyleBackColor = false,
                     Tag       = pct,
                 };
                 bb.FlatAppearance.BorderColor = Theme.Border;
+                bb.FlatAppearance.BorderSize  = 1;
                 bb.Click += (s, e) =>
                 {
                     _bonusPct = (int)((Button)s).Tag;
@@ -2065,80 +2139,79 @@ namespace SQ_Email_Tools
             y += 36;
 
             // ── 手動輸入台幣 ──────────────────────────────────────
-            Div(x, y, W); y += 10;
-            _scrollHost.Controls.Add(new Label
+            Div(x, y, W); y += 12;
+            var inputBox = Theme.MakeInsetBox(x, y, W, 88, Theme.AccentCyan);
+            inputBox.Controls.Add(new Label
             {
-                Text = "或手動輸入台幣金額（依上方套餐分段匯率計算基礎金幣，與充值管理／網頁一致）：",
-                ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x, y + 4)
+                Text = "或手動輸入台幣（分段匯率與充值管理／網頁一致）",
+                ForeColor = Theme.TextSecondary, Font = Theme.FontSmall, AutoSize = true,
+                Location = new Point(14, 10), BackColor = Color.Transparent
             });
-            y += 22;
-
             _nudTwd = new NumericUpDown
             {
-                Location           = new Point(x, y),
-                Width              = 160,
-                Minimum            = 1,
+                Location           = new Point(14, 34),
+                Width              = 180,
+                Height             = 28,
+                Minimum            = -99_999_999,
                 Maximum            = 99_999_999,
                 Value              = 100,
-                BackColor = Theme.BgInput,
+                BackColor          = Theme.BgLight,
                 ForeColor          = Theme.TextPrimary,
-                Font               = Theme.FontBody,
-                ThousandsSeparator = true
+                Font               = new Font(Theme.FontFamily, 12f, FontStyle.Bold),
+                ThousandsSeparator = true,
+                BorderStyle        = BorderStyle.FixedSingle
             };
             _nudTwd.ValueChanged += (s, e) => { RefreshTierButtons(-1); _selectedGold = -1; UpdateGoldPreview(); UpdateCycleAfter(); };
-            _scrollHost.Controls.Add(_nudTwd);
-
-            _scrollHost.Controls.Add(new Label { Text = "NT$", ForeColor = Theme.TextPrimary, Font = Theme.FontSmall, AutoSize = true, Location = new Point(x + 168, y + 5) });
-            y += 32;
-
+            inputBox.Controls.Add(_nudTwd);
+            inputBox.Controls.Add(new Label
+            {
+                Text = "NT$", ForeColor = Theme.AccentCyan,
+                Font = new Font(Theme.FontFamily, 11f, FontStyle.Bold), AutoSize = true,
+                Location = new Point(202, 38), BackColor = Color.Transparent
+            });
             _lblGoldCalc = new Label
             {
-                Text      = "→ 金幣：10,000（套餐加成）",
-                ForeColor = Theme.TextPrimary,
-                Font      = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize  = false,
-                Size      = new Size(W, 22),
-                Location  = new Point(x, y)
+                Text = "→ 金幣：10,000", ForeColor = Color.FromArgb(255, 220, 120),
+                Font = new Font(Theme.FontFamily, 10.5f, FontStyle.Bold), AutoSize = false,
+                Size = new Size(W - 24, 22), Location = new Point(14, 58), BackColor = Color.Transparent
             };
-            _scrollHost.Controls.Add(_lblGoldCalc);
-            y += 28;
+            inputBox.Controls.Add(_lblGoldCalc);
+            _scrollHost.Controls.Add(inputBox);
+            y += 96;
 
             // ── 新增後循環預覽 ────────────────────────────────────
-            Div(x, y, W); y += 10;
-            _scrollHost.Controls.Add(new Label
+            Div(x, y, W); y += 12;
+            const int pvPad = 14;
+            var previewCard = new BentoCard
             {
-                Text = "新增後累儲進度預覽：",
-                ForeColor = Theme.TextPrimary, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize = true, Location = new Point(x, y)
+                Location = new Point(x, y), Size = new Size(W, 90),
+                CardColor = Color.FromArgb(28, 42, 62), CornerRadius = 10
+            };
+            previewCard.Controls.Add(new Label
+            {
+                Text = "📈  新增後進度預覽", ForeColor = Theme.TextSecondary, Font = Theme.FontSmall,
+                AutoSize = true, Location = new Point(pvPad, 10), BackColor = Color.Transparent
             });
-            y += 22;
-
+            // 說明文字獨占一列；進度條在其下方獨占一列，兩者垂直分開不重疊
             _lblCycleAfter = new Label
             {
                 Text = "", ForeColor = Theme.AccentBlue,
                 Font = new Font(Theme.FontFamily, 10f, FontStyle.Bold),
-                AutoSize = true, Location = new Point(x, y)
+                AutoSize = false, Size = new Size(W - pvPad * 2, 22),
+                Location = new Point(pvPad, 32), BackColor = Color.Transparent
             };
-            _scrollHost.Controls.Add(_lblCycleAfter);
-            y += 22;
-
-            var barBgAfter = new Panel { Location = new Point(x, y), Size = new Size(W - 52, 8), BackColor = Theme.BgCard };
-            _barFillAfter  = new Panel { Location = new Point(0, 0), Size = new Size(4, 8), BackColor = Color.FromArgb(50, 220, 120) };
-            barBgAfter.Controls.Add(_barFillAfter);
-            _scrollHost.Controls.Add(barBgAfter);
-            y += 18;
+            previewCard.Controls.Add(_lblCycleAfter);
+            _progressAfterBar = new RoundedProgressBar(W - pvPad * 2, 12) { Location = new Point(pvPad, 62), Percent = 0 };
+            previewCard.Controls.Add(_progressAfterBar);
+            _scrollHost.Controls.Add(previewCard);
+            y += 100;
 
             // ── 操作類型（強制選擇，預設空白）──────────────────────
-            Div(x, y, W); y += 10;
-            _scrollHost.Controls.Add(new Label
-            {
-                Text      = "⚠ STEP 3  操作類型（必填）— 請明確點選其中一項：",
-                ForeColor = Theme.AccentOrange, Font = new Font(Theme.FontFamily, 9.5f, FontStyle.Bold),
-                AutoSize = true, Location = new Point(x, y)
-            });
-            y += 24;
+            Div(x, y, W); y += 12;
+            _scrollHost.Controls.Add(Theme.MakeStepLabel("STEP 3", "操作類型（必填，請點選一項）", Theme.AccentOrange, x, y));
+            y += 28;
 
-            // 三種操作模式的設定（mode=0/1/2）
+            // 四種操作模式的設定（mode=0/1/2/3）
             var opDefs = new[]
             {
                 (mode:0, label:"⚫  【僅增加累儲進度】",   desc:"不發放金幣（補資料 / 賽季轉移用）",
@@ -2147,8 +2220,10 @@ namespace SQ_Email_Tools
                  selBg:Color.FromArgb(15,65,20),   selFg:Color.FromArgb(80,255,120),  selBorder:Color.FromArgb(50,200,80)),
                 (mode:2, label:"🟡  【只增加金幣，不充值累積】", desc:"發金幣但不計入累積儲值進度",
                  selBg:Color.FromArgb(70,50,5),    selFg:Color.FromArgb(255,220,80),  selBorder:Color.FromArgb(255,200,50)),
+                (mode:3, label:"🔒  【只加累儲顯示，玩家無法領獎】", desc:"動 PayTotal + lifetime + paydata.point；check 設為已領取(鎖領獎)、totalcheck 不動",
+                 selBg:Color.FromArgb(60,20,80),   selFg:Color.FromArgb(220,160,255), selBorder:Color.FromArgb(180,100,240)),
             };
-            _opBtns = new Button[3];
+            _opBtns = new Button[4];
             for (int mi = 0; mi < opDefs.Length; mi++)
             {
                 int capturedMode = opDefs[mi].mode;
@@ -2158,11 +2233,12 @@ namespace SQ_Email_Tools
                     BackColor = Theme.BgLight,
                     ForeColor = Color.FromArgb(130, 140, 160),
                     FlatStyle = FlatStyle.Flat,
-                    Font      = new Font(Theme.FontFamily, 9f),
-                    Size      = new Size(W, 42),
+                    Font      = new Font(Theme.FontFamily, 9.5f),
+                    Size      = new Size(W, 50),
                     Location  = new Point(x, y),
                     Cursor    = Cursors.Hand,
                     TextAlign = ContentAlignment.MiddleLeft,
+                    Padding   = new Padding(12, 6, 8, 6),
                     UseVisualStyleBackColor = false
                 };
                 btn.FlatAppearance.BorderColor = Color.FromArgb(50, 55, 70);
@@ -2170,7 +2246,7 @@ namespace SQ_Email_Tools
                 btn.Click += (s, e) => { _opMode = capturedMode; RefreshOpButtons(); };
                 _scrollHost.Controls.Add(btn);
                 _opBtns[mi] = btn;
-                y += 46;
+                y += 54;
             }
 
             // ── 修復循環 / 發放獎勵（與玩家詳情頁同功能，兩邊一致）──────────────
@@ -2217,9 +2293,11 @@ namespace SQ_Email_Tools
                 y += 38;
             }
 
-            // ── 清0累儲 / 確定 / 取消（與玩家詳情頁一致）──────────────────────
-            var btnReset = Theme.MakeButton("🗑 清0累儲進度", Theme.AccentRed, Color.White, 130, 36);
-            btnReset.Location = new Point(x, y);
+            y += 8;
+
+            // ── 清0累儲 / 確定 / 取消（固定底欄）──────────────────────
+            var btnReset = Theme.MakeButton("🗑 清0累儲", Theme.AccentRed, Color.White, 118, 38);
+            btnReset.Location = new Point(16, 10);
             btnReset.Click += (s, e) =>
             {
                 if (MessageBox.Show(
@@ -2233,8 +2311,9 @@ namespace SQ_Email_Tools
                 Close();
             };
 
-            var btnOk = Theme.MakeButton("✓ 確認執行", Theme.AccentGreen, Color.White, 120, 36);
-            btnOk.Location = new Point(x + 350, y);
+            var btnOk = Theme.MakePrimaryButton("✓ 確認執行", 130, 38);
+            btnOk.Location = new Point(footer.Width - 250, 10);
+            btnOk.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnOk.Click += (s, e) =>
             {
                 if (_opMode < 0)
@@ -2245,11 +2324,22 @@ namespace SQ_Email_Tools
                 }
                 long twd  = TwdAmount;
                 long gold = GoldAmount;
+                long dispTwd = DisplayOnlyTwd;
+                long previewAdd = _opMode == 3 ? dispTwd : twd;
+
                 if (_opMode == 2)
                 {
                     if (gold <= 0)
                     {
                         MessageBox.Show("請選擇套餐或輸入台幣金額以計算金幣數量。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+                else if (_opMode == 3)
+                {
+                    if (dispTwd == 0)
+                    {
+                        MessageBox.Show("請輸入要調整的台幣金額（可正可負，但不能為 0）。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
                 }
@@ -2259,13 +2349,17 @@ namespace SQ_Email_Tools
                     return;
                 }
 
-                long newTot = _currentTotal + twd;
-                long newCyc = newTot / CYCLE;
-                long newIn  = newTot % CYCLE;
-                long gained = newCyc - (_currentTotal / CYCLE);
-                string cycNote = gained > 0
-                    ? $"\n🎉 完成 {gained} 個循環，進入第 {newCyc + 1} 循環（本循環 NT${newIn:N0} / $20,000）"
-                    : $"\n   累積後：第 {newCyc + 1} 循環，本循環 NT${newIn:N0} / $20,000";
+                // 加值基準一律＝目前 paydata.point（與狀態卡顯示、遊戲面板一致），mode3 不再用 lifetime 推算
+                long baseline = _currentTotal;
+                long newTot = DatabaseManager.CyclePointFromRawTotal(baseline + previewAdd);
+                long newCyc = (baseline + previewAdd) > 0 ? ((baseline + previewAdd) - 1) / CYCLE : 0;
+                long newIn  = newTot;
+                long gained = newCyc - (_currentTotal > 0 ? (_currentTotal - 1) / CYCLE : 0);
+                string cycNote = _opMode == 3
+                    ? $"\n   遊戲面板進度：NT${newIn:N0} / $20,000（paydata.point）"
+                    : gained > 0
+                        ? $"\n🎉 完成 {gained} 個循環，進入第 {newCyc + 1} 循環（本循環 NT${newIn:N0} / $20,000）"
+                        : $"\n   累積後：第 {newCyc + 1} 循環，本循環 NT${newIn:N0} / $20,000";
 
                 string modeTitle, modeDetail, icon;
                 if (_opMode == 0)
@@ -2284,6 +2378,18 @@ namespace SQ_Email_Tools
                     modeTitle  = "【只增加金幣，不充值累積】";
                     modeDetail = $"✅ 金幣入帳：{goldBreakdown}\n❌ 累積充值進度不變（不計台幣、不記錄補單）\n❌ 歷史總累儲不變";
                     icon       = "💰";
+                }
+                else if (_opMode == 3)
+                {
+                    string sign = dispTwd >= 0 ? "+" : "";
+                    modeTitle  = "【只加累儲顯示，玩家無法領獎】";
+                    modeDetail = $"✅ csalogin.PayTotal  {sign}NT${dispTwd:N0}（玩家資料卡累儲顯示 / VIP 分層會算）\n" +
+                                 $"✅ paydata.lifetime_total  {sign}NT${dispTwd:N0}（歷史總額）\n" +
+                                 $"✅ paydata.point → 遊戲面板 NT$/20,000 進度{cycNote}\n" +
+                                 $"🔒 paydata.check → 設為「已領取」鎖住領獎（玩家無法領取）；totalcheck 不動\n" +
+                                 $"❌ 不會發放金幣\n\n" +
+                                 $"→ 請玩家重新登入遊戲後才會看到新進度。";
+                    icon       = "🔒";
                 }
                 else
                 {
@@ -2307,10 +2413,16 @@ namespace SQ_Email_Tools
                 }
             };
 
-            var btnCancel = Theme.MakeButton("✕ 取消", Theme.BgLight, Theme.TextSecondary, 90, 36);
-            btnCancel.Location = new Point(x + 480, y);
+            var btnCancel = Theme.MakeSecondaryButton("✕ 取消", 96, 38);
+            btnCancel.Location = new Point(footer.Width - 112, 10);
+            btnCancel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            _scrollHost.Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
+            footer.Controls.AddRange(new Control[] { btnReset, btnOk, btnCancel });
+            footer.Resize += (s, e) =>
+            {
+                btnOk.Location     = new Point(footer.ClientSize.Width - 250, 10);
+                btnCancel.Location = new Point(footer.ClientSize.Width - 112, 10);
+            };
 
             // 初始化
             RefreshTierButtons(-1);
@@ -2321,9 +2433,9 @@ namespace SQ_Email_Tools
         private void RefreshOpButtons()
         {
             // 選中：亮色背景 + 粗邊框 + 亮文字；未選：暗灰背景 + 細邊框 + 灰文字
-            Color[] selBgs     = { Color.FromArgb(20,50,100), Color.FromArgb(15,65,20), Color.FromArgb(70,50,5) };
-            Color[] selFgs     = { Color.FromArgb(140,200,255), Color.FromArgb(80,255,120), Color.FromArgb(255,220,80) };
-            Color[] selBorders = { Color.FromArgb(80,150,255), Color.FromArgb(50,200,80), Color.FromArgb(255,200,50) };
+            Color[] selBgs     = { Color.FromArgb(20,50,100), Color.FromArgb(15,65,20), Color.FromArgb(70,50,5),  Color.FromArgb(60,20,80) };
+            Color[] selFgs     = { Color.FromArgb(140,200,255), Color.FromArgb(80,255,120), Color.FromArgb(255,220,80), Color.FromArgb(220,160,255) };
+            Color[] selBorders = { Color.FromArgb(80,150,255), Color.FromArgb(50,200,80), Color.FromArgb(255,200,50), Color.FromArgb(180,100,240) };
             for (int i = 0; i < _opBtns.Length; i++)
             {
                 bool sel = i == _opMode;
@@ -2333,6 +2445,7 @@ namespace SQ_Email_Tools
                 _opBtns[i].FlatAppearance.BorderSize  = sel ? 2 : 1;
                 _opBtns[i].Font = new Font(Theme.FontFamily, sel ? 9.5f : 9f, sel ? FontStyle.Bold : FontStyle.Regular);
             }
+            UpdateCycleAfter();
         }
 
         private void Div(int x, int y, int w) =>
@@ -2344,9 +2457,10 @@ namespace SQ_Email_Tools
             {
                 var (twd, _) = ((long, long))btn.Tag;
                 bool sel = twd == selectedTwd;
-                btn.BackColor = sel ? Theme.AccentBlue : Theme.BgCard;
+                btn.BackColor = sel ? Color.FromArgb(37, 99, 235) : Theme.BgCard;
                 btn.ForeColor = sel ? Color.White : Theme.TextPrimary;
                 btn.FlatAppearance.BorderColor = sel ? Theme.AccentBlue : Theme.Border;
+                btn.FlatAppearance.BorderSize  = sel ? 2 : 1;
             }
         }
 
@@ -2383,11 +2497,17 @@ namespace SQ_Email_Tools
 
         private void UpdateCycleAfter()
         {
-            long twd      = (long)_nudTwd.Value;
-            long newTotal = _currentTotal + twd;
-            long newCycle = newTotal / CYCLE;
-            long newIn    = newTotal % CYCLE;
-            long gained   = newCycle - (_currentTotal / CYCLE);
+            long twd = (long)_nudTwd.Value;
+            if (_opMode == 2) twd = 0;
+
+            // 預覽基準一律＝目前 paydata.point（_currentTotal），與狀態卡與遊戲面板一致
+            long baseline = _currentTotal;
+
+            long newIn    = DatabaseManager.CyclePointFromRawTotal(baseline + twd);
+            long rawTotal = baseline + twd;
+            long newCycle = rawTotal > 0 ? (rawTotal - 1) / CYCLE : 0;
+            long oldCycle = _currentTotal > 0 ? (_currentTotal - 1) / CYCLE : 0;
+            long gained   = newCycle - oldCycle;
             int  pct      = (int)(newIn * 100 / CYCLE);
 
             _lblCycleAfter.Text = gained > 0
@@ -2395,14 +2515,8 @@ namespace SQ_Email_Tools
                 : $"第 {newCycle + 1} 循環  |  本循環 NT${newIn:N0} / $20,000  |  還差 NT${CYCLE - newIn:N0}";
             _lblCycleAfter.ForeColor = gained > 0 ? Theme.AccentGreen : Theme.AccentBlue;
 
-            if (_barFillAfter?.Parent != null)
-            {
-                int barW = _barFillAfter.Parent.Width;
-                _barFillAfter.Width     = Math.Max(4, (int)(barW * pct / 100.0));
-                _barFillAfter.BackColor = pct >= 80 ? Color.FromArgb(50, 220, 120)
-                                        : pct >= 40 ? Color.FromArgb(255, 190, 60)
-                                        : Color.FromArgb(80, 140, 255);
-            }
+            if (_progressAfterBar != null)
+                _progressAfterBar.Percent = pct;
         }
     }
 
@@ -2450,10 +2564,8 @@ namespace SQ_Email_Tools
 
             // DGV
             _dgv = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleDataGridView(_dgv);
+            Theme.StyleDataGridViewDialog(_dgv);
             _dgv.ReadOnly              = true;
-            _dgv.RowTemplate.Height    = 26;
-            _dgv.ColumnHeadersHeight   = 28;
             _dgv.AllowUserToResizeRows = false;
             _dgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             _dgv.MultiSelect           = true;
@@ -2746,8 +2858,6 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly              = true;
-            dgv.RowTemplate.Height    = 30;
-            dgv.ColumnHeadersHeight   = 32;
             dgv.AllowUserToResizeRows = false;
             dgv.SelectionMode         = DataGridViewSelectionMode.FullRowSelect;
             dgv.DefaultCellStyle.Padding = new Padding(6, 4, 6, 4);

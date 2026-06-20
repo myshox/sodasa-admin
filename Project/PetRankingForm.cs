@@ -133,11 +133,9 @@ namespace SQ_Email_Tools
 
         public PetRankingForm()
         {
-            BackColor  = Theme.BgPage;
-            ForeColor  = Theme.TextPrimary;
-            Font       = Theme.FontBody;
             AutoScroll = false;
             Dock       = DockStyle.Fill;
+            Theme.ApplyHubForm(this);
             BuildUI();
             _ = LoadRankAsync();
         }
@@ -500,7 +498,7 @@ namespace SQ_Email_Tools
             split.Panel2.BackColor = Theme.BgPage;
             _dgvMain = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgvMain);
-            _dgvMain.RowHeadersVisible = false; _dgvMain.ColumnHeadersHeight = 32;
+            _dgvMain.RowHeadersVisible = false;
             _dgvMain.KeyDown += (s, e) =>
             {
                 if (e.Control && e.KeyCode == Keys.A) { _dgvMain.SelectAll(); e.Handled = true; }
@@ -689,8 +687,6 @@ namespace SQ_Email_Tools
             _dgvActivity = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgvActivity);
             _dgvActivity.RowHeadersVisible     = false;
-            _dgvActivity.ColumnHeadersHeight   = 34;
-            _dgvActivity.RowTemplate.Height    = 30;
             _dgvActivity.ScrollBars            = ScrollBars.Both;
             _dgvActivity.AutoSizeColumnsMode   = DataGridViewAutoSizeColumnsMode.None;
             _dgvActivity.ColumnHeadersDefaultCellStyle.Font = new Font(Theme.FontFamily, 9f, FontStyle.Bold);

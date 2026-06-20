@@ -29,9 +29,8 @@ namespace SQ_Email_Tools
             Text          = "🏪 攤位 & 市場查詢";
             Size          = new Size(1280, 740);
             MinimumSize   = new Size(960, 560);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -41,7 +40,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──────────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  🏪  攤位 & 市場查詢  —  攤位查詢 ／ 物品反查",

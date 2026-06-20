@@ -18,11 +18,8 @@ namespace SQ_Email_Tools
             Text          = "🔒 封號管理";
             Size          = new Size(1000, 640);
             MinimumSize   = new Size(760, 460);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
             StartPosition = FormStartPosition.CenterParent;
-
+            Theme.ApplyHubForm(this);
             BuildUI();
             _ = LoadBannedAsync();
         }
@@ -30,7 +27,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  🔒  封號管理  —  查詢封禁清單、搜尋玩家封/解封",
@@ -42,7 +39,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -97,7 +94,6 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly           = true;
-            _dgv.RowTemplate.Height = 36;
             _dgv.CellDoubleClick   += DgvDoubleClick;
 
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cStatus",   HeaderText = "狀態",     FillWeight = 50,  MinimumWidth = 55  });

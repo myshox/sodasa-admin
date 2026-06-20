@@ -30,9 +30,8 @@ namespace SQ_Email_Tools
             Text          = "👑 主帳號管理";
             Size          = new Size(1200, 720);
             MinimumSize   = new Size(900, 540);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -233,7 +232,6 @@ namespace SQ_Email_Tools
             // ② DataGridView
             _dgvSub = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgvSub);
-            _dgvSub.RowTemplate.Height = 38;
             _dgvSub.ReadOnly           = true;
 
             _dgvSub.Columns.Add(new DataGridViewTextBoxColumn

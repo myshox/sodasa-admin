@@ -27,13 +27,12 @@ namespace SQ_Email_Tools
             Text          = "📋 郵件發送記錄";
             Size          = new Size(1150, 680);
             MinimumSize   = new Size(850, 500);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  📋  郵件發送記錄  —  查詢所有道具郵件的發送狀態",
@@ -45,7 +44,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -97,7 +96,6 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly           = true;
-            _dgv.RowTemplate.Height = 32;
             AddCol("cType",  "類型",    68);
             AddCol("cCdkey", "帳號",   130);
             AddCol("cData",  "道具號",  78);

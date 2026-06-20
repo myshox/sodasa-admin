@@ -33,6 +33,9 @@ publish/
 Output/
 Release/
 DbInspect/
+DbConnTest/
+# 給技術人員的資料庫白名單設定備註（可能含敏感資訊，不上傳）
+給技術-資料庫白名單設定.txt
 
 # ===== GMTool 執行檔（二進位不需要版控）=====
 GMTool/

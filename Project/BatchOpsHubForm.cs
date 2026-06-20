@@ -15,60 +15,42 @@ namespace SQ_Email_Tools
 
         public BatchOpsHubForm()
         {
-            BackColor        = Theme.BgPage;
-            ForeColor        = Theme.TextPrimary;
-            Font             = Theme.FontBody;
-            Dock             = DockStyle.Fill;
-            FormBorderStyle  = FormBorderStyle.None;
-            Padding          = new Padding(0);
-
+            Dock            = DockStyle.Fill;
+            FormBorderStyle = FormBorderStyle.None;
+            Theme.ApplyHubForm(this);
             BuildUI();
         }
 
         private void BuildUI()
         {
-            // ── 頁面標題列 ──
-            var hdr = new Panel
-            {
-                Dock      = DockStyle.Top,
-                Height    = 46,
-                BackColor = Theme.BgDark,
-            };
-            hdr.Controls.Add(new Label
-            {
-                Text      = "  📨  郵件操作",
-                ForeColor = Theme.TextPrimary,
-                Font      = Theme.FontPageTitle,
-                Dock      = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(16, 0, 0, 0)
-            });
+            var pageHeader = Theme.MakeHubPageHeader("📨  郵件操作", Theme.AccentBlue, "個別發送 · 批量全服 · 維護工具");
 
             // ── 頁籤按鈕列 ──
             var tabBar = new Panel
             {
                 Dock      = DockStyle.Top,
-                Height    = 42,
-                BackColor = Color.FromArgb(18, 20, 30),
+                Height    = Theme.HubTabBarHeight,
+                BackColor = Theme.BgDialogHeader,
+                Padding   = new Padding(Theme.UiPadSm, Theme.GapXs, Theme.UiPadSm, Theme.GapXs),
             };
             tabBar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Color.FromArgb(80, 90, 130) });
 
             string[] labels = { "  📬  個別發送  ", "  📢  批量全服發送  ", "  🔧  維護工具  " };
             _navBtns = new Button[labels.Length];
-            int bx = 8;
+            int bx = Theme.UiPadSm;
             for (int i = 0; i < labels.Length; i++)
             {
                 var btn = new Button
                 {
                     Text      = labels[i],
-                    Font      = Theme.FontSmall,
+                    Font      = Theme.FontNav,
                     FlatStyle = FlatStyle.Flat,
-                    BackColor = Color.FromArgb(18, 20, 30),
-                    ForeColor = Color.FromArgb(160, 170, 200),
-                    Height    = 36,
-                    Width     = 150,
+                    BackColor = Theme.BgCard,
+                    ForeColor = Theme.TextSecondary,
+                    Height    = Theme.BtnHeightSm,
+                    Width     = 168,
                     Left      = bx,
-                    Top       = 3,
+                    Top       = Theme.GapXs,
                     Cursor    = Cursors.Hand,
                     TabStop   = false,
                 };
@@ -84,10 +66,13 @@ namespace SQ_Email_Tools
             // ── 內容區 ──
             _contentPanel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgPage };
 
-            // 加入順序：Fill 先加，Top 後加（WinForms docking 規則）
-            Controls.Add(_contentPanel);
-            Controls.Add(tabBar);
-            Controls.Add(hdr);
+            // 加入順序（WinForms docking 規則）：
+            //   Fill 必須「最先加」(z-order 最底)，後加的 Top 由下往上堆疊；
+            //   否則 Fill 被夾在兩個 Top 之間時，最後加的 Top(標頭)會蓋住內容區頂端，
+            //   把頁面最上方的工具列(如「搜尋收件人」)整條遮掉。
+            Controls.Add(_contentPanel);  // Fill 先加
+            Controls.Add(pageHeader);     // Top
+            Controls.Add(tabBar);         // Top（最後加 = 視覺最頂端）
 
             // 預設顯示第 1 頁
             SwitchPage(0);
@@ -128,9 +113,11 @@ namespace SQ_Email_Tools
             page.BackColor       = Theme.BgPage;
             page.MinimumSize     = Size.Empty;
 
+            Theme.ApplyHubForm(page);
             _contentPanel.Controls.Add(page);
             page.Show();
             _currentPage = page;
+            page.BeginInvoke(new Action(() => Theme.ApplyComfortableControls(page)));
         }
     }
 }

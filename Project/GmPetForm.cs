@@ -66,6 +66,7 @@ namespace SQ_Email_Tools
 
         public GmPetForm()
         {
+            Theme.ApplyHubForm(this);
             Text            = "🐾  GM 寵物指令產生器";
             Size            = new Size(700, 820);
             MinimumSize     = new Size(640, 740);

@@ -27,7 +27,7 @@ namespace SQ_Email_Tools
             StartPosition = FormStartPosition.CenterParent;
 
             // 標題列
-            var hdr = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgCard };
+            var hdr = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             hdr.Controls.Add(new Label
             {
                 Text = "👥  GM 帳號管理  —  管理可登入此工具的管理員帳號",

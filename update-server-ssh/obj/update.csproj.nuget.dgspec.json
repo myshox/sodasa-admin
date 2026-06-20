@@ -10,7 +10,7 @@
         "projectUniqueName": "C:\\Users\\mysho\\Downloads\\SODAGMTOOL\\update-server-ssh\\update.csproj",
         "projectName": "update",
         "projectPath": "C:\\Users\\mysho\\Downloads\\SODAGMTOOL\\update-server-ssh\\update.csproj",
-        "packagesPath": "C:\\Users\\mysho\\AppData\\Local\\Temp\\cursor-sandbox-cache\\061ebbe5a1fa6101238be28b7787da4d\\nuget",
+        "packagesPath": "C:\\Users\\mysho\\.nuget\\packages\\",
         "outputPath": "C:\\Users\\mysho\\Downloads\\SODAGMTOOL\\update-server-ssh\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
@@ -32,7 +32,13 @@
           "warnAsError": [
             "NU1605"
           ]
-        }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net6.0": {
@@ -54,12 +60,30 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[6.0.36, 6.0.36]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[6.0.36, 6.0.36]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[6.0.36, 6.0.36]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[6.0.36, 6.0.36]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\6.0.424\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201\\RuntimeIdentifierGraph.json"
         }
       }
     }

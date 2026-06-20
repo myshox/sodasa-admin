@@ -19,9 +19,8 @@ namespace SQ_Email_Tools
             Text          = "💰 充值記錄";
             Size          = new Size(1150, 640);
             MinimumSize   = new Size(900, 480);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -31,7 +30,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  💰  充值記錄  —  查詢玩家儲值訂單",
@@ -43,7 +42,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -94,7 +93,6 @@ namespace SQ_Email_Tools
             // ── DataGridView ──
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
-            _dgv.RowTemplate.Height = 32;
             _dgv.ReadOnly = true;
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colAt",       HeaderText = "充值時間",       Width = 140 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCharName", HeaderText = "角色名稱",       Width = 110 });
@@ -187,9 +185,7 @@ namespace SQ_Email_Tools
             Text          = "📊 交易記錄";
             Size          = new Size(1150, 640);
             MinimumSize   = new Size(900, 480);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -199,7 +195,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  📊  交易記錄  —  查詢玩家之間的道具 / 金幣交易紀錄",
@@ -211,7 +207,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -253,7 +249,6 @@ namespace SQ_Email_Tools
             // ── DataGridView ──
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
-            _dgv.RowTemplate.Height = 32;
             _dgv.ReadOnly = true;
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colTime",     HeaderText = "交易時間", Width = 140 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colFromName", HeaderText = "賣方角色", Width = 100 });
@@ -314,9 +309,7 @@ namespace SQ_Email_Tools
             Text          = "💎 金幣異動日誌";
             Size          = new Size(1050, 640);
             MinimumSize   = new Size(700, 460);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -326,7 +319,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  💎  金幣異動日誌  —  查詢所有玩家金幣增減記錄",
@@ -338,7 +331,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -380,7 +373,6 @@ namespace SQ_Email_Tools
             // ── DataGridView ──
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
-            _dgv.RowTemplate.Height = 32;
             _dgv.ReadOnly = true;
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colTime",     HeaderText = "時間",           Width = 140 });
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCharName", HeaderText = "角色名稱",       Width = 110 });

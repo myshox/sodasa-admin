@@ -41,9 +41,8 @@ namespace SQ_Email_Tools
             Text          = "💰 批量金幣修改";
             Size          = new Size(1080, 720);
             MinimumSize   = new Size(820, 560);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
             FormClosing  += (s, e) => { if (_isSending) e.Cancel = true; };
             BuildUI();
@@ -55,7 +54,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── 頂部標題列 ──────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  💰  批量金幣修改  ·  載入名單 → 勾選對象 → 選擇加／減金額 → 執行",
@@ -310,8 +309,6 @@ namespace SQ_Email_Tools
             _listDgv.MultiSelect         = true;
             _listDgv.Tag                 = "picker_no_copy";
             _listDgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-            _listDgv.RowTemplate.Height       = 40;
-            _listDgv.ColumnHeadersHeight      = 40;
             _listDgv.DefaultCellStyle.Font = Theme.FontBody;
 
             var colChk = new DataGridViewCheckBoxColumn
@@ -688,7 +685,6 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true; dgv.AllowUserToAddRows = false;
-            dgv.RowTemplate.Height = 26; dgv.ColumnHeadersHeight = 26;
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cN",  HeaderText = "群組名稱", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cC",  HeaderText = "人數",     Width = 60,  DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cT",  HeaderText = "建立時間", Width = 130 });
@@ -697,7 +693,7 @@ namespace SQ_Email_Tools
 
             var btnLoad = Theme.MakePrimaryButton("載入並加入清單", 140, 30);
             var btnDel  = Theme.MakeSecondaryButton("刪除", 60, 30);
-            var btnFoot = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Theme.BgDark, Padding = new Padding(8, 7, 8, 7) };
+            var btnFoot = new Panel { Dock = DockStyle.Bottom, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader, Padding = new Padding(8, 7, 8, 7) };
             btnLoad.Dock = DockStyle.Left; btnLoad.Margin = new Padding(0, 0, 8, 0);
             btnDel.Dock  = DockStyle.Left;
             btnFoot.Controls.Add(btnLoad);

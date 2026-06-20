@@ -41,6 +41,7 @@ namespace SQ_Email_Tools
         // ══════════════════════════════════════════════════════
         private void BuildUI()
         {
+            Theme.ApplyHubForm(this);
             Dock      = DockStyle.Fill;
             BackColor = Theme.BgPage;
             Font      = Theme.FontBody;
@@ -849,7 +850,6 @@ namespace SQ_Email_Tools
                 RowHeadersVisible = false, AllowUserToResizeRows = false,
                 SelectionMode = DataGridViewSelectionMode.CellSelect,
                 MultiSelect = true, ReadOnly = true, AllowUserToAddRows = false,
-                ColumnHeadersHeight = 26,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
                 ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText
             };
@@ -863,8 +863,6 @@ namespace SQ_Email_Tools
             dgv.DefaultCellStyle.SelectionBackColor     = Color.FromArgb(60, 80, 140);
             dgv.DefaultCellStyle.SelectionForeColor     = Color.White;
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(48, 55, 72);
-            dgv.RowTemplate.Height = 24;
-
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "狀態",    FillWeight = 40,  MinimumWidth = 45,  Name = "status",   ReadOnly = true });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "帳號",    FillWeight = 120, MinimumWidth = 80,  Name = "account",  ReadOnly = true });

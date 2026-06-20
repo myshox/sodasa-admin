@@ -43,9 +43,8 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             Text        = "💸 消費達成獎勵";
-            BackColor   = Theme.BgPage;
-            ForeColor   = Theme.TextPrimary;
-            Font        = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             MinimumSize = new Size(880, 600);
 
             var root = new TableLayoutPanel

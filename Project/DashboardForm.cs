@@ -35,6 +35,7 @@ namespace SQ_Email_Tools
 
         public DashboardForm()
         {
+            Theme.ApplyHubForm(this);
             InitUI();
             _ = RefreshAsync();
 
@@ -193,7 +194,6 @@ namespace SQ_Email_Tools
             _rankDgv = new DataGridView { Dock = DockStyle.Fill };
             StyleLogGrid(_rankDgv, BgCard);
             _rankDgv.Columns.Clear();
-            _rankDgv.RowTemplate.Height = 26;
             _rankDgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "名次", Width = 46, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
             _rankDgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "角色名稱", Width = 130 });
             _rankDgv.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "帳號", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
@@ -273,7 +273,6 @@ namespace SQ_Email_Tools
             Theme.StyleDataGridView(dgv);
             dgv.BackgroundColor       = bg;
             dgv.ReadOnly              = true;
-            dgv.RowTemplate.Height    = 34;
             dgv.DefaultCellStyle.BackColor = bg;
             dgv.DefaultCellStyle.SelectionBackColor = Theme.BgCard;
             dgv.AlternatingRowsDefaultCellStyle.BackColor = Theme.BgCard;

@@ -25,6 +25,7 @@ namespace SQ_Email_Tools
 
         public BackupForm()
         {
+            Theme.ApplyHubForm(this);
             Text          = "💾 資料庫備份 / 還原";
             Size          = new Size(720, 620);
             MinimumSize   = new Size(640, 540);

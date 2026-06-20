@@ -23,10 +23,8 @@ namespace SQ_Email_Tools
 
         public SpeedHackForm()
         {
-            BackColor       = Theme.BgPage;
-            ForeColor       = Theme.TextPrimary;
-            Font            = Theme.FontBody;
             FormBorderStyle = FormBorderStyle.None;
+            Theme.ApplyHubForm(this);
             InitUI();
         }
 

@@ -75,14 +75,13 @@ namespace SQ_Email_Tools
             Text          = "📢 批量發送禮包";
             Size          = new Size(1120, 740);
             MinimumSize   = new Size(860, 560);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
             FormClosing  += (s, e) => { if (_isSending) e.Cancel = true; };
 
             // ── ① Header ──────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  📢  批量發送禮包 — 將發送給所有角色（郵件信箱）",
@@ -373,7 +372,6 @@ namespace SQ_Email_Tools
                 AllowUserToDeleteRows = false,
                 SelectionMode         = DataGridViewSelectionMode.FullRowSelect,
                 RowTemplate           = { Height = 26 },
-                ColumnHeadersHeight   = 26,
                 MultiSelect           = true,
                 BackgroundColor       = Theme.BgCard,
                 GridColor             = Theme.Border,

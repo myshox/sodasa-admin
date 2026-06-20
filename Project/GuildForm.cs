@@ -31,6 +31,7 @@ namespace SQ_Email_Tools
 
         public GuildForm()
         {
+            Theme.ApplyHubForm(this);
             BuildUI();
         }
 
@@ -60,7 +61,7 @@ namespace SQ_Email_Tools
                 BackColor   = Color.Transparent,
                 Padding     = new Padding(0)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.ToolbarHeight));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             Controls.Add(root);
 
@@ -69,7 +70,7 @@ namespace SQ_Email_Tools
             {
                 Dock      = DockStyle.Fill,
                 BackColor = Color.FromArgb(28, 30, 38),
-                Padding   = new Padding(16, 0, 12, 0)
+                Padding   = new Padding(Theme.UiPadLg, Theme.GapSm, Theme.UiPadMd, Theme.GapSm)
             };
             root.Controls.Add(header, 0, 0);
 
@@ -625,7 +626,6 @@ namespace SQ_Email_Tools
                     Padding      = new Padding(4, 0, 4, 0)
                 },
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.EnableResizing,
-                ColumnHeadersHeight = 28,
                 RowTemplate         = { Height = 26 }
             };
             dgv.EnableHeadersVisualStyles = false;

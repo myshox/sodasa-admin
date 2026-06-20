@@ -19,6 +19,7 @@ namespace SQ_Email_Tools
 
         public TradeAuditForm()
         {
+            Theme.ApplyHubForm(this);
             InitUI();
             _ = LoadAllAsync();
         }
@@ -34,7 +35,7 @@ namespace SQ_Email_Tools
             StartPosition = FormStartPosition.CenterParent;
 
             // ── Header ──────────────────────────────────────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text = "  🔍  交易稽核 & 異常偵測",
@@ -56,7 +57,7 @@ namespace SQ_Email_Tools
             header.Controls.Add(_btnRefresh);
 
             // ── KPI 風險卡片列 ──────────────────────────────────
-            var kpiPanel = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.BgMid };
+            var kpiPanel = new Panel { Dock = DockStyle.Top, Height = Theme.HubKpiPanelHeight, BackColor = Theme.BgCard };
             kpiPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             var kpiFlow = new FlowLayoutPanel
             {
@@ -418,7 +419,6 @@ namespace SQ_Email_Tools
             var dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(dgv);
             dgv.ReadOnly = true; dgv.AllowUserToAddRows = false;
-            dgv.RowTemplate.Height = 26; dgv.ColumnHeadersHeight = 28;
             return dgv;
         }
 

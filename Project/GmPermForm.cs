@@ -22,9 +22,8 @@ namespace SQ_Email_Tools
             Text          = "🔑 GM 權限管理";
             Size          = new Size(1000, 640);
             MinimumSize   = new Size(760, 460);
-            BackColor     = Theme.BgMid;
-            ForeColor     = Theme.TextPrimary;
-            Font          = Theme.FontBody;
+            Theme.ApplyHubForm(this);
+
             StartPosition = FormStartPosition.CenterParent;
 
             BuildUI();
@@ -34,7 +33,7 @@ namespace SQ_Email_Tools
         private void BuildUI()
         {
             // ── Header ──
-            var header = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Theme.BgDark };
+            var header = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgDialogHeader };
             header.Controls.Add(new Label
             {
                 Text      = "  🔑  GM 權限管理  —  設定玩家的 GM 標記（NeiCe）和群組 ID",
@@ -55,7 +54,7 @@ namespace SQ_Email_Tools
             });
 
             // ── 搜尋列 ──
-            var searchPanel = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.BgCard };
+            var searchPanel = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             searchPanel.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
             searchPanel.Controls.Add(new Label
             {
@@ -98,7 +97,6 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly           = true;
-            _dgv.RowTemplate.Height = 36;
             _dgv.CellDoubleClick   += DgvDoubleClick;
 
             _dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "cOnline",   HeaderText = "在線",     Width = 58  });
