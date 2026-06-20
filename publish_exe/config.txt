@@ -1,0 +1,7 @@
+type=1
+buff1=*新春福利大礼包
+buff2=*新春福利大礼包
+data=36008
+starttime=1771161999
+endtime=1771766799
+buff3=*新春福利大礼包
