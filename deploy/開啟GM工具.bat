@@ -8,8 +8,8 @@ echo   蘇打石器 GM 後台管理系統
 echo  ====================================
 echo.
 
-set "WWWROOT=%~dp0WebApi\wwwroot"
-set "WEBAPP=%~dp0WebApp"
+set "WWWROOT=%~dp0..\web\WebApi\wwwroot"
+set "WEBAPP=%~dp0..\web\WebApp"
 set "NEED_BUILD=0"
 
 if not exist "%WWWROOT%\index.html" set "NEED_BUILD=1"
@@ -43,7 +43,7 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":5050 " ^| findstr "L
 )
 
 echo  [2/2] 啟動 API...
-cd /d "%~dp0WebApi"
+cd /d "%~dp0..\web\WebApi"
 start "GM API" /min cmd /c "dotnet run --configuration Release"
 
 echo  等待 API 啟動中...

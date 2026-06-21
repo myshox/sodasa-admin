@@ -61,20 +61,21 @@ WantedBy=multi-user.target
             var fixCs = "python3 - <<'PY'\n" +
                 "import json,os\n" +
                 "cs='" + NEWCS + "'\n" +
-                "for p in ['/opt/gmtool/publish/appsettings.json','/opt/gmtool/WebApi/appsettings.json']:\n" +
-                "    if os.path.exists(p):\n" +
-                "        d=json.load(open(p))\n" +
-                "        d.setdefault('ConnectionStrings',{})['Default']=cs\n" +
-                "        json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)\n" +
-                "        print('updated',p)\n" +
-                "    else:\n" +
-                "        print('missing',p)\n" +
+                "for p in ['/opt/gmtool/publish/appsettings.json','/opt/gmtool/web/WebApi/appsettings.json']:\n" +
+                "    try:\n" +
+                "        d=json.load(open(p)) if os.path.exists(p) else {}\n" +
+                "    except Exception:\n" +
+                "        d={}\n" +
+                "    d.setdefault('ConnectionStrings',{})['Default']=cs\n" +
+                "    os.makedirs(os.path.dirname(p),exist_ok=True)\n" +
+                "    json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)\n" +
+                "    print('wrote',p)\n" +
                 "PY";
             var steps = new List<(string desc, string cmd)>
             {
                 ("write service unit (no ConnStr override)", $"cat > /etc/systemd/system/gmtool.service <<'EOF'\n{unit}EOF\necho unit-written"),
                 ("git pull", "cd /opt/gmtool && git stash push -u -m auto-stash-before-pull 2>/dev/null; git pull origin master 2>&1 | tail -8"),
-                ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -4"),
+                ("publish", "cd /opt/gmtool/web/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -4"),
                 ("fix connection string (after publish)", fixCs),
                 ("check unit for ConnStr override", "grep -n 'ConnectionStrings__Default' /etc/systemd/system/gmtool.service || echo NO-OVERRIDE-IN-UNIT"),
                 ("daemon-reload + restart", "systemctl daemon-reload; systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
@@ -541,7 +542,7 @@ WantedBy=multi-user.target
         {
             ("write service unit (prod+GmAccounts+Jwt)", writeUnitCmd),
             ("git pull", "cd /opt/gmtool && git stash push -u -m auto-stash-before-pull 2>/dev/null; git pull origin master 2>&1 | tail -5"),
-            ("publish", "cd /opt/gmtool/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
+            ("publish", "cd /opt/gmtool/web/WebApi && dotnet publish --configuration Release --output /opt/gmtool/publish 2>&1 | tail -3"),
             ("restart", "systemctl restart gmtool; sleep 4; systemctl is-active gmtool"),
             ("port 5050", "curl -s -o /dev/null -w 'HTTP=%{http_code}' http://localhost:5050/"),
             ("login admin (new pw)", "curl -s -w '\\nHTTP:%{http_code}' -X POST http://localhost:5050/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"" + S.AdminPassword + "\"}'"),
@@ -647,14 +648,20 @@ class Secrets
 
     public static Secrets Load()
     {
-        // 1) 依序找 secrets.local.json（執行檔目錄、目前目錄、專案目錄）
-        var candidates = new[]
+        // 1) 依序找 secrets.local.json：執行檔目錄與目前目錄，並逐層往上找
+        //    （支援 deploy/update-server-ssh/ 或從 bin/Debug 執行等各種情況）
+        var candidates = new List<string>();
+        foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
         {
-            Path.Combine(AppContext.BaseDirectory, "secrets.local.json"),
-            Path.Combine(Directory.GetCurrentDirectory(), "secrets.local.json"),
-            Path.Combine(Directory.GetCurrentDirectory(), "update-server-ssh", "secrets.local.json"),
-        };
-        foreach (var path in candidates)
+            var dir = new DirectoryInfo(start);
+            for (int i = 0; dir != null && i < 8; i++, dir = dir.Parent)
+            {
+                candidates.Add(Path.Combine(dir.FullName, "secrets.local.json"));
+                candidates.Add(Path.Combine(dir.FullName, "update-server-ssh", "secrets.local.json"));
+                candidates.Add(Path.Combine(dir.FullName, "deploy", "update-server-ssh", "secrets.local.json"));
+            }
+        }
+        foreach (var path in candidates.Distinct())
         {
             if (!File.Exists(path)) continue;
             try

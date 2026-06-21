@@ -26,8 +26,8 @@ if ($still) {
 
 Write-Host ("=== KILLED_COUNT={0} ===" -f $killed)
 
-$src = 'Project\bin\Release\net6.0-windows\win-x64'
-$dst = 'GMTool'
+$src = 'desktop\Project\bin\Release\net6.0-windows\win-x64'
+$dst = 'desktop\GMTool'
 
 try {
     Copy-Item -Force "$src\SQ_Email_Tools_TW.exe" "$dst\SQ_Email_Tools_TW.exe" -ErrorAction Stop

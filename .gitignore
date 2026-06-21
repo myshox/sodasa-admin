@@ -1,28 +1,28 @@
 # ===== 敏感設定（絕對不上傳）=====
 .cursor/rules/
-update-server.ps1
-WebApi/appsettings.json
-WebApi/appsettings.*.json
-!WebApi/appsettings.example.json
+deploy/update-server.ps1
+web/WebApi/appsettings.json
+web/WebApi/appsettings.*.json
+!web/WebApi/appsettings.example.json
 c:/SodaGM/
 # 部署用密碼檔（SSH/DB/JWT/管理者密碼），只留 example 範本
-update-server-ssh/secrets.local.json
-update-server-ssh/secrets.json
+deploy/update-server-ssh/secrets.local.json
+deploy/update-server-ssh/secrets.json
 
 # ===== .NET =====
-WebApi/bin/
-WebApi/obj/
-Project/bin/
-Project/obj/
-update-server-ssh/bin/
-update-server-ssh/obj/
+web/WebApi/bin/
+web/WebApi/obj/
+desktop/Project/bin/
+desktop/Project/obj/
+deploy/update-server-ssh/bin/
+deploy/update-server-ssh/obj/
 *.user
 *.suo
 .vs/
 
 # ===== Node / React =====
-WebApp/node_modules/
-WebApp/dist/
+web/WebApp/node_modules/
+web/WebApp/dist/
 
 # ===== 系統 =====
 .DS_Store
@@ -38,9 +38,9 @@ publish/
 Output/
 Release/
 DbInspect/
-DbConnTest/
+deploy/DbConnTest/
 # 給技術人員的資料庫白名單設定備註（可能含敏感資訊，不上傳）
-給技術-資料庫白名單設定.txt
+docs/給技術-資料庫白名單設定.txt
 
 # ===== GMTool 執行檔（二進位不需要版控）=====
-GMTool/
+desktop/GMTool/
