@@ -1011,6 +1011,7 @@ namespace SQ_Email_Tools
 
                     var progress = new Progress<(int done, int total, string account, bool ok)>(rep =>
                     {
+                        if (IsDisposed || _progressBar.IsDisposed) return;
                         _progressBar.Maximum = rep.total;
                         _progressBar.Value   = Math.Min(rep.done, rep.total);
                         _progressLbl.Text    = $"道具 {itemIdx}/{_cart.Count}  ·  {rep.done} / {rep.total} 位玩家";
@@ -1266,7 +1267,16 @@ namespace SQ_Email_Tools
 
         private void AppendLog(string text, Color color)
         {
-            if (InvokeRequired) { Invoke(new Action(() => AppendLog(text, color))); return; }
+            // 表單／控制項已釋放時直接跳過，避免背景批次的 Progress 回呼存取已 Dispose 的控制項
+            if (IsDisposed || _logBox == null || _logBox.IsDisposed) return;
+            if (InvokeRequired)
+            {
+                try { Invoke(new Action(() => AppendLog(text, color))); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+            if (_logBox.IsDisposed) return;
             _logBox.SelectionColor = color;
             _logBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}\n");
             _logBox.ScrollToCaret();

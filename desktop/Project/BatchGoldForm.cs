@@ -561,7 +561,8 @@ namespace SQ_Email_Tools
             _cts = new CancellationTokenSource();
             var prog = new Progress<(int done, int total, string acc, bool ok)>(r =>
             {
-                _progress.Value   = r.done;
+                if (IsDisposed || _progress.IsDisposed) return;
+                _progress.Value   = Math.Min(r.done, _progress.Maximum);
                 _progressLbl.Text = $"{r.done}/{r.total}  {r.acc}";
                 AppendLog($"{(r.ok ? "✓" : "✗")} {r.acc}\n",
                     r.ok ? Color.FromArgb(103, 194, 58) : Theme.AccentRed);
@@ -600,7 +601,16 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════════════
         private void AppendLog(string text, Color color)
         {
-            if (_logBox.InvokeRequired) { _logBox.Invoke(() => AppendLog(text, color)); return; }
+            // 表單／控制項已釋放時直接跳過，避免背景批次的回呼存取已 Dispose 的控制項
+            if (IsDisposed || _logBox == null || _logBox.IsDisposed) return;
+            if (_logBox.InvokeRequired)
+            {
+                try { _logBox.Invoke(() => AppendLog(text, color)); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+            if (_logBox.IsDisposed) return;
             int start = _logBox.TextLength;
             _logBox.AppendText(text);
             _logBox.Select(start, text.Length);
