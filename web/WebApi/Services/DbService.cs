@@ -1181,26 +1181,29 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     {
         await using var db = Open();
         await db.OpenAsync();
-        bool ok = true;
-
-        if (giveGold)
-        {
-            await using var cmdLogin = new MySqlCommand(
-                "UPDATE csalogin SET VipPoint = VipPoint + @gold, PayTotal = PayTotal + @twd WHERE `Name` = @cdkey", db);
-            cmdLogin.Parameters.AddWithValue("@gold",  goldAmount);
-            cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
-            cmdLogin.Parameters.AddWithValue("@cdkey", account);
-            ok = await cmdLogin.ExecuteNonQueryAsync() > 0;
-        }
-
-        // 若不同步累積儲值，直接回傳
-        if (!updatePaydata) return ok;
-
-        long currentPoint = 0, currentTotalCheck = 0;
+        await using var tx = await db.BeginTransactionAsync();
         try
         {
+            bool ok = true;
+
+            if (giveGold)
+            {
+                await using var cmdLogin = new MySqlCommand(
+                    "UPDATE csalogin SET VipPoint = VipPoint + @gold, PayTotal = PayTotal + @twd WHERE `Name` = @cdkey", db, tx);
+                cmdLogin.Parameters.AddWithValue("@gold",  goldAmount);
+                cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
+                cmdLogin.Parameters.AddWithValue("@cdkey", account);
+                ok = await cmdLogin.ExecuteNonQueryAsync() > 0;
+                // 帳號不存在 → 回滾並回報失敗，避免產生孤兒 paydata 與誤報成功
+                if (!ok) { await tx.RollbackAsync(); return false; }
+            }
+
+            // 若不同步累積儲值，提交金幣異動後直接回傳
+            if (!updatePaydata) { await tx.CommitAsync(); return ok; }
+
+            long currentPoint = 0, currentTotalCheck = 0;
             await using (var cmdGet = new MySqlCommand(
-                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db))
+                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", db, tx))
             {
                 cmdGet.Parameters.AddWithValue("@cdkey", account);
                 await using var r = await cmdGet.ExecuteReaderAsync();
@@ -1225,7 +1228,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                     ON DUPLICATE KEY UPDATE
                         point          = @newpt,
                         totalcheck     = @tc,
-                        lifetime_total = lifetime_total + @twd", db);
+                        lifetime_total = lifetime_total + @twd", db, tx);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);
                 cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
                 cmdPay.Parameters.AddWithValue("@tc",    newTotalCheck);
@@ -1240,15 +1243,21 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                     VALUES (@cdkey, @twd, NOW(), 0, 0, @twd)
                     ON DUPLICATE KEY UPDATE
                         point          = point + @twd,
-                        lifetime_total = lifetime_total + @twd", db);
+                        lifetime_total = lifetime_total + @twd", db, tx);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);
                 cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
                 await cmdPay.ExecuteNonQueryAsync();
             }
-        }
-        catch { /* paydata 表不存在時靜默忽略 */ }
 
-        return ok;
+            // csalogin 與 paydata 一起提交（任一步驟失敗整筆回滾，避免金幣/累儲不一致）
+            await tx.CommitAsync();
+            return ok;
+        }
+        catch
+        {
+            try { await tx.RollbackAsync(); } catch { }
+            return false;
+        }
     }
 
     /// <summary>
@@ -1275,6 +1284,23 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
             await cmd.ExecuteNonQueryAsync();
         }
         catch { /* recharge_orders 表結構不符時靜默忽略 */ }
+    }
+
+    /// <summary>檢查訂單編號是否已存在（外部付款回調冪等用，避免重試重複入帳）。</summary>
+    public async Task<bool> RechargeOrderExistsAsync(string orderNo)
+    {
+        if (string.IsNullOrWhiteSpace(orderNo)) return false;
+        try
+        {
+            await using var db = Open(); await db.OpenAsync();
+            if (orderNo.Length > 32) orderNo = orderNo[..32];
+            await using var cmd = new MySqlCommand(
+                "SELECT 1 FROM recharge_orders WHERE order_no=@o LIMIT 1", db);
+            cmd.Parameters.AddWithValue("@o", orderNo);
+            var r = await cmd.ExecuteScalarAsync();
+            return r != null && r != DBNull.Value;
+        }
+        catch { return false; }
     }
 
     // ── 郵件記錄 ─────────────────────────────────────────────
@@ -1888,7 +1914,8 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
         if (string.IsNullOrWhiteSpace(newPassword)) return false;
         await using var db = Open(); await db.OpenAsync();
         string hash = HashAdminPassword(newPassword);
-        await using var cmd = new MySqlCommand("UPDATE admin_users SET password=@p WHERE id=@id", db);
+        // 比照刪除／停用：不允許透過工具帳號管理介面重設內建 admin 密碼
+        await using var cmd = new MySqlCommand("UPDATE admin_users SET password=@p WHERE id=@id AND username<>'admin'", db);
         cmd.Parameters.AddWithValue("@p", hash);
         cmd.Parameters.AddWithValue("@id", id);
         return await cmd.ExecuteNonQueryAsync() > 0;
@@ -1924,10 +1951,23 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
             string stored = (r["password"]?.ToString() ?? "").Trim();
             if (dbUser.Length == 0) return (false, "", "gm");
 
-            bool pwdOk =
-                string.Equals(stored, hash, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(stored, pw, StringComparison.Ordinal);
-            if (!pwdOk) return (false, "", "gm");
+            bool matchHash  = string.Equals(stored, hash, StringComparison.OrdinalIgnoreCase);
+            bool matchPlain = !matchHash && string.Equals(stored, pw, StringComparison.Ordinal);
+            if (!matchHash && !matchPlain) return (false, "", "gm");
+
+            // 歷史明文密碼登入成功後，立即升級為 MD5，逐步淘汰明文儲存（升級失敗不影響本次登入）
+            if (matchPlain)
+            {
+                try
+                {
+                    await using var up = new MySqlCommand(
+                        "UPDATE admin_users SET password=@p WHERE LOWER(TRIM(username))=LOWER(TRIM(@u))", db);
+                    up.Parameters.AddWithValue("@p", hash);
+                    up.Parameters.AddWithValue("@u", dbUser);
+                    await up.ExecuteNonQueryAsync();
+                }
+                catch { }
+            }
 
             string role = dbUser.Equals("admin", StringComparison.OrdinalIgnoreCase) ? "superadmin" : "gm";
             return (true, dbUser, role);
@@ -3346,13 +3386,15 @@ CREATE TABLE IF NOT EXISTS `admin_users` (
             for (int i = 0; i < allAccs.Count; i += 200)
             {
                 var batch = allAccs.Skip(i).Take(200).ToList();
-                var inList = string.Join(",", batch.Select(a => $"'{a.Replace("'", "\\'")}'"));
+                var paramNames = batch.Select((_, idx) => $"@a{idx}").ToList();
                 var detailSql = $@"SELECT c.`Name` acc, IFNULL(c.OnlineName,'') charName,
                                           IFNULL(m.Name,'') masterName, IF(c.Online=1,1,0) isOnline
                                    FROM csalogin c
                                    LEFT JOIN csaloginmaster m ON m.Id=c.MasterId
-                                   WHERE c.`Name` IN ({inList})";
+                                   WHERE c.`Name` IN ({string.Join(",", paramNames)})";
                 await using var dCmd = new MySqlCommand(detailSql, db);
+                for (int bi = 0; bi < batch.Count; bi++)
+                    dCmd.Parameters.AddWithValue(paramNames[bi], batch[bi]);
                 await using var dR = await dCmd.ExecuteReaderAsync();
                 while (await dR.ReadAsync())
                     accDetails[dR.GetString("acc")] = (dR.GetString("charName"), dR.GetString("masterName"), dR.GetInt32("isOnline") == 1);

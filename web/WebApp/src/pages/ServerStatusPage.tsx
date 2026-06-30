@@ -155,6 +155,7 @@ export default function ServerStatusPage() {
   const [limit, setLimit]               = useState(30)
   const [loading, setLoading]           = useState(false)
   const [lastUpdate, setLastUpdate]     = useState('')
+  const [loadErr, setLoadErr]           = useState('')
 
   // ── 重複 IP 查詢狀態 ────────────────────────────────────────
   const [ipQuery, setIpQuery]           = useState('')
@@ -189,6 +190,9 @@ export default function ServerStatusPage() {
       setOnlineByIp(Array.isArray(ip.data) ? ip.data : [])
       setAccounts(ac.data)
       setLastUpdate(new Date().toLocaleTimeString('zh-TW'))
+      setLoadErr('')
+    } catch {
+      setLoadErr('伺服器狀態載入失敗，顯示的可能為舊資料，請稍後重試')
     } finally {
       setLoading(false)
     }
@@ -263,6 +267,11 @@ export default function ServerStatusPage() {
           {lastUpdate && (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.5 }}>
               最後更新 {lastUpdate}（每 30 秒自動刷新）
+            </div>
+          )}
+          {loadErr && (
+            <div role="alert" style={{ fontSize: 13, color: '#ef4444', marginTop: 8, lineHeight: 1.5 }}>
+              ⚠ {loadErr}
             </div>
           )}
         </div>

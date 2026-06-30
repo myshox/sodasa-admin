@@ -510,6 +510,7 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════════════
         private async void BtnSend_Click(object sender, EventArgs e)
         {
+            if (_isSending) return;   // 防重入：避免快速雙擊造成重複加金
             // 收集勾選帳號
             var targets = _listDgv.Rows.Cast<DataGridViewRow>()
                 .Where(r => r.Cells["cChk"].Value is bool b && b)

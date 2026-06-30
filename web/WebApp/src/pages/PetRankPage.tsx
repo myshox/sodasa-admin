@@ -68,6 +68,7 @@ export default function PetRankPage() {
       params: { petId: selectedPet.id, limit, mode: lbMode },
     })
       .then(r => setLeaderboard(r.data))
+      .catch(() => { setMsg('載入排行榜失敗，請稍後重試'); setTimeout(() => setMsg(''), 3000) })
       .finally(() => setLoading(false))
   }, [selectedPet, lbMode])
 

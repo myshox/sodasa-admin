@@ -17,9 +17,9 @@ export default function LoginPage() {
     try {
       const saved = localStorage.getItem(REMEMBER_KEY)
       if (saved) {
-        const { u, p } = JSON.parse(saved)
+        // 僅記住帳號，不再保存明文密碼（安全考量）
+        const { u } = JSON.parse(saved)
         setUser(u || '')
-        setPass(p || '')
         setRemember(true)
       }
     } catch {
@@ -39,7 +39,7 @@ export default function LoginPage() {
       localStorage.setItem('gm_token', r.data.token)
       localStorage.setItem('gm_user', r.data.username)
       if (remember) {
-        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user, p: pass }))
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user }))
       } else {
         localStorage.removeItem(REMEMBER_KEY)
       }
@@ -144,7 +144,7 @@ export default function LoginPage() {
             onChange={e => setRemember(e.target.checked)}
             style={{ width: 18, height: 18, cursor: 'pointer' }}
           />
-          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>記住帳號密碼</span>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>記住帳號</span>
         </label>
 
         {err && (

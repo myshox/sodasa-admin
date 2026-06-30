@@ -211,6 +211,7 @@ export default function RechargePage() {
   const loadHistory = async () => {
     setHistLoading(true)
     try { const r = await api.get('/players/recharge', { params: { q: histQ } }); setHistRows(Array.isArray(r.data) ? r.data : []) }
+    catch { setMsg('載入充值記錄失敗，請稍後重試'); setMsgOk(false) }
     finally { setHistLoading(false) }
   }
 

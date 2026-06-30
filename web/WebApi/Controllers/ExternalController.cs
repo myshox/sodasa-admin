@@ -55,6 +55,18 @@ public class ExternalController : ControllerBase
             return BadRequest(new { message = "goldAmount 不可為負" });
 
         var account = req.Account.Trim();
+
+        // 冪等：同一 orderNo 已處理過則直接回成功，避免付款回調重試造成重複入帳
+        if (!string.IsNullOrWhiteSpace(req.OrderNo) && await _db.RechargeOrderExistsAsync(req.OrderNo.Trim()))
+            return Ok(new
+            {
+                success    = true,
+                duplicated = true,
+                message    = $"訂單 {req.OrderNo.Trim()} 已處理過，未重複入帳",
+                account,
+                orderNo    = req.OrderNo.Trim(),
+            });
+
         var ok = await _db.AdjustPayDataPointAsync(
             account, req.TwdAmount, req.GoldAmount, req.GiveGold, req.UpdatePaydata);
 

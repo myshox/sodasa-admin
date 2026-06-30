@@ -190,7 +190,7 @@ export default function PlayersPage() {
     try {
       const r = await api.get('/players/search', { params: { q: q.trim(), limit: 200 } })
       setPlayers(r.data)
-    } finally { setLoading(false) }
+    } catch { flash('搜尋失敗，請稍後重試') } finally { setLoading(false) }
   }
 
   const reload = async () => {
@@ -198,18 +198,20 @@ export default function PlayersPage() {
     try {
       const r = await api.get('/players/list', { params: { limit: 1000 } })
       setAllPlayers(r.data); setPlayers(r.data); setTotalCount(r.data.length)
-    } finally { setLoading(false) }
+    } catch { flash('載入玩家清單失敗，請稍後重試') } finally { setLoading(false) }
   }
 
   const loadDetail = async (account: string) => {
-    const r = await api.get(`/players/${encodeURIComponent(account)}`)
-    const d = r.data as PlayerDetail
-    setDetail(d)
-    setPlayerPets(null) // 切換玩家時收合寵物清單
-    setSharedIp(null); setBanLog(null); setFamily(undefined)
-    setGoldVal(String(d.gold))
-    setCrysVal(String(d.crystal))
-    setShowBan(false); setShowRecharge(false); setShowRename(false)
+    try {
+      const r = await api.get(`/players/${encodeURIComponent(account)}`)
+      const d = r.data as PlayerDetail
+      setDetail(d)
+      setPlayerPets(null) // 切換玩家時收合寵物清單
+      setSharedIp(null); setBanLog(null); setFamily(undefined)
+      setGoldVal(String(d.gold))
+      setCrysVal(String(d.crystal))
+      setShowBan(false); setShowRecharge(false); setShowRename(false)
+    } catch { flash('載入玩家資料失敗，請重試') }
   }
 
   const saveGold = async () => {

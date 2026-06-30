@@ -300,9 +300,13 @@ namespace SQ_Email_Tools
                 {
                     if (MessageBox.Show($"確定要發放「{_detail.OnlineName}」第 {_detail.TotalCheck} 輪的累積獎勵？\n\n  · check 設為 1（已領）\n  · 下次達成 NT$20,000 才能再領",
                         "🎁 發放累積獎勵", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                    var (status, cycle) = await DatabaseManager.Instance.ClaimPaydataRewardAsync(_account);
-                    if (status == "ok") { ShowMsg($"✅ 第 {cycle} 輪獎勵已發放", true); await RefreshDetailAsync(); }
-                    else ShowMsg($"⚠ {status}", false);
+                    try
+                    {
+                        var (status, cycle) = await DatabaseManager.Instance.ClaimPaydataRewardAsync(_account);
+                        if (status == "ok") { ShowMsg($"✅ 第 {cycle} 輪獎勵已發放", true); await RefreshDetailAsync(); }
+                        else ShowMsg($"⚠ {status}", false);
+                    }
+                    catch (Exception ex) { ShowMsg("⚠ 發放失敗：" + ex.Message, false); }
                 };
                 _pnlClaimRow.Controls.Add(_btnClaim);
             }
@@ -327,9 +331,13 @@ namespace SQ_Email_Tools
             {
                 if (MessageBox.Show($"根據目前累積 NT${pt:N0} 修復進度顯示。\n此操作不會更動儲值金額，只修正進度顯示異常。確認？",
                     "🔧 修復進度顯示", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                bool ok = await DatabaseManager.Instance.FixPaydataCheckAsync(_account);
-                if (ok) { ShowMsg("✅ check 欄位已修復", true); await RefreshDetailAsync(); }
-                else ShowMsg("⚠ 修復失敗", false);
+                try
+                {
+                    bool ok = await DatabaseManager.Instance.FixPaydataCheckAsync(_account);
+                    if (ok) { ShowMsg("✅ check 欄位已修復", true); await RefreshDetailAsync(); }
+                    else ShowMsg("⚠ 修復失敗", false);
+                }
+                catch (Exception ex) { ShowMsg("⚠ 修復失敗：" + ex.Message, false); }
             };
             var btnReset = Theme.MakeButton("🗑 清0進度", Theme.AccentRed, Color.White, (W - 4) / 2, 26);
             btnReset.Font     = new Font(Theme.FontFamily, 8.5f, FontStyle.Bold);
@@ -338,9 +346,13 @@ namespace SQ_Email_Tools
             {
                 if (MessageBox.Show($"⚠ 確定要將「{_detail.OnlineName}」的累積充值進度歸零？\n\n  · paydata.point → 0\n  · check / totalcheck → 0\n  ✅ 歷史總累儲保留不動\n\n此操作無法復原。",
                     "⚠ 清0累儲確認", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-                bool ok = await DatabaseManager.Instance.ResetPaydataProgressAsync(_account);
-                if (ok) { ShowMsg("✅ 累儲進度已歸零", true); await RefreshDetailAsync(); }
-                else ShowMsg("⚠ 清0失敗", false);
+                try
+                {
+                    bool ok = await DatabaseManager.Instance.ResetPaydataProgressAsync(_account);
+                    if (ok) { ShowMsg("✅ 累儲進度已歸零", true); await RefreshDetailAsync(); }
+                    else ShowMsg("⚠ 清0失敗", false);
+                }
+                catch (Exception ex) { ShowMsg("⚠ 清0失敗：" + ex.Message, false); }
             };
             _pnlPlayerInfo.Controls.AddRange(new Control[] { btnFix, btnReset });
             y += 30;
@@ -706,7 +718,7 @@ namespace SQ_Email_Tools
                 RebuildPlayerInfo();
                 UpdatePreview();
             }
-            catch { }
+            catch (Exception ex) { ShowMsg("⚠ 刷新失敗：" + ex.Message, false); }
         }
 
         private void SelectTier(int idx)

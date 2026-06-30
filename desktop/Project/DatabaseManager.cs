@@ -1005,12 +1005,28 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             return (ok, newValue);
         }
 
-        /// <summary>增減金幣（VipPoint）— 相對增減</summary>
+        /// <summary>增減金幣（VipPoint）— 相對增減（原子更新，避免併發覆蓋）</summary>
         public async Task<(bool ok, long newBalance)> GiveGoldAsync(string account, string _, long amount)
         {
-            var cur = await GetCurrenciesAsync(account);
-            long next = Math.Max(0, cur.Gold + amount);
-            return await SetGoldAsync(account, next);
+            using var conn = GetConnection();
+            await conn.OpenAsync();
+            using var cmd = new MySqlCommand(
+                "UPDATE csalogin SET VipPoint = GREATEST(0, CAST(VipPoint AS SIGNED) + @amt) WHERE Name=@cdkey", conn);
+            cmd.Parameters.AddWithValue("@amt",   amount);
+            cmd.Parameters.AddWithValue("@cdkey", account);
+            bool ok = await cmd.ExecuteNonQueryAsync() > 0;
+
+            long newBal = 0;
+            if (ok)
+            {
+                using var q = new MySqlCommand("SELECT VipPoint FROM csalogin WHERE Name=@cdkey", conn);
+                q.Parameters.AddWithValue("@cdkey", account);
+                var v = await q.ExecuteScalarAsync();
+                newBal = (v == null || v == DBNull.Value) ? 0 : Convert.ToInt64(v);
+                await GmLogger.Instance.LogAsync("修改金幣", account,
+                    $"金幣 {(amount >= 0 ? "+" : "")}{amount:N0}，餘額 {newBal:N0}", true);
+            }
+            return (ok, newBal);
         }
 
         // 舊版 int 介面保持相容
@@ -1119,21 +1135,30 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             using var conn = GetConnection();
             await conn.OpenAsync();
             bool ok = true;
+            using var tx = await conn.BeginTransactionAsync();
 
             if (giveGold)
             {
                 using var cmdLogin = new MySqlCommand(
-                    "UPDATE csalogin SET VipPoint = VipPoint + @gold, PayTotal = PayTotal + @twd WHERE `Name` = @cdkey", conn);
+                    "UPDATE csalogin SET VipPoint = VipPoint + @gold, PayTotal = PayTotal + @twd WHERE `Name` = @cdkey", conn, tx);
                 cmdLogin.Parameters.AddWithValue("@gold",  goldAmount);
                 cmdLogin.Parameters.AddWithValue("@twd",   twdAmount);
                 cmdLogin.Parameters.AddWithValue("@cdkey", account);
                 ok = await cmdLogin.ExecuteNonQueryAsync() > 0;
+                // 帳號不存在（影響 0 列）→ 回滾，避免產生孤兒 paydata 並誤報成功
+                if (!ok)
+                {
+                    await tx.RollbackAsync();
+                    await GmLogger.Instance.LogAsync("給予儲值", account,
+                        $"帳號不存在或未更新，已取消（台幣 +NT${twdAmount:N0}）", false);
+                    return false;
+                }
             }
 
             // 查現有 point（當前輪次進度）與 totalcheck（已完成輪數）
             long currentPoint = 0, currentTotalCheck = 0;
             using (var cmdGet = new MySqlCommand(
-                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", conn))
+                "SELECT IFNULL(point,0) AS pt, IFNULL(totalcheck,0) AS tc FROM paydata WHERE cdkey=@cdkey", conn, tx))
             {
                 cmdGet.Parameters.AddWithValue("@cdkey", account);
                 using var r = await cmdGet.ExecuteReaderAsync();
@@ -1169,7 +1194,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                     ON DUPLICATE KEY UPDATE
                         point          = @newpt,
                         totalcheck     = @tc,
-                        lifetime_total = lifetime_total + @twd", conn);
+                        lifetime_total = lifetime_total + @twd", conn, tx);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);
                 cmdPay.Parameters.AddWithValue("@newpt", newCyclePoint);
                 cmdPay.Parameters.AddWithValue("@tc",    newTotalCheck);
@@ -1185,11 +1210,14 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                     VALUES (@cdkey, @twd, NOW(), 0, 0, @twd)
                     ON DUPLICATE KEY UPDATE
                         point          = point + @twd,
-                        lifetime_total = lifetime_total + @twd", conn);
+                        lifetime_total = lifetime_total + @twd", conn, tx);
                 cmdPay.Parameters.AddWithValue("@cdkey", account);
                 cmdPay.Parameters.AddWithValue("@twd",   twdAmount);
                 await cmdPay.ExecuteNonQueryAsync();
             }
+
+            // csalogin + paydata 一起提交（任一步驟拋例外則整筆回滾）
+            await tx.CommitAsync();
 
             string cycleInfo = completedCycles > 0
                 ? $"完成{completedCycles}輪循環，新輪次進度 NT${newCyclePoint:N0}/20,000，check 歸零"

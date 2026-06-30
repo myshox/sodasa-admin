@@ -5,7 +5,8 @@ using WebApi.Services;
 
 namespace WebApi.Controllers;
 
-[ApiController, Route("api/admin"), Authorize]
+// 工具帳號管理僅限 superadmin（admin 帳號登入時 role 一律為 superadmin）
+[ApiController, Route("api/admin"), Authorize(Roles = "superadmin")]
 public class AdminController : ControllerBase
 {
     private readonly DbService _db;

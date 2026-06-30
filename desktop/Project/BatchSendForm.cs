@@ -923,6 +923,7 @@ namespace SQ_Email_Tools
         // ═══════════════════════════════════════════════════════════
         private async void SendBtn_Click(object sender, EventArgs e)
         {
+            if (_isSending) return;   // 防重入：避免快速雙擊造成全服重複發送
             if (_cart.Count == 0) return;
 
             string title   = _txtTitle.Text.Trim();
