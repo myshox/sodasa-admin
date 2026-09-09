@@ -28,6 +28,9 @@ namespace SQ_Email_Tools
         private Button       _btnQuery;
         private DataGridView _dgv;
         private Label        _lblCount, _lblStatus;
+        private Label        _kpiResults, _kpiOnline, _kpiVip, _kpiBanned;
+        private Panel        _playerListSurface, _playerListHeader;
+        private TableLayoutPanel _playerListLayout;
         private List<PlayerInfo> _players = new();
 
         // ── 導覽按鈕 ─────────────────────────────────────────────
@@ -41,7 +44,8 @@ namespace SQ_Email_Tools
         public MainForm()
         {
             InitUI();
-            TryAutoConnect();
+            // 視窗完成建立後再連線，避免建構期間尚未進入訊息迴圈造成非同步連線誤判。
+            Shown += (_, __) => TryAutoConnect();
             TryAutoLoadGameData();
         }
 
@@ -52,7 +56,7 @@ namespace SQ_Email_Tools
         {
             Text          = $"蘇打石器 GM 管理系統  v{AppVersion.DisplayShort}";
             Size          = new Size(1600, 900);
-            MinimumSize   = new Size(1280, 720);
+            MinimumSize   = new Size(1366, 768);
             BackColor     = Theme.BgPage;
             ForeColor     = Theme.TextPrimary;
             Font          = Theme.FontBody;
@@ -76,7 +80,7 @@ namespace SQ_Email_Tools
         }
 
         // ══════════════════════════════════════════════════════════
-        // 左側導覽列 — Apple macOS 風格
+        // 左側導覽列 — Production Reskin（完整功能、緊湊且可掃讀）
         // ══════════════════════════════════════════════════════════
         private void BuildSidebar()
         {
@@ -139,21 +143,23 @@ namespace SQ_Email_Tools
             };
             _btnRecharge = new Button
             {
-                Text      = "  充值管理",
+                Text      = "充值管理",
                 Location  = new Point(12, 10),
                 Size      = new Size(NAV_W - 24, 46),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Theme.AccentGreen,
-                ForeColor = Color.White,
-                TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Theme.BgCard,
+                ForeColor = Theme.AccentGreen,
+                TextAlign = ContentAlignment.MiddleCenter,
                 Font      = Theme.FontNavBold,
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false,
                 TabStop   = false
             };
-            _btnRecharge.FlatAppearance.BorderSize         = 0;
-            _btnRecharge.FlatAppearance.MouseOverBackColor = ControlPaint.Light(Theme.AccentGreen, 0.15f);
+            _btnRecharge.FlatAppearance.BorderSize         = 1;
+            _btnRecharge.FlatAppearance.BorderColor        = Theme.AccentGreen;
+            _btnRecharge.FlatAppearance.MouseOverBackColor = Theme.BgLight;
             _btnRecharge.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(Theme.AccentGreen, 0.1f);
+            Theme.ApplyRoundedRegion(_btnRecharge, 10);
             _btnRecharge.Click += (s, e) =>
             {
                 SetActiveNav(_btnRecharge);
@@ -171,7 +177,8 @@ namespace SQ_Email_Tools
             _navPanel = new Panel
             {
                 Bounds    = new Rectangle(NAV_X, HEADER_H, NAV_W, 400), // 高度由 Resize 更新
-                BackColor = Theme.BgSidebar
+                BackColor = Theme.BgSidebar,
+                AutoScroll = true
             };
             _navContent = new Panel
             {
@@ -182,7 +189,7 @@ namespace SQ_Email_Tools
             _navPanel.Controls.Add(_navContent);
             _navPanel.Resize += (s, e) =>
             {
-                _navContent.Width = _navPanel.ClientSize.Width;
+                _navContent.Width = Math.Max(1, _navPanel.ClientSize.Width - SystemInformation.VerticalScrollBarWidth);
                 NavClampScroll();
             };
 
@@ -545,7 +552,7 @@ namespace SQ_Email_Tools
             if (_navContent == null || _navPanel == null) return;
             int maxScroll   = Math.Max(0, _navContent.Height - _navPanel.ClientSize.Height);
             _navScrollY     = Math.Max(0, Math.Min(maxScroll, _navScrollY));
-            _navContent.Top = -_navScrollY;
+            _navPanel.AutoScrollPosition = new Point(0, _navScrollY);
         }
 
         private void SidebarMouseWheel(object sender, MouseEventArgs e)
@@ -599,19 +606,19 @@ namespace SQ_Email_Tools
 
         private Button MakeNavBtn(string icon, string text, ref int y, bool isDefault = false)
         {
-            const int BH = 54;
+            const int BH = 42;
             var bgNorm = Theme.BgSidebar;
-            var bgAct  = Theme.AccentBlue;
+            var bgAct  = Theme.BgMid;
             var fgNorm = Theme.TextSecondary;
-            var fgAct  = Color.White;
-            var bgHov  = ControlPaint.Light(Theme.BgSidebar, 0.15f);
+            var fgAct  = Theme.TextPrimary;
+            var bgHov  = Theme.BgMid;
 
             // indicator 直接畫在按鈕左邊緣（Panel 不加入 Controls，改用按鈕自行繪製）
             var btn = new Button
             {
-                Text      = $"  {icon}  {text}",
-                Location  = new Point(0, y),
-                Size      = new Size(_sidebar.Width - 12, BH),
+                Text      = $"      {text}",
+                Location  = new Point(12, y),
+                Size      = new Size(_sidebar.Width - 24, BH),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = isDefault ? bgAct : bgNorm,
                 ForeColor = isDefault ? fgAct : fgNorm,
@@ -619,20 +626,20 @@ namespace SQ_Email_Tools
                 Font      = isDefault ? Theme.FontNavBold : Theme.FontNav,
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false,
-                TabStop   = false
+                TabStop   = true
             };
             btn.FlatAppearance.BorderSize         = 0;
             btn.FlatAppearance.MouseOverBackColor = bgHov;
             btn.FlatAppearance.MouseDownBackColor = bgAct;
             btn.MouseWheel += SidebarMouseWheel;
-            // 左側青→藍漸層指示（與網頁版一致）
+            // 統一使用狀態點，避免不同平台 emoji 造成字距與對齊不一致。
             btn.Paint += (s, pe) =>
             {
-                if (btn.Tag is not bool active || !active) return;
-                var r = new Rectangle(0, 0, 4, btn.Height);
                 pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var br = new LinearGradientBrush(r, Theme.AccentCyan, Theme.AccentBlue, 90f))
-                    pe.Graphics.FillRectangle(br, r);
+                var active = btn.Tag is bool value && value;
+                var dot = new Rectangle(16, (btn.Height - 7) / 2, 7, 7);
+                using var br = new SolidBrush(active ? Theme.AccentCyan : Theme.TextMuted);
+                pe.Graphics.FillEllipse(br, dot);
             };
 
             if (isDefault)
@@ -689,8 +696,8 @@ namespace SQ_Email_Tools
             }
             else
             {
-                btn.BackColor = Theme.AccentBlue;
-                btn.ForeColor = Color.White;
+                btn.BackColor = Theme.BgMid;
+                btn.ForeColor = Theme.TextPrimary;
             }
             btn.Font = Theme.FontNavBold;
             btn.Tag  = true;
@@ -722,8 +729,9 @@ namespace SQ_Email_Tools
 
             BuildStatusBar();
             BuildPlayerGrid();
-            BuildHintBar();
             BuildSearchBar();
+            BuildKpiStrip();
+            BuildHintBar();
             BuildContentHeader();
 
             _contentArea.Controls.Add(_playerPage);
@@ -783,7 +791,6 @@ namespace SQ_Email_Tools
         {
             var hdr = new Panel { Dock = DockStyle.Top, Height = Theme.PageHeaderHeight, BackColor = Theme.BgDialogHeader };
             hdr.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
-            var accent = new Panel { Dock = DockStyle.Left, Width = 5, BackColor = Theme.AccentLineSubtle };
             var inner = new Panel
             {
                 Dock      = DockStyle.Fill,
@@ -806,15 +813,71 @@ namespace SQ_Email_Tools
                 AutoSize  = true,
                 Location  = new Point(0, 42)
             });
-            hdr.Controls.Add(accent);
             hdr.Controls.Add(inner);
 
             _playerContent.Controls.Add(hdr);
         }
 
+        private void BuildKpiStrip()
+        {
+            var strip = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 112,
+                BackColor = Theme.BgPage,
+                Padding = new Padding(Theme.UiPadLg, 12, Theme.UiPadLg, 12)
+            };
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 4,
+                RowCount = 1,
+                BackColor = Color.Transparent,
+                Padding = Padding.Empty
+            };
+            for (int i = 0; i < 4; i++) layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+            layout.Controls.Add(MakeMetric("本次結果", Theme.AccentBlue, out _kpiResults, new Padding(0, 0, 8, 0)), 0, 0);
+            layout.Controls.Add(MakeMetric("在線角色", Theme.AccentGreen, out _kpiOnline, new Padding(8, 0, 8, 0)), 1, 0);
+            layout.Controls.Add(MakeMetric("VIP 角色", Theme.AccentCyan, out _kpiVip, new Padding(8, 0, 8, 0)), 2, 0);
+            layout.Controls.Add(MakeMetric("封禁角色", Theme.AccentRed, out _kpiBanned, new Padding(8, 0, 0, 0)), 3, 0);
+            strip.Controls.Add(layout);
+            _playerContent.Controls.Add(strip);
+        }
+
+        private Panel MakeMetric(string title, Color accent, out Label valueLabel, Padding margin)
+        {
+            var panel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.BgCard,
+                Margin = margin,
+                Padding = new Padding(18, 12, 18, 10)
+            };
+            panel.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 2, BackColor = accent });
+            valueLabel = new Label
+            {
+                Text = "0",
+                ForeColor = accent,
+                Font = new Font(Theme.FontPageTitle.FontFamily, 18f, FontStyle.Bold),
+                AutoSize = true,
+                Location = new Point(18, 26)
+            };
+            panel.Controls.Add(valueLabel);
+            panel.Controls.Add(new Label
+            {
+                Text = title,
+                ForeColor = Theme.TextMuted,
+                Font = Theme.FontSmall,
+                AutoSize = true,
+                Location = new Point(18, 59)
+            });
+            Theme.ApplyRoundedRegion(panel, 12);
+            return panel;
+        }
+
         private void BuildSearchBar()
         {
-            var bar = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.BgDark };
+            var bar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgCard, Margin = Padding.Empty };
             bar.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
 
             var tbl = new TableLayoutPanel
@@ -885,7 +948,11 @@ namespace SQ_Email_Tools
             tbl.Controls.Add(btnClear, 4, 0);
 
             bar.Controls.Add(tbl);
-            _playerContent.Controls.Add(bar);
+            if (_playerListLayout != null)
+            {
+                _playerListLayout.Controls.Add(bar, 0, 1);
+                Theme.ApplyRoundedRegion(bar, 10);
+            }
         }
 
         private void BuildHintBar()
@@ -893,7 +960,7 @@ namespace SQ_Email_Tools
             var bar = new Panel { Dock = DockStyle.Top, Height = Theme.ToolbarHeight, BackColor = Theme.BgCard };
             bar.Controls.Add(new Label
             {
-                Text         = "提示：雙擊列可發送道具。「資料」開角色詳情／改名／充值；「貨幣」調金幣；「刪除」需二次確認。",
+                Text         = "安全提示：雙擊列可發送道具；封禁、禁言與刪除均保留確認流程，未連線時禁止寫入操作。",
                 ForeColor    = Theme.TextSecondary,
                 Font         = Theme.FontSmall,
                 Dock         = DockStyle.Fill,
@@ -920,25 +987,29 @@ namespace SQ_Email_Tools
             _dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleDataGridView(_dgv);
             _dgv.ReadOnly = true;
+            _dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            _dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+            _dgv.ScrollBars = ScrollBars.Both;
+            _dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
 
             // 文字欄
-            AddTextCol("colOnline",  "狀態",          64);
+            AddTextCol("colOnline",  "狀態",          88);
             AddTextCol("colName",    "角色名稱",       140);
             AddTextCol("colAcc",     "帳號 (cdkey)",   148);
             AddTextCol("colMaster",  "主帳號",         120);
-            AddTextCol("colVip",     "VIP",            64);
-            AddTextCol("colPets",    "寵物",           64);
+            AddTextCol("colVip",     "VIP",            70);
+            AddTextCol("colPets",    "寵物",           72);
             AddTextCol("colPay",     "儲值 NT$",       118);
             AddTextCol("colLogin",   "最後登入",       168);
 
             // 功能按鈕（色塊區分，文字簡潔）
-            AddBtnCol("colProfile", "資料",  Color.FromArgb(  0, 113, 227), 76);
-            AddBtnCol("colSend",    "發送",  Color.FromArgb( 48, 176, 199), 68);
-            AddBtnCol("colGold",    "貨幣",  Color.FromArgb(255, 149,   0), 70);
-            AddBtnCol("colPayEdit", "充值",  Color.FromArgb(255, 204,   0), 68);
-            AddBtnCol("colBan",     "封禁",  Color.FromArgb(255,  59,  48), 68);
-            AddBtnCol("colMute",    "禁言",  Color.FromArgb(175,  82, 222), 68);
-            AddBtnCol("colDelete",  "刪除",  Color.FromArgb(142,  14,   0), 64);
+            AddBtnCol("colProfile", "資料", Theme.AccentBlue,   76);
+            AddBtnCol("colSend",    "發送", Theme.AccentCyan,   68);
+            AddBtnCol("colGold",    "貨幣", Theme.AccentOrange, 70);
+            AddBtnCol("colPayEdit", "充值", Theme.AccentGreen,  68);
+            AddBtnCol("colBan",     "封禁", Theme.AccentRed,    68);
+            AddBtnCol("colMute",    "禁言", Theme.BgLight,      68);
+            AddBtnCol("colDelete",  "刪除", Color.FromArgb(185, 28, 48), 64);
 
             _dgv.Columns["colName"].ToolTipText = "來自資料庫；若應為英文（如 ying）卻顯示中文，請在「👤 資料」→「編輯角色名稱」修正。↑↓ 點標題可排序。";
 
@@ -1072,27 +1143,77 @@ namespace SQ_Email_Tools
                     (_dgv.Width - sz.Width) / 2f, _dgv.Height / 2f - 12);
             };
 
-            _playerContent.Controls.Add(_dgv);
+            var gridCard = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Theme.BgPage,
+                Padding = new Padding(Theme.UiPadLg, 14, Theme.UiPadLg, 18)
+            };
+            _playerListSurface = new Panel { Dock = DockStyle.Fill, BackColor = Theme.BgCard };
+            _playerListLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                BackColor = Theme.BgCard,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty
+            };
+            _playerListLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            _playerListLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62f));
+            _playerListLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80f));
+            _playerListLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            _playerListHeader = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Height = 62,
+                BackColor = Theme.BgCard,
+                Padding = new Padding(18, 0, 18, 0),
+                Margin = Padding.Empty
+            };
+            _playerListHeader.Controls.Add(new Label
+            {
+                Text = "玩家清單",
+                ForeColor = Theme.TextPrimary,
+                Font = Theme.FontHeader,
+                AutoSize = true,
+                Location = new Point(18, 13)
+            });
+            _playerListHeader.Controls.Add(new Label
+            {
+                Text = "所有既有資料欄位與操作均完整保留",
+                ForeColor = Theme.TextMuted,
+                Font = Theme.FontSmall,
+                AutoSize = true,
+                Location = new Point(18, 36)
+            });
+            _playerListHeader.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.Border });
+            _playerListLayout.Controls.Add(_playerListHeader, 0, 0);
+            _playerListLayout.Controls.Add(_dgv, 0, 2);
+            _playerListSurface.Controls.Add(_playerListLayout);
+            Theme.ApplyRoundedRegion(_playerListSurface, 12);
+            gridCard.Controls.Add(_playerListSurface);
+            _playerContent.Controls.Add(gridCard);
         }
 
         private void AddTextCol(string name, string header, int w) =>
             _dgv.Columns.Add(new DataGridViewTextBoxColumn
             {
-                Name = name, HeaderText = header, FillWeight = w, MinimumWidth = Math.Max(50, w / 2), ReadOnly = true,
+                Name = name, HeaderText = header, Width = w, MinimumWidth = Math.Max(50, w / 2), ReadOnly = true,
                 DefaultCellStyle = { Padding = new Padding(10, 0, 8, 0) }
             });
 
         private void AddBtnCol(string name, string text, Color bg, int w) =>
             _dgv.Columns.Add(new DataGridViewButtonColumn
             {
-                Name = name, HeaderText = "", FillWeight = w, MinimumWidth = Math.Max(44, w - 10), FlatStyle = FlatStyle.Flat,
+                Name = name, HeaderText = name == "colProfile" ? "操作" : "", Width = w, MinimumWidth = Math.Max(44, w - 10), FlatStyle = FlatStyle.Flat,
                 UseColumnTextForButtonValue = true, Text = text,
                 DefaultCellStyle =
                 {
                     BackColor           = bg,
-                    ForeColor           = Color.White,
+                    ForeColor           = Theme.ContrastText(bg),
                     SelectionBackColor  = bg,
-                    SelectionForeColor  = Color.White,
+                    SelectionForeColor  = Theme.ContrastText(bg),
                     Font                = Theme.FontCell11,
                     Alignment           = DataGridViewContentAlignment.MiddleCenter,
                     Padding             = new Padding(4, 2, 4, 2)
@@ -1168,7 +1289,19 @@ namespace SQ_Email_Tools
                 int i = _dgv.Rows.Add(status, p.OnlineName, p.Account, master, vipEmoji, pets, pay, p.LoginTime);
                 _dgv.Rows[i].Tag = p;
             }
+            UpdatePlayerKpis();
             _dgv.Invalidate();
+        }
+
+        private void UpdatePlayerKpis()
+        {
+            int online = _players.Count(p => p.IsOnline);
+            int vip = _players.Count(p => p.PayTotal >= VipHelper.GoldThreshold);
+            int banned = _players.Count(p => p.IsBanned);
+            if (_kpiResults != null) _kpiResults.Text = _players.Count.ToString("N0");
+            if (_kpiOnline != null)  _kpiOnline.Text  = online.ToString("N0");
+            if (_kpiVip != null)     _kpiVip.Text     = vip.ToString("N0");
+            if (_kpiBanned != null)  _kpiBanned.Text  = banned.ToString("N0");
         }
 
         private void SetDbStatus(bool ok, string msg = null)
@@ -1226,6 +1359,7 @@ namespace SQ_Email_Tools
                                         _dgv.Rows[e.RowIndex].Cells["colPay"].Value = "—";
                                         _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor = Theme.TextMuted;
                                         _lblStatus.Text = $"✓  已重置「{player.OnlineName}」累儲進度（歸零）";
+                                        UpdatePlayerKpis();
                                     }
                                     else MessageBox.Show("重置失敗（玩家可能無 paydata 記錄）", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 }
@@ -1243,6 +1377,7 @@ namespace SQ_Email_Tools
                                         _dgv.Rows[e.RowIndex].Cells["colPay"].Style.ForeColor =
                                             newTotal > 0 ? Color.FromArgb(255, 200, 80) : Theme.TextMuted;
                                         _lblStatus.Text = $"✓  已更新「{player.OnlineName}」累儲顯示 {(dispTwd >= 0 ? "+" : "")}NT${dispTwd:N0}（不推進輪次 / 不可領獎）";
+                                        UpdatePlayerKpis();
                                     }
                                     else MessageBox.Show("修改失敗（玩家可能無 csalogin 記錄）", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                                 }
@@ -1260,12 +1395,14 @@ namespace SQ_Email_Tools
                                             newTotal > 0 ? Color.FromArgb(255, 200, 80) : Theme.TextMuted;
                                         _lblStatus.Text = $"✓  已更新「{player.OnlineName}」充值 +NT${dlg.TwdAmount:N0}" +
                                             (dlg.GiveGold ? $"（金幣 +{dlg.GoldAmount:N0}）" : "（僅累儲進度）");
+                                        UpdatePlayerKpis();
                                     }
                                     else MessageBox.Show("修改失敗", "錯誤");
                                 }
                                 if (dlg.NeedsRefresh)
                                 {
                                     _dgv.Rows[e.RowIndex].Cells["colPay"].Value = player.PayTotal > 0 ? $"NT$ {player.PayTotal:N0}" : "—";
+                                    UpdatePlayerKpis();
                                 }
                             }
                         }
@@ -1362,8 +1499,15 @@ namespace SQ_Email_Tools
         {
             string cs = DatabaseManager.Instance.LoadSavedConnectionString();
             SetDbStatus(false, "● 連接中…");
-            var (ok, _) = await DatabaseManager.Instance.ConnectAsync(cs);
+            var (ok, error) = await DatabaseManager.Instance.ConnectAsync(cs);
+            // 啟動瞬間若 MySQL 正在回收連線，短暫等待後重試一次；不重複彈窗。
+            if (!ok)
+            {
+                await Task.Delay(900);
+                (ok, error) = await DatabaseManager.Instance.ConnectAsync(cs);
+            }
             SetDbStatus(ok, ok ? null : "連接失敗");
+            _lblStatus.Text = ok ? "✓  資料庫已自動連接" : "✗ 自動連接失敗：" + (error ?? "未知錯誤");
             // 連線成功後自動載入全部玩家，免得使用者不知道要先查詢
             if (ok)
             {

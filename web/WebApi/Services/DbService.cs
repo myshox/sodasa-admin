@@ -1078,18 +1078,17 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
                      costPoint, costCheck };
     }
 
-    // ── 給予儲值（與 EXE 一致：paydata 循環 20,000、csalogin.PayTotal/VipPoint）────────
-    private const long CYCLE_MAX = 20_000L;
+    // ── 給予儲值（與 EXE 一致：paydata 循環 10,000、csalogin.PayTotal/VipPoint）────────
+    private const long CYCLE_MAX = 10_000L;
 
-    // 每輪 11 個獎勵門檻（bit 0~10），單位台幣；與桌面版 DatabaseManager.RewardTiers 一致。
+    // 每輪 8 個獎勵門檻（bit 0~7），單位台幣；與桌面版 DatabaseManager.RewardTiers 一致。
     private static readonly long[] RewardTiers = {
           100,    300,    500,  1_000,  2_000,
-        3_000,  5_000, 10_000, 13_000, 15_000,
-       20_000,
+        3_000,  5_000, 10_000,
     };
 
     /// <summary>
-    /// 依「當前輪次進度（0~20000）」計算 check bitmask：門檻 ≤ cyclePoint 的 bit 全設 1（已領取）。
+    /// 依「當前輪次進度（0~10000）」計算 check bitmask：門檻 ≤ cyclePoint 的 bit 全設 1（已領取）。
     /// 遊戲端可領條件 = (point ≥ 該檔門檻) 且 (check 對應 bit == 0)；
     /// 將 bit 設 1 即等同「已領取」→ 鎖住領獎。
     /// </summary>
@@ -1101,7 +1100,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
         return bits;
     }
 
-    /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→20000 一致）。</summary>
+    /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→10000 一致）。</summary>
     private static long CyclePointFromRawTotal(long rawTotal)
     {
         if (rawTotal <= 0) return 0;
@@ -1114,7 +1113,7 @@ WHERE (c.Online = 1 OR c.LoginTime > DATE_SUB(NOW(), INTERVAL 6 HOUR))
     ///   會變動：
     ///     - csalogin.PayTotal      += twdAmount（玩家資料卡顯示、VIP 分層依此）
     ///     - paydata.lifetime_total += twdAmount（歷史總額，永不歸零）
-    ///     - paydata.point          以「目前 point」為基準累加，循環進位（遊戲面板 NT$/20,000 讀此欄）
+    ///     - paydata.point          以「目前 point」為基準累加，循環進位（遊戲面板 NT$/10,000 讀此欄）
     ///     - paydata.check          設為「涵蓋目前 point 之檔位 bit 全 1（已領取）」→ 鎖住領獎
     ///   不會變動：
     ///     - paydata.totalcheck     保持不變（不推進已完成輪次、不解鎖跨輪獎勵）

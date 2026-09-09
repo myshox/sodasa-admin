@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -23,24 +25,25 @@ namespace SQ_Email_Tools
             return "Segoe UI";
         }
 
-        // ── 深色主題 v4（層次：底 → 卡片 → 工具列，避免整片糊成一格）──
-        public static readonly Color BgSidebar = Color.FromArgb( 15,  20,  32); // 側欄（最深）
-        public static readonly Color BgDark    = Color.FromArgb( 24,  30,  42); // 頂欄／工具列
-        public static readonly Color BgPage    = Color.FromArgb( 28,  34,  48); // 主工作區底
-        public static readonly Color BgMid     = Color.FromArgb( 33,  40,  56); // 交錯列／次區
-        public static readonly Color BgCard    = Color.FromArgb( 38,  45,  62); // 卡片（略亮於 BgPage）
-        public static readonly Color BgLight   = Color.FromArgb( 52,  60,  82); // 輸入框
+        // ── Production Reskin：炭黑底、清楚的表面層級與高對比文字 ──────
+        // 只集中調整視覺 token；所有資料、事件與功能邏輯仍沿用既有程式。
+        public static readonly Color BgSidebar = Color.FromArgb( 17,  18,  22);
+        public static readonly Color BgDark    = Color.FromArgb( 24,  24,  29);
+        public static readonly Color BgPage    = Color.FromArgb( 18,  18,  20); // #121214
+        public static readonly Color BgMid     = Color.FromArgb( 30,  30,  36);
+        public static readonly Color BgCard    = Color.FromArgb( 34,  34,  41);
+        public static readonly Color BgLight   = Color.FromArgb( 43,  44,  52);
         public static readonly Color BgInput   = BgLight;
         public static readonly Color CardBg    = BgCard;
 
-        public static readonly Color Border      = Color.FromArgb( 58,  72, 102);
-        public static readonly Color BorderHov   = Color.FromArgb( 59, 130, 246);
-        public static readonly Color SidebarEdge = Color.FromArgb( 42,  95, 168);
+        public static readonly Color Border      = Color.FromArgb( 62,  64,  76);
+        public static readonly Color BorderHov   = Color.FromArgb( 56, 189, 248);
+        public static readonly Color SidebarEdge = Color.FromArgb( 47,  49,  58);
 
         // 對話框／內嵌標題帶
-        public static readonly Color BgDialogHeader = Color.FromArgb( 22,  28,  40);
-        public static readonly Color BgInset        = Color.FromArgb( 36,  42,  58);
-        public static readonly Color AccentLineSubtle = Color.FromArgb( 56, 120, 220);
+        public static readonly Color BgDialogHeader = Color.FromArgb( 24,  24,  29);
+        public static readonly Color BgInset        = Color.FromArgb( 28,  28,  34);
+        public static readonly Color AccentLineSubtle = Color.FromArgb( 56, 189, 248);
 
         /// <summary>全站內邊距（8px 網格，v5 加寬避免擠在一起）</summary>
         public static readonly int UiPadXl = 40;
@@ -70,7 +73,51 @@ namespace SQ_Email_Tools
         }
 
         /// <summary>主視窗與大型工具視窗：與 ApplyDialogShell 相同，語意上標示「整體改版」入口。</summary>
-        public static void ApplyMainWindowChrome(Form form) => ApplyDialogShell(form);
+        public static void ApplyMainWindowChrome(Form form)
+        {
+            ApplyDialogShell(form);
+            if (form == null) return;
+            form.HandleCreated += (_, __) => ApplyImmersiveDarkTitleBar(form);
+        }
+
+        /// <summary>為純視覺容器套用一致圓角裁切；不改變控制項事件、資料或配置。</summary>
+        public static void ApplyRoundedRegion(Control control, int radius = 12)
+        {
+            if (control == null) return;
+            void UpdateRegion()
+            {
+                if (control.IsDisposed || control.Width < 2 || control.Height < 2) return;
+                int d = Math.Max(2, Math.Min(radius * 2, Math.Min(control.Width, control.Height)));
+                using var path = new GraphicsPath();
+                path.AddArc(0, 0, d, d, 180, 90);
+                path.AddArc(control.Width - d - 1, 0, d, d, 270, 90);
+                path.AddArc(control.Width - d - 1, control.Height - d - 1, d, d, 0, 90);
+                path.AddArc(0, control.Height - d - 1, d, d, 90, 90);
+                path.CloseFigure();
+                var old = control.Region;
+                control.Region = new Region(path);
+                old?.Dispose();
+            }
+            control.Resize += (_, __) => UpdateRegion();
+            control.HandleCreated += (_, __) => UpdateRegion();
+            UpdateRegion();
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int valueSize);
+
+        private static void ApplyImmersiveDarkTitleBar(Form form)
+        {
+            if (!OperatingSystem.IsWindows() || form == null || form.IsDisposed) return;
+            try
+            {
+                int enabled = 1;
+                // Windows 10 20H1+ uses attribute 20; older supported builds use 19.
+                if (DwmSetWindowAttribute(form.Handle, 20, ref enabled, sizeof(int)) != 0)
+                    DwmSetWindowAttribute(form.Handle, 19, ref enabled, sizeof(int));
+            }
+            catch { /* 系統不支援時維持原生標題列，不影響功能。 */ }
+        }
 
         public const int HubTabBarHeight    = 48;
         public const int HubSearchBarHeight = 64;
@@ -128,11 +175,11 @@ namespace SQ_Email_Tools
         }
 
         // 強調色（與 WebApp CSS 變數對齊）
-        public static readonly Color AccentBlue   = Color.FromArgb( 59, 130, 246);
-        public static readonly Color AccentCyan    = Color.FromArgb(  6, 182, 212);
-        public static readonly Color AccentGreen   = Color.FromArgb( 34, 197,  94);
-        public static readonly Color AccentRed     = Color.FromArgb(239,  68,  68);
-        public static readonly Color AccentOrange  = Color.FromArgb(245, 158,  11);
+        public static readonly Color AccentBlue   = Color.FromArgb( 56, 189, 248); // #38BDF8
+        public static readonly Color AccentCyan    = Color.FromArgb( 34, 211, 238);
+        public static readonly Color AccentGreen   = Color.FromArgb( 16, 185, 129); // #10B981
+        public static readonly Color AccentRed     = Color.FromArgb(248,  81,  91);
+        public static readonly Color AccentOrange  = Color.FromArgb(251, 191,  36);
         public static readonly Color AccentPurple  = Color.FromArgb(139,  92, 246);
 
         // 文字（深底上確保高對比；Secondary/Muted 略提亮避免「看不到字」）
@@ -141,16 +188,16 @@ namespace SQ_Email_Tools
         public static readonly Color TextMuted     = Color.FromArgb(175, 185, 205);
 
         // ── 字體（略放大，長時間閱讀較舒適）────────────────────────
-        public static readonly Font FontTitle      = new Font(_ff, 16f,    FontStyle.Bold);
+        public static readonly Font FontTitle      = new Font(_ff, 17f,    FontStyle.Bold);
         public static readonly Font FontHeader     = new Font(_ff, 11.5f,  FontStyle.Bold);
         public static readonly Font FontBody       = new Font(_ff, 11.5f);
         public static readonly Font FontSmall      = new Font(_ff, 10.5f);
         public static readonly Font FontMono       = new Font("Consolas", 10.5f);
-        public static readonly Font FontNav        = new Font(_ff, 11f);
-        public static readonly Font FontNavBold    = new Font(_ff, 11f, FontStyle.Bold);
+        public static readonly Font FontNav        = new Font(_ff, 10.5f);
+        public static readonly Font FontNavBold    = new Font(_ff, 10.5f, FontStyle.Bold);
         public static readonly Font FontSection    = new Font(_ff, 9.5f, FontStyle.Bold);
-        public static readonly Font FontLogo       = new Font(_ff, 13.5f, FontStyle.Bold);
-        public static readonly Font FontPageTitle  = new Font(_ff, 15.5f, FontStyle.Bold);
+        public static readonly Font FontLogo       = new Font(_ff, 17f, FontStyle.Bold);
+        public static readonly Font FontPageTitle  = new Font(_ff, 19f, FontStyle.Bold);
         public static readonly Font FontPageSubtitle = new Font(_ff, 10.5f);
         // CellFormatting & 迴圈中的共享字體（頻繁呼叫，必須共享避免 GDI 洩漏）
         public static readonly Font FontCell9Bold  = new Font(_ff,  9f, FontStyle.Bold);
@@ -204,11 +251,18 @@ namespace SQ_Email_Tools
 
         /// <summary>Apple 風格主要按鈕（藍底白字，圓角感）</summary>
         public static Button MakePrimaryButton(string text, int w = 120, int h = 44)
-            => MakeButton(text, AccentBlue, Color.White, w, h);
+            => MakeButton(text, AccentBlue, ContrastText(AccentBlue), w, h);
 
         /// <summary>次要按鈕（Soft UI 灰底）</summary>
         public static Button MakeSecondaryButton(string text, int w = 120, int h = 44)
             => MakeButton(text, BgLight, TextPrimary, w, h);
+
+        /// <summary>依背景亮度選擇按鈕文字，避免亮青／黃色按鈕出現低對比白字。</summary>
+        public static Color ContrastText(Color background)
+        {
+            double luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255d;
+            return luminance >= 0.58 ? Color.FromArgb(11, 18, 25) : Color.White;
+        }
 
         public static TextBox MakeTextBox(int w = 200)
         {
@@ -280,6 +334,7 @@ namespace SQ_Email_Tools
             dgv.SelectionMode             = DataGridViewSelectionMode.FullRowSelect;
             dgv.MultiSelect               = true;   // 允許多選以便複製多列
             dgv.EnableHeadersVisualStyles = false;
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
 
             // ── 啟用鍵盤 Ctrl+C 複製 ──────────────────────────────────
             dgv.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
@@ -349,14 +404,14 @@ namespace SQ_Email_Tools
             // 資料列
             dgv.DefaultCellStyle.BackColor          = BgCard;
             dgv.DefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 32,  92, 168);
+            dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb( 18,  78, 104);
             dgv.DefaultCellStyle.SelectionForeColor = Color.White;
             dgv.DefaultCellStyle.Font               = FontBody;
             dgv.DefaultCellStyle.Padding            = new Padding(16, 10, 16, 10);
 
             dgv.AlternatingRowsDefaultCellStyle.BackColor          = BgMid;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor          = TextPrimary;
-            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 36, 105, 188);
+            dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = Color.FromArgb( 20,  88, 116);
             dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = Color.White;
             dgv.AlternatingRowsDefaultCellStyle.Padding            = new Padding(16, 10, 16, 10);
 

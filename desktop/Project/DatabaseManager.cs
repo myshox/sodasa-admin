@@ -14,10 +14,9 @@ namespace SQ_Email_Tools
         public static DatabaseManager Instance => _instance ??= new DatabaseManager();
 
         private string _connectionString;
-        private readonly string _cfgPath = Path.Combine(
-            Path.GetDirectoryName(Environment.ProcessPath)
-            ?? AppDomain.CurrentDomain.BaseDirectory,
-            "connection.cfg");
+        // AppContext.BaseDirectory 在一般執行、self-contained publish 與捷徑啟動時
+        // 都穩定指向應用程式目錄；不可依賴目前工作目錄。
+        private readonly string _cfgPath = Path.Combine(AppContext.BaseDirectory, "connection.cfg");
 
         public bool IsConnected { get; private set; }
 
@@ -83,8 +82,19 @@ namespace SQ_Email_Tools
 
         public string LoadSavedConnectionString()
         {
-            if (File.Exists(_cfgPath))
-                return File.ReadAllText(_cfgPath).Trim();
+            // 正式位置優先；後兩項只為相容舊版曾使用的路徑。
+            var candidates = new[]
+            {
+                _cfgPath,
+                Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory, "connection.cfg"),
+                Path.Combine(Environment.CurrentDirectory, "connection.cfg")
+            }.Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in candidates)
+            {
+                if (!File.Exists(path)) continue;
+                string value = File.ReadAllText(path).Trim();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
             return "Server=;Database=;User ID=;Password=;Connection Timeout=8;";
         }
 
@@ -1069,7 +1079,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         ///   twdAmount  → paydata.point  += twdAmount   （台幣，遊戲累積充值獎勵系統讀取此值）
         ///   goldAmount → csalogin.VipPoint += goldAmount（含套餐加成的實際金幣，若 giveGold=true）
         ///
-        /// paydata.point 單位為【台幣（NT$）】，與遊戲面板顯示一致（1循環 = NT$20,000）。
+        /// paydata.point 單位為【台幣（NT$）】，與遊戲面板顯示一致（1循環 = NT$10,000）。
         /// </summary>
         public async Task<bool> SetPayTotalAsync(string account, long twdAmount, long goldAmount)
         {
@@ -1079,11 +1089,11 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         /// <summary>
         /// 調整累積充值記錄（可選是否同時給予金幣）：
         // ── 累積充值獎勵系統常數 ──────────────────────────────────────────
-        // 每輪最高門檻（NT$20,000），達到後循環歸零進入下一輪
-        private const long CYCLE_MAX = 20_000L;
+        // 每輪最高門檻（NT$10,000），達到後循環歸零進入下一輪
+        private const long CYCLE_MAX = 10_000L;
 
-        // 每輪 11 個獎勵門檻（bit 0 ~ bit 10），均為「當前輪次累積台幣」
-        // 玩家領完第 11 個（20000/20000），伺服器自動歸零進下一輪
+        // 每輪 8 個獎勵門檻（bit 0 ~ bit 7），均為「當前輪次累積台幣」
+        // 玩家領完第 8 個（10000/10000），伺服器自動歸零進下一輪
         //
         // 對應遊戲內【贊助累積儲值】獎勵（換季配置）：
         //   $100   新手儲值禮盒（機虎騎套 / 機械馬年蛋蛋 / 月亮手環 Lv3 / 六倍智慧果6h x5）
@@ -1093,21 +1103,17 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         //   $2000  聖誕恩服
         //   $3000  頂級儲值禮盒（聖人狼蛋 x1 / 聖魔獸蛋 x1）
         //   $5000  自選 聖.聖獸憑證
-        //   $10000 自選 聖龍憑證
-        //   $13000 [終]艾迪希洛蛋蛋
-        //   $15000 自選 機械狼人憑證
-        //   $20000 自選 [終極]魔獸憑證 ← 循環終點
+        //   $10000 自選 聖龍憑證 ← 循環終點
         private static readonly long[] RewardTiers = {
               100,    300,    500,  1_000,  2_000,   // tiers 1-5  (bit 0-4)
-            3_000,  5_000, 10_000, 13_000, 15_000,   // tiers 6-10 (bit 5-9)
-           20_000,                                    // tier 11    (bit 10) ← 循環終點
+            3_000,  5_000, 10_000,                    // tiers 6-8  (bit 5-7) ← 循環終點
         };
 
-        // 全部 11 個 bit 都設 1 = 0b11111111111 = 2047
-        private const long ALL_TIERS_BITS = (1L << 11) - 1;
+        // 全部 8 個 bit 都設 1 = 255
+        private const long ALL_TIERS_BITS = (1L << 8) - 1;
 
         /// <summary>
-        /// 根據「當前輪次進度（0 ~ 20000）」計算應設定的 check bitmask。
+        /// 根據「當前輪次進度（0 ~ 10000）」計算應設定的 check bitmask。
         /// 門檻 ≤ cyclePoint 的 bit 全部設為 1。
         /// </summary>
         private static long CalcCheckBits(long cyclePoint)
@@ -1126,8 +1132,8 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         ///   giveGold   ─ true = 同時發放金幣
         ///
         /// 循環規則：
-        ///   每 20,000 NT$ 為一輪。累積「嚴格超過」20,000 才算完成一輪。
-        ///   剛好等於 20,000 仍屬當前輪（玩家可領取第 11 個獎勵）。
+        ///   每 10,000 NT$ 為一輪。累積「嚴格超過」10,000 才算完成一輪。
+        ///   剛好等於 10,000 仍屬當前輪（玩家可領取最後一個獎勵）。
         ///   lifetime_total 永不歸零（歷史累計）。
         /// </summary>
         public async Task<bool> AdjustPayDataPointAsync(string account, long twdAmount, long goldAmount, bool giveGold)
@@ -1170,11 +1176,11 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             }
 
             long rawTotal = currentPoint + twdAmount;
-            // ★ 剛好等於 20000 仍屬當前輪（玩家應可領取第 11 個獎勵）
-            //   只有「嚴格超過 20000」才算完成一輪並進入下一輪。
+            // ★ 剛好等於 10000 仍屬當前輪（玩家應可領取最後一個獎勵）
+            //   只有「嚴格超過 10000」才算完成一輪並進入下一輪。
             //   用 (rawTotal - 1) / CYCLE_MAX 實現：
-            //     20000 → 19999/20000 = 0（留在當前輪，progress=20000）
-            //     20001 → 20000/20000 = 1（進入下一輪，progress=1）
+            //     10000 → 9999/10000 = 0（留在當前輪，progress=10000）
+            //     10001 → 10000/10000 = 1（進入下一輪，progress=1）
             long completedCycles = rawTotal > 0 ? (rawTotal - 1) / CYCLE_MAX : 0;
             long newCyclePoint   = rawTotal - completedCycles * CYCLE_MAX;
             long newTotalCheck   = currentTotalCheck + completedCycles;
@@ -1220,8 +1226,8 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             await tx.CommitAsync();
 
             string cycleInfo = completedCycles > 0
-                ? $"完成{completedCycles}輪循環，新輪次進度 NT${newCyclePoint:N0}/20,000，check 歸零"
-                : $"輪次進度 NT${rawTotal:N0}/20,000";
+                ? $"完成{completedCycles}輪循環，新輪次進度 NT${newCyclePoint:N0}/10,000，check 歸零"
+                : $"輪次進度 NT${rawTotal:N0}/10,000";
             string detail = $"台幣 +NT${twdAmount:N0}，{cycleInfo}"
                           + (giveGold ? $"，金幣 +{goldAmount:N0}" : "，不發金幣");
 
@@ -1252,7 +1258,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
             return ok;
         }
 
-        /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→20000 一致）。</summary>
+        /// <summary>依累積台幣計算當前循環內的 paydata.point（與遊戲面板 0→10000 一致）。</summary>
         public static long CyclePointFromRawTotal(long rawTotal)
         {
             if (rawTotal <= 0) return 0;
@@ -1265,7 +1271,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         ///   會變動：
         ///     - csalogin.PayTotal         += twdAmount   （玩家資料卡顯示的累儲金額，VIP 分層依此判斷）
         ///     - paydata.lifetime_total    += twdAmount   （歷史總額，永不歸零）
-        ///     - paydata.point             依本輪進度累加（遊戲面板 NT$/20,000 讀此欄）
+        ///     - paydata.point             依本輪進度累加（遊戲面板 NT$/10,000 讀此欄）
         ///     - paydata.check             設為「涵蓋目前 point 之檔位 bit 全 1（已領取）」→ 鎖住領獎
         ///   不會變動：
         ///     - paydata.totalcheck   保持不變（不推進「已完成輪次」計數，不解鎖跨輪獎勵）
@@ -1394,9 +1400,9 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
         }
 
         /// <summary>
-        /// 修復循環顯示（針對舊資料 point > 20000 的情況）：
-        ///   - 若 point > 20000（嚴格超過），才自動進位
-        ///   - 剛好等於 20000 不進位，玩家仍可領取最後一個獎勵
+        /// 修復循環顯示（針對舊資料 point > 10000 的情況）：
+        ///   - 若 point > 10000（嚴格超過），才自動進位
+        ///   - 剛好等於 10000 不進位，玩家仍可領取最後一個獎勵
         /// </summary>
         public async Task<bool> FixPaydataCheckAsync(string account)
         {
@@ -1414,7 +1420,7 @@ WHERE {CsaloginBatchMailOnlinePredicate}";
                 currentTotalCheck = Convert.ToInt64(r["tc"]);
             }
 
-            // 與 AdjustPayDataPointAsync 相同：20000 留在當前輪，20001+ 才進位
+            // 與 AdjustPayDataPointAsync 相同：10000 留在當前輪，10001+ 才進位
             long completedCycles = currentPoint > 0 ? (currentPoint - 1) / CYCLE_MAX : 0;
             long newCyclePoint   = currentPoint - completedCycles * CYCLE_MAX;
             long newTotalCheck   = currentTotalCheck + completedCycles;
